@@ -30,6 +30,9 @@ int main(int argc, char** argv) {
     glutInitWindowSize(600, 600);
     glutCreateWindow("FreeGLUT + GLEW + GLM Example");
 
+    // Test GLM properly linked
+    glm::vec3 glmTest(1.0f, 0.0f, 0.0f);
+
     GLenum err = glewInit();
     if (err != GLEW_OK) {
         std::cerr << "GLEW 초기화 실패: " << glewGetErrorString(err) << std::endl;
