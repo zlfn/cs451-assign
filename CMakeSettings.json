@@ -12,11 +12,6 @@
       "ctestCommandArgs": "",
       "variables": [
         {
-          "name": "CMAKE_BUILD_TYPE",
-          "value": "Release",
-          "type": "STRING"
-        },
-        {
           "name": "CMAKE_CXX_STANDARD",
           "value": "20",
           "type": "STRING"

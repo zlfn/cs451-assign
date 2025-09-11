@@ -9,14 +9,6 @@
 #include <vector>
 #include <optional>
 
-struct GameState {
-    int health;
-    int bossHealth;
-    glm::fvec2 playerPosition;
-    glm::fvec2 cameraOffset;
-    std::vector<Object> sprites;
-};
-
 struct Drawable {
     /// Virtual function to draw the object
     virtual void draw(glm::vec2 camera_offset) = 0;
@@ -150,6 +142,14 @@ struct HealthBar : Drawable {
 };
 
 using Object = std::variant<Player, Boss, Bullet, PlayerBullet, Hearts, HealthBar>;
+
+struct GameState {
+    int health;
+    int bossHealth;
+    glm::fvec2 playerPosition;
+    glm::fvec2 cameraOffset;
+    std::vector<Object> sprites;
+};
 
 void display() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
