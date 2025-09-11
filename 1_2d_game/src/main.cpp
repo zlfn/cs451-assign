@@ -108,8 +108,8 @@ struct GameState {
     BossHealthBar bossHealthBarObject;
     Hearts heartsObject;
 
-    std::vector<PlayerBullet> playerBulletSprites;
-    std::vector<EnemyBullet> enemyBulletSprites;
+    std::vector<PlayerBullet> playerBulletObjects;
+    std::vector<EnemyBullet> enemyBulletObjects;
 };
 
 void keyboardDown(unsigned char key, int x, int y) { keyStates[key] = true; }
