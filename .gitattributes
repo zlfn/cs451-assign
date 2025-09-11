@@ -1,1 +1,10 @@
-win-x64-msvc/** linguist-vendored=true
+win-x64-msvc/bin/* linguist-vendored=true
+win-x64-msvc/include/GL/* linguist-vendored=true
+win-x64-msvc/include/glm/* linguist-vendored=true
+win-x64-msvc/include/glm/detail/* linguist-vendored=true
+win-x64-msvc/include/glm/ext/* linguist-vendored=true
+win-x64-msvc/include/glm/gtc/* linguist-vendored=true
+win-x64-msvc/include/glm/gtx/* linguist-vendored=true
+win-x64-msvc/include/glm/simd/* linguist-vendored=true
+win-x64-msvc/lib/* linguist-vendored=true
+
