@@ -188,7 +188,7 @@ void display() {
 void update() {
     if (keyStates[27]) {
         std::cout << "ESC pressed -> exit\n";
-        glutLeaveMainLoop(); // End Main Loop
+        std::exit(0); // End Main Loop
     }
     if (keyStates['a']) {
         std::cout << "a clicked" << std::endl;
