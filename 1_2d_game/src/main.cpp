@@ -95,7 +95,7 @@ struct Player : Updatable, Drawable, Collidable {
 
 struct Boss : Updatable, Drawable, Collidable {
     glm::fvec2 currentPosition;
-    
+
     Boss(glm::fvec2 initialPosition) : currentPosition(initialPosition) {}
     ~Boss() {}
 
@@ -113,11 +113,11 @@ struct Hearts : Drawable {
     void draw(glm::fvec2 cameraOffset) override {}
 };
 
-struct HealthBar : Drawable {
+struct BossHealthBar : Drawable {
     glm::fvec2 drawPosition;
 
-    HealthBar(glm::fvec2 drawPosition) : drawPosition(drawPosition) {}
-    ~HealthBar() {}
+    BossHealthBar(glm::fvec2 drawPosition) : drawPosition(drawPosition) {}
+    ~BossHealthBar() {}
 
     void draw(glm::fvec2 cameraOffset) override {}
 };
@@ -126,20 +126,21 @@ using Object = std::variant<Drawable *, Collidable *, Updatable *>;
 
 struct GameState {
     GameState(int h, int bh)
-        : health(h), bossHealth(bh), cameraOffset(0.0f, 0.0f), playerSprite(glm::fvec2(0.0f, 0.0f)),
-          bossSprite(glm::fvec2(0.0f, 0.0f)), healthBarSprite(glm::fvec2(0.0f, 0.0f)), heartsSprite(glm::fvec2(0.0f, 0.0f)) {}
+        : health(h), bossHealth(bh), cameraOffset(0.0f, 0.0f), playerObject(glm::fvec2(0.0f, 0.0f)),
+          bossObject(glm::fvec2(0.0f, 0.0f)), bossHealthBarObject(glm::fvec2(0.0f, 0.0f)),
+          heartsObject(glm::fvec2(0.0f, 0.0f)) {}
 
     int health;
     int bossHealth;
     glm::fvec2 cameraOffset;
 
-    Player playerSprite;
-    Boss bossSprite;
-    HealthBar healthBarSprite;
-    Hearts heartsSprite;
+    Player playerObject;
+    Boss bossObject;
+    BossHealthBar bossHealthBarObject;
+    Hearts heartsObject;
 
     std::vector<PlayerBullet> playerBulletSprites;
-std::vector<EnemyBullet> enemyBulletSprites;
+    std::vector<EnemyBullet> enemyBulletSprites;
 };
 
 GameState gameState(100, 500);
