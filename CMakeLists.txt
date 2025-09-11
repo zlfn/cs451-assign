@@ -5,7 +5,7 @@
 cmake_minimum_required(VERSION 3.19)
 project(CSED451)
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 set(WIN_X64_MSVC_BIN_DIR "${CMAKE_SOURCE_DIR}/win-x64-msvc/bin")
 
@@ -117,3 +117,4 @@ function(add_gl_executable_single_file exec_name source_file)
 endfunction()
 
 add_subdirectory(0_setup)
+add_subdirectory(1_2d_game)
