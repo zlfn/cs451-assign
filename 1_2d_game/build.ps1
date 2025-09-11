@@ -9,8 +9,12 @@ Enter-VsDevShell -VsInstallPath "C:\Program Files\Microsoft Visual Studio\2022\C
 
 Set-Location $currentDir
 
-cl main.cpp /EHsc /std:c++20 /D "NDEBUG" /I ..\..\win-x64-msvc\include /Fo"build\\" /Fe"build\main.exe" /Fd"build\vc.pdb" /link /LIBPATH:..\..\win-x64-msvc\lib freeglut.lib glew32.lib opengl32.lib
-$env:Path = $env:Path + ";$currentDir\..\..\win-x64-msvc\bin"
-Write-Host "Testbed built successfully. Running..."
-.\build\testbed.exe
-Write-Host "Testbed exited."
+# Build main executable
+cl src\main.cpp /EHsc /std:c++20 /D "NDEBUG" /I ..\win-x64-msvc\include /I src /Fo"build\\" /Fe"build\1_2d_game.exe" /Fd"build\vc.pdb" /link /LIBPATH:..\win-x64-msvc\lib freeglut.lib glew32.lib opengl32.lib
+
+$env:Path = $env:Path + ";$currentDir\..\win-x64-msvc\bin"
+
+# Run main program
+Write-Host "Running 1_2d_game..."
+.\build\1_2d_game.exe
+Write-Host "1_2d_game exited."
