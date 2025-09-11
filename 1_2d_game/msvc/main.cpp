@@ -90,56 +90,64 @@ struct Updatable {
 };
 
 struct EnemyBullet : Updatable, Drawable, Collidable {
-    glm::fvec2 direction;
+    glm::fvec2 initialDirection;
+    glm::fvec2 initialPosition;
 
-    EnemyBullet(glm::fvec2 direction) {
-        this->direction = direction;
-    }
+    EnemyBullet(glm::fvec2 initialDirection, glm::fvec2 initialPosition)
+        : initialDirection(initialDirection), initialPosition(initialPosition) {}
     ~EnemyBullet() {}
 
-    bool update(int t) override {}
+    bool update(int t) override { return false; }
     void draw(glm::fvec2 cameraOffset) override {}
-    CollisionShape getShape() const override {}
+    CollisionShape getShape() const override { return CollisionCircle(glm::vec2(0.0, 0.0), 1.0); }
 };
 
 struct PlayerBullet : Updatable, Drawable, Collidable {
-    PlayerBullet() {}
+    glm::fvec2 initialPosition;
+
+    PlayerBullet(glm::fvec2 initialPosition) : initialPosition(initialPosition) {}
     ~PlayerBullet() {}
 
-    bool update(int t) override {}
+    bool update(int t) override { return false; }
     void draw(glm::fvec2 cameraOffset) override {}
-    CollisionShape getShape() const override {}
+    CollisionShape getShape() const override { return CollisionCircle(glm::vec2(0.0, 0.0), 1.0); }
 };
 
 struct Player : Updatable, Drawable, Collidable {
-    glm::fvec2 playerPosition;
+    glm::fvec2 currentPosition;
 
-    Player(glm::fvec2 initialPos) {}
+    Player(glm::fvec2 initialPosition) : currentPosition(initialPosition) {}
     ~Player() {}
 
-    bool update(int t) override {}
+    bool update(int t) override { return false; }
     void draw(glm::fvec2 cameraOffset) override {}
-    CollisionShape getShape() const override {}
+    CollisionShape getShape() const override { return CollisionCircle(glm::vec2(0.0, 0.0), 1.0); }
 };
 
 struct Boss : Updatable, Drawable, Collidable {
-    Boss() {}
+    glm::fvec2 currentPosition;
+    
+    Boss(glm::fvec2 initialPosition) : currentPosition(initialPosition) {}
     ~Boss() {}
 
-    bool update(int t) override {}
+    bool update(int t) override { return false; }
     void draw(glm::fvec2 cameraOffset) override {}
-    CollisionShape getShape() const override {}
+    CollisionShape getShape() const override { return CollisionCircle(glm::vec2(0.0, 0.0), 1.0); }
 };
 
 struct Hearts : Drawable {
-    Hearts() {}
+    glm::fvec2 drawPosition;
+
+    Hearts(glm::fvec2 drawPosition) : drawPosition(drawPosition) {}
     ~Hearts() {}
 
     void draw(glm::fvec2 cameraOffset) override {}
 };
 
 struct HealthBar : Drawable {
-    HealthBar() {}
+    glm::fvec2 drawPosition;
+
+    HealthBar(glm::fvec2 drawPosition) : drawPosition(drawPosition) {}
     ~HealthBar() {}
 
     void draw(glm::fvec2 cameraOffset) override {}
@@ -149,12 +157,20 @@ using Object = std::variant<Drawable *, Collidable *, Updatable *>;
 
 struct GameState {
     GameState(int h, int bh)
-        : health(h), bossHealth(bh), cameraOffset(0.0f, 0.0f) {}
+        : health(h), bossHealth(bh), cameraOffset(0.0f, 0.0f), playerSprite(glm::fvec2(0.0f, 0.0f)),
+          bossSprite(glm::fvec2(0.0f, 0.0f)), healthBarSprite(glm::fvec2(0.0f, 0.0f)), heartsSprite(glm::fvec2(0.0f, 0.0f)) {}
 
     int health;
     int bossHealth;
     glm::fvec2 cameraOffset;
-    std::vector<Object> sprites;
+
+    Player playerSprite;
+    Boss bossSprite;
+    HealthBar healthBarSprite;
+    Hearts heartsSprite;
+
+    std::vector<PlayerBullet> playerBulletSprites;
+    std::vector<EnemyBullet> enemyBulletSprites;
 };
 
 void keyboardDown(unsigned char key, int x, int y) { keyStates[key] = true; }
