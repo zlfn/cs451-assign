@@ -4,6 +4,8 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <iostream>
+#include <variant>
+#include <concepts>
 
 struct Drawable {
     /// Virtual function to draw the object
