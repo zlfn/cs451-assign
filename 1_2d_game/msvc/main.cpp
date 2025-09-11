@@ -7,8 +7,10 @@
 #include <variant>
 #include <concepts>
 
+/// @brief Interface for objects that can be drawn
 struct Drawable {
-    /// Virtual function to draw the object
+    /// @brief Draw the object with a given camera camera_offset
+    /// @param camera_offset The camera offset to apply
     virtual void draw(glm::vec2 camera_offset) = 0;
     virtual ~Drawable() = default;
 };
@@ -18,7 +20,7 @@ struct CollisionCircle;
 struct CollisionRectangle;
 using CollisionShape = std::variant<CollisionCircle, CollisionRectangle>;
 
-// Concrete shape implementations
+/// @brief Circle collision shape
 struct CollisionCircle {
     glm::vec2 center;
     float raidus;
@@ -34,6 +36,7 @@ struct CollisionCircle {
     }
 };
 
+/// @brief Axis-aligned rectangle collision shape
 struct CollisionRectangle {
     glm::vec2 topLeft;
     glm::vec2 bottomRight;
@@ -49,29 +52,43 @@ struct CollisionRectangle {
     }
 };
 
-// Interface for objects that can participate in collision detection
+/// @brief Interface for objects that can be collided with
 struct Collidable {
+    /// @brief Get the collision shape of the object
+    /// @return The collision shape
     virtual CollisionShape getShape() const = 0;
     virtual ~Collidable() = default;
 };
 
-// Concept for shapes that support intersection tests
+/// @brief Concept for shapes that implement the Shape Interface
+/// @tparam T Type to check
 template <typename T>
 concept ShapeConcept = requires(const T &a, const CollisionCircle &c, const CollisionRectangle &r) {
     { a.intersects(c) } -> std::same_as<bool>;
     { a.intersects(r) } -> std::same_as<bool>;
 };
 
-// Direct shape-to-shape collision detection
+/// @brief Shape-to-shape collision detect
+/// @tparam A Type of the first shape
+/// @tparam B Type of the second shape
+/// @param a The first shape
+/// @param b The second shape
 template <ShapeConcept A, ShapeConcept B> bool detectCollision(const A &a, const B &b) {
     return a.intersects(b);
 }
 
-// Concept for collidable objects
+/// @brief Concept for objects that implement the Collidable Interface
+/// @tparam T Type to check
+/// @return true if T is derived from Collidable
 template <typename T>
 concept CollidableObject = std::is_base_of_v<Collidable, T>;
 
-// Object-to-object collision detection (using their shapes)
+/// @breif Object-to-object collision detection (using their shapes)
+/// @tparam A Type of the first collidable objects
+/// @tparam B Type of the second collidable objects
+/// @param a The first collidable objects
+/// @param b The second collidable objects
+/// @return true if the objects collide
 template <CollidableObject A, CollidableObject B> bool detectCollision(const A &a, const B &b) {
     const CollisionShape shapeA = a.getShape();
     const CollisionShape shapeB = b.getShape();
@@ -80,7 +97,11 @@ template <CollidableObject A, CollidableObject B> bool detectCollision(const A &
                       shapeB);
 }
 
+/// @brief Interface for objects that can be updated
 struct Updatable {
+    /// @brief Update the object's state. Return true if the object should be removed.
+    /// @param deltaTime Time elapsed since the last update in milliseconds
+    /// @return true if the object should be removed
     virtual bool update(int deltaTime) = 0;
     virtual ~Updatable() = default;
 };
