@@ -27,24 +27,20 @@ struct CollisionRectangle {
     glm::vec2 bottomRight;
     CollisionRectangle(glm::vec2 tl, glm::vec2 br) : topLeft(tl), bottomRight(br) {}
 
-    bool intersects(const CollisionCircle &circle) const {
-        return circle.intersects(*this);
-    }
+    bool intersects(const CollisionCircle &circle) const { return circle.intersects(*this); }
     bool intersects(const CollisionRectangle &other) const {
-        return !(topLeft.x > other.bottomRight.x || 
-                 bottomRight.x < other.topLeft.x || 
-                 topLeft.y > other.bottomRight.y || 
-                 bottomRight.y < other.topLeft.y);
+        return !(topLeft.x > other.bottomRight.x || bottomRight.x < other.topLeft.x ||
+                 topLeft.y > other.bottomRight.y || bottomRight.y < other.topLeft.y);
     }
 };
 
 inline bool CollisionCircle::intersects(const CollisionRectangle &rect) const {
     float closestX = glm::clamp(center.x, rect.topLeft.x, rect.bottomRight.x);
     float closestY = glm::clamp(center.y, rect.topLeft.y, rect.bottomRight.y);
-    
+
     float distanceX = center.x - closestX;
     float distanceY = center.y - closestY;
-    
+
     float distanceSquared = (distanceX * distanceX) + (distanceY * distanceY);
     return distanceSquared < (raidus * raidus);
 }
