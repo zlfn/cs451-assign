@@ -4,112 +4,89 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <iostream>
-#include <vector>
 
 struct Drawable {
     /// Virtual function to draw the object
-    virtual void draw() = 0;
+    virtual void draw(glm::vec2 camera_offset) = 0;
     virtual ~Drawable() = default;
 };
 
-struct Triangle : public Drawable {
-    glm::vec2 v1, v2, v3;
-    float depth;
-    glm::vec3 color1, color2, color3;
+// Forward declarations for collision shapes
+struct CollisionCircle;
+struct CollisionRectangle;
+using CollisionShape = std::variant<CollisionCircle, CollisionRectangle>;
 
-    Triangle(const glm::vec2 &v1, const glm::vec2 &v2, const glm::vec2 &v3, float depth = 0.0f,
-             const glm::vec3 &color = glm::vec3(0.0f, 1.0f, 1.0f))
-        : v1(v1), v2(v2), v3(v3), depth(depth), color1(color), color2(color), color3(color) {}
-
-    Triangle(const glm::vec2 &v1, const glm::vec2 &v2, const glm::vec2 &v3, float depth,
-             const glm::vec3 &col1, const glm::vec3 &col2, const glm::vec3 &col3)
-        : v1(v1), v2(v2), v3(v3), depth(depth), color1(col1), color2(col2), color3(col3) {}
-
-    void draw() override {
-        glBegin(GL_TRIANGLES);
-        glColor3fv(glm::value_ptr(color1));
-        glVertex3f(v1.x, v1.y, depth);
-        glColor3fv(glm::value_ptr(color2));
-        glVertex3f(v2.x, v2.y, depth);
-        glColor3fv(glm::value_ptr(color3));
-        glVertex3f(v3.x, v3.y, depth);
-        glEnd();
-    }
-};
-
-struct Square : public Drawable {
-    glm::vec2 v1, v2, v3, v4;
-    float depth;
-    glm::vec3 color1, color2, color3, color4;
-
-    Square(const glm::vec2 &v1, const glm::vec2 &v2, const glm::vec2 &v3, const glm::vec2 &v4,
-           float depth = 0.0f, const glm::vec3 &color = glm::vec3(0.0f, 1.0f, 1.0f))
-        : v1(v1), v2(v2), v3(v3), v4(v4), depth(depth), color1(color), color2(color), color3(color),
-          color4(color) {}
-
-    Square(const glm::vec2 &v1, const glm::vec2 &v2, const glm::vec2 &v3, const glm::vec2 &v4,
-           float depth, const glm::vec3 &col1, const glm::vec3 &col2, const glm::vec3 &col3,
-           const glm::vec3 &col4)
-        : v1(v1), v2(v2), v3(v3), v4(v4), depth(depth), color1(col1), color2(col2), color3(col3),
-          color4(col4) {}
-
-    void draw() override {
-        glBegin(GL_QUADS);
-        glColor3fv(glm::value_ptr(color1));
-        glVertex3f(v1.x, v1.y, depth);
-        glColor3fv(glm::value_ptr(color2));
-        glVertex3f(v2.x, v2.y, depth);
-        glColor3fv(glm::value_ptr(color3));
-        glVertex3f(v3.x, v3.y, depth);
-        glColor3fv(glm::value_ptr(color4));
-        glVertex3f(v4.x, v4.y, depth);
-        glEnd();
-    }
-};
-
-struct Circle : public Drawable {
+// Concrete shape implementations
+struct CollisionCircle {
     glm::vec2 center;
-    float radius;
-    float depth;
-    glm::vec3 color;
-    int segments;
+    float raidus;
+    CollisionCircle(glm::vec2 c, float r) : center(c), raidus(r) {}
 
-    Circle(const glm::vec2 &center, float radius, float depth = 0.0f,
-           const glm::vec3 &color = glm::vec3(0.0f, 1.0f, 1.0f), int segments = 36)
-        : center(center), radius(radius), depth(depth), color(color), segments(segments) {}
-
-    void draw() override {
-        glBegin(GL_TRIANGLE_FAN);
-        glColor3fv(glm::value_ptr(color));
-        glVertex3f(center.x, center.y, depth);
-        for (int i = 0; i <= segments; ++i) {
-            float angle = i * 2.0f * 3.1415926f / segments;
-            float x = center.x + radius * cos(angle);
-            float y = center.y + radius * sin(angle);
-            glVertex3f(x, y, depth);
-        }
-        glEnd();
+    bool intersects(const CollisionCircle &other) const {
+        // TODO: Implement circle-circle collision
+        return false;
     }
+    bool intersects(const CollisionRectangle &rect) const {
+        // TODO: Implement circle-rectangle collision
+        return false;
+    }
+};
+
+struct CollisionRectangle {
+    glm::vec2 topLeft;
+    glm::vec2 bottomRight;
+    CollisionRectangle(glm::vec2 tl, glm::vec2 br) : topLeft(tl), bottomRight(br) {}
+
+    bool intersects(const CollisionCircle &circle) const {
+        // TODO: Implement rectangle-circle collision
+        return false;
+    }
+    bool intersects(const CollisionRectangle &other) const {
+        // TODO: Implement rectangle-rectangle collision
+        return false;
+    }
+};
+
+// Interface for objects that can participate in collision detection
+struct Collidable {
+    virtual CollisionShape getShape() const = 0;
+    virtual ~Collidable() = default;
+};
+
+// Concept for shapes that support intersection tests
+template <typename T>
+concept ShapeConcept = requires(const T &a, const CollisionCircle &c, const CollisionRectangle &r) {
+    { a.intersects(c) } -> std::same_as<bool>;
+    { a.intersects(r) } -> std::same_as<bool>;
+};
+
+// Direct shape-to-shape collision detection
+template <ShapeConcept A, ShapeConcept B> bool detectCollision(const A &a, const B &b) {
+    return a.intersects(b);
+}
+
+// Concept for collidable objects
+template <typename T>
+concept CollidableObject = std::is_base_of_v<Collidable, T>;
+
+// Object-to-object collision detection (using their shapes)
+template <CollidableObject A, CollidableObject B> bool detectCollision(const A &a, const B &b) {
+    const CollisionShape shapeA = a.getShape();
+    const CollisionShape shapeB = b.getShape();
+
+    return std::visit([](const auto &s1, const auto &s2) { return s1.intersects(s2); }, shapeA,
+                      shapeB);
+}
+
+struct Updatable {
+    virtual bool update(int deltaTime) = 0;
+    virtual ~Updatable() = default;
 };
 
 void display() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    std::vector<std::unique_ptr<Drawable>> drawables;
-    drawables.push_back(
-        std::make_unique<Circle>(glm::vec2(0.0f, 0.0f), 0.3f, -0.5f, glm::vec3(1.0f, 1.0f, 0.0f)));
-
-    drawables.push_back(std::make_unique<Triangle>(glm::vec2(-0.5f, -0.5f), glm::vec2(0.5f, -0.5f),
-                                                   glm::vec2(0.0f, 0.5f), 0.0f,
-                                                   glm::vec3(0.0f, 1.0f, 1.0f)));
-
-    drawables.push_back(std::make_unique<Square>(glm::vec2(-0.5f, -0.5f), glm::vec2(0.5f, -0.5f),
-                                                 glm::vec2(0.5f, 0.5f), glm::vec2(-0.5f, 0.5f),
-                                                 0.5f, glm::vec3(1.0f, 0.0f, 1.0f)));
-
-    for (const auto &drawable : drawables) {
-        drawable->draw();
-    }
+    // TODO
 
     glutSwapBuffers();
     glutPostRedisplay();
