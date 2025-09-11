@@ -4,7 +4,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <iostream>
-#include "collision.h"
+#include "collision.hpp"
 
 /// @brief Interface for objects that can be drawn
 struct Drawable {

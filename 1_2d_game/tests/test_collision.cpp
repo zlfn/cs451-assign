@@ -1,5 +1,5 @@
 #include <iostream>
-#include "../src/collision.h"
+#include "../src/collision.hpp"
 
 int main() {
     int testsPassed = 0;
