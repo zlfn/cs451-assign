@@ -6,6 +6,16 @@
 #include <iostream>
 #include <variant>
 #include <concepts>
+#include <vector>
+#include <optional>
+
+struct GameState {
+    int health;
+    int bossHealth;
+    glm::fvec2 playerPosition;
+    glm::fvec2 cameraOffset;
+    std::vector<Object> sprites;
+};
 
 struct Drawable {
     /// Virtual function to draw the object
@@ -85,6 +95,62 @@ struct Updatable {
     virtual ~Updatable() = default;
 };
 
+struct Bullet : Updatable, Drawable, Collidable {
+    glm::fvec2 direction;
+
+    Bullet(glm::fvec2 direction) {
+        this->direction = direction;
+    }
+    ~Bullet() {}
+
+    bool update(int t) {}
+    void draw(glm::fvec2 cameraOffset) {}
+    CollisionShape getCollisionShape() {}
+};
+
+struct PlayerBullet : Updatable, Drawable, Collidable {
+    PlayerBullet() {}
+    ~PlayerBullet() {}
+
+    bool update(int t) {}
+    void draw(glm::fvec2 cameraOffset) {}
+    CollisionShape getCollisionShape() {}
+};
+
+struct Player : Updatable, Drawable, Collidable {
+    Player() {}
+    ~Player() {}
+
+    bool update(int t) {}
+    void draw(glm::fvec2 cameraOffset) {}
+    CollisionShape getCollisionShape() {}
+};
+
+struct Boss : Updatable, Drawable, Collidable {
+    Boss() {}
+    ~Boss() {}
+
+    bool update(int t) {}
+    void draw() {}
+    CollisionShape getCollisionShape() {}
+};
+
+struct Hearts : Drawable {
+    Hearts() {}
+    ~Hearts() {}
+
+    void draw() {}
+};
+
+struct HealthBar : Drawable {
+    HealthBar() {}
+    ~HealthBar() {}
+
+    void draw() {}
+};
+
+using Object = std::variant<Player, Boss, Bullet, PlayerBullet, Hearts, HealthBar>;
+
 void display() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -103,7 +169,7 @@ int main(int argc, char **argv) {
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
     glutInitWindowSize(600, 600);
-    glutCreateWindow("FreeGLUT + GLEW + GLM Example");
+    glutCreateWindow("FreeGLUT + GLEW + GLM Example 2");
 
     // Test GLM properly linked
     glm::vec3 glmTest(1.0f, 0.0f, 0.0f);
