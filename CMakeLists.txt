@@ -13,14 +13,6 @@ include(FetchContent)
 
 find_package(OpenGL REQUIRED)
 
-if(FETCH_GLUT)
-  FetchContent_Declare(
-    GLUT::GLUT
-    GIT_REPOSITORY https://github.com/freeglut/freeglut
-    GIT_TAG d35af9686a6c11b5ed1629a054fccc4414ba9854
-    OVERRIDE_FIND_PACKAGE)
-endif()
-
 if(WIN32)
   # Manually set GLUT for Windows using win-x64-msvc
   set(GLUT_FOUND TRUE)
@@ -36,14 +28,6 @@ if(WIN32)
   )
 else()
   find_package(GLUT REQUIRED)
-endif()
-
-if(FETCH_GLEW)
-  FetchContent_Declare(
-    GLEW::GLEW
-    GIT_REPOSITORY https://github.com/nigels-com/glew
-    GIT_TAG 3a8eff77da3658c13fbd3634c943d5251d76322c
-    OVERRIDE_FIND_PACKAGE)
 endif()
 
 if(WIN32)
