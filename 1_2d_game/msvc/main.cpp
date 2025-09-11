@@ -15,6 +15,8 @@ struct Drawable {
     virtual ~Drawable() = default;
 };
 
+bool keyStates[256] = {false};
+
 // Forward declarations for collision shapes
 struct CollisionCircle;
 struct CollisionRectangle;
@@ -87,69 +89,76 @@ struct Updatable {
     virtual ~Updatable() = default;
 };
 
-struct Bullet : Updatable, Drawable, Collidable {
+struct EnemyBullet : Updatable, Drawable, Collidable {
     glm::fvec2 direction;
 
-    Bullet(glm::fvec2 direction) {
+    EnemyBullet(glm::fvec2 direction) {
         this->direction = direction;
     }
-    ~Bullet() {}
+    ~EnemyBullet() {}
 
-    bool update(int t) {}
-    void draw(glm::fvec2 cameraOffset) {}
-    CollisionShape getCollisionShape() {}
+    bool update(int t) override {}
+    void draw(glm::fvec2 cameraOffset) override {}
+    CollisionShape getShape() const override {}
 };
 
 struct PlayerBullet : Updatable, Drawable, Collidable {
     PlayerBullet() {}
     ~PlayerBullet() {}
 
-    bool update(int t) {}
-    void draw(glm::fvec2 cameraOffset) {}
-    CollisionShape getCollisionShape() {}
+    bool update(int t) override {}
+    void draw(glm::fvec2 cameraOffset) override {}
+    CollisionShape getShape() const override {}
 };
 
 struct Player : Updatable, Drawable, Collidable {
-    Player() {}
+    glm::fvec2 playerPosition;
+
+    Player(glm::fvec2 initialPos) {}
     ~Player() {}
 
-    bool update(int t) {}
-    void draw(glm::fvec2 cameraOffset) {}
-    CollisionShape getCollisionShape() {}
+    bool update(int t) override {}
+    void draw(glm::fvec2 cameraOffset) override {}
+    CollisionShape getShape() const override {}
 };
 
 struct Boss : Updatable, Drawable, Collidable {
     Boss() {}
     ~Boss() {}
 
-    bool update(int t) {}
-    void draw() {}
-    CollisionShape getCollisionShape() {}
+    bool update(int t) override {}
+    void draw(glm::fvec2 cameraOffset) override {}
+    CollisionShape getShape() const override {}
 };
 
 struct Hearts : Drawable {
     Hearts() {}
     ~Hearts() {}
 
-    void draw() {}
+    void draw(glm::fvec2 cameraOffset) override {}
 };
 
 struct HealthBar : Drawable {
     HealthBar() {}
     ~HealthBar() {}
 
-    void draw() {}
+    void draw(glm::fvec2 cameraOffset) override {}
 };
 
-using Object = std::variant<Player, Boss, Bullet, PlayerBullet, Hearts, HealthBar>;
+using Object = std::variant<Drawable *, Collidable *, Updatable *>;
 
 struct GameState {
+    GameState(int h, int bh)
+        : health(h), bossHealth(bh), cameraOffset(0.0f, 0.0f) {}
+
     int health;
     int bossHealth;
-    glm::fvec2 playerPosition;
     glm::fvec2 cameraOffset;
     std::vector<Object> sprites;
 };
+
+void keyboardDown(unsigned char key, int x, int y) { keyStates[key] = true; }
+void keyboardUp(unsigned char key, int x, int y) { keyStates[key] = false; }
 
 void display() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -158,6 +167,19 @@ void display() {
 
     glutSwapBuffers();
     glutPostRedisplay();
+}
+
+void update() {
+    if (keyStates[27]) {
+        std::cout << "ESC pressed -> exit\n";
+        glutLeaveMainLoop(); // End Main Loop
+    }
+    if (keyStates['a']) {
+        std::cout << "a clicked" << std::endl;
+    }
+    if (keyStates['w']) {
+        std::cout << "w clicked" << std::endl;
+    }
 }
 
 void timer(int value) {
@@ -180,8 +202,12 @@ int main(int argc, char **argv) {
         return -1;
     }
 
+    GameState gameState(100, 500);
+
     glEnable(GL_DEPTH_TEST);
 
+    glutKeyboardFunc(keyboardDown);
+    glutKeyboardUpFunc(keyboardUp);
     glutDisplayFunc(display);
     glutTimerFunc(0, timer, 0);
 
