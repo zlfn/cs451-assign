@@ -24,7 +24,7 @@ void timer(int value) {
     glutTimerFunc(16, timer, 0);
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
     glutInitWindowSize(600, 600);
@@ -35,7 +35,7 @@ int main(int argc, char** argv) {
 
     GLenum err = glewInit();
     if (err != GLEW_OK) {
-        std::cerr << "GLEW 초기화 실패: " << glewGetErrorString(err) << std::endl;
+        std::cerr << "GLEW 초기화 실패: " << glewGetErrorString(err) << '\n';
         return -1;
     }
 

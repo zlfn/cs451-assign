@@ -4,10 +4,10 @@
 int main() {
     int testsPassed = 0;
     int totalTests = 0;
-    
+
     std::cout << "Running Collision Detection Tests\n";
     std::cout << "==================================\n";
-    
+
     // Test 1: Circle-Circle collision (should collide)
     {
         totalTests++;
@@ -18,10 +18,11 @@ int main() {
             std::cout << "[PASS] Test 1: Circle-Circle collision (overlapping)\n";
             testsPassed++;
         } else {
-            std::cout << "[FAIL] Test 1: Circle-Circle collision (overlapping) - Expected: true, Got: false\n";
+            std::cout << "[FAIL] Test 1: Circle-Circle collision (overlapping) - Expected: true, "
+                         "Got: false\n";
         }
     }
-    
+
     // Test 2: Circle-Circle no collision
     {
         totalTests++;
@@ -32,10 +33,11 @@ int main() {
             std::cout << "[PASS] Test 2: Circle-Circle no collision (far apart)\n";
             testsPassed++;
         } else {
-            std::cout << "[FAIL] Test 2: Circle-Circle no collision (far apart) - Expected: false, Got: true\n";
+            std::cout << "[FAIL] Test 2: Circle-Circle no collision (far apart) - Expected: false, "
+                         "Got: true\n";
         }
     }
-    
+
     // Test 3: Rectangle-Rectangle collision
     {
         totalTests++;
@@ -46,10 +48,11 @@ int main() {
             std::cout << "[PASS] Test 3: Rectangle-Rectangle collision (overlapping)\n";
             testsPassed++;
         } else {
-            std::cout << "[FAIL] Test 3: Rectangle-Rectangle collision (overlapping) - Expected: true, Got: false\n";
+            std::cout << "[FAIL] Test 3: Rectangle-Rectangle collision (overlapping) - Expected: "
+                         "true, Got: false\n";
         }
     }
-    
+
     // Test 4: Rectangle-Rectangle no collision
     {
         totalTests++;
@@ -60,10 +63,11 @@ int main() {
             std::cout << "[PASS] Test 4: Rectangle-Rectangle no collision (separate)\n";
             testsPassed++;
         } else {
-            std::cout << "[FAIL] Test 4: Rectangle-Rectangle no collision (separate) - Expected: false, Got: true\n";
+            std::cout << "[FAIL] Test 4: Rectangle-Rectangle no collision (separate) - Expected: "
+                         "false, Got: true\n";
         }
     }
-    
+
     // Test 5: Circle-Rectangle collision (circle inside rectangle)
     {
         totalTests++;
@@ -74,10 +78,11 @@ int main() {
             std::cout << "[PASS] Test 5: Circle-Rectangle collision (circle inside)\n";
             testsPassed++;
         } else {
-            std::cout << "[FAIL] Test 5: Circle-Rectangle collision (circle inside) - Expected: true, Got: false\n";
+            std::cout << "[FAIL] Test 5: Circle-Rectangle collision (circle inside) - Expected: "
+                         "true, Got: false\n";
         }
     }
-    
+
     // Test 6: Circle-Rectangle collision (circle overlapping edge)
     {
         totalTests++;
@@ -88,10 +93,11 @@ int main() {
             std::cout << "[PASS] Test 6: Circle-Rectangle collision (overlapping edge)\n";
             testsPassed++;
         } else {
-            std::cout << "[FAIL] Test 6: Circle-Rectangle collision (overlapping edge) - Expected: true, Got: false\n";
+            std::cout << "[FAIL] Test 6: Circle-Rectangle collision (overlapping edge) - Expected: "
+                         "true, Got: false\n";
         }
     }
-    
+
     // Test 7: Circle-Rectangle no collision
     {
         totalTests++;
@@ -102,10 +108,11 @@ int main() {
             std::cout << "[PASS] Test 7: Circle-Rectangle no collision (far apart)\n";
             testsPassed++;
         } else {
-            std::cout << "[FAIL] Test 7: Circle-Rectangle no collision (far apart) - Expected: false, Got: true\n";
+            std::cout << "[FAIL] Test 7: Circle-Rectangle no collision (far apart) - Expected: "
+                         "false, Got: true\n";
         }
     }
-    
+
     // Test 8: Rectangle-Circle collision
     {
         totalTests++;
@@ -119,7 +126,7 @@ int main() {
             std::cout << "[FAIL] Test 8: Rectangle-Circle collision - Expected: true, Got: false\n";
         }
     }
-    
+
     // Test 9: Circles touching at boundary
     {
         totalTests++;
@@ -130,10 +137,11 @@ int main() {
             std::cout << "[PASS] Test 9: Circle-Circle touching at boundary\n";
             testsPassed++;
         } else {
-            std::cout << "[FAIL] Test 9: Circle-Circle touching at boundary - Expected: false, Got: true\n";
+            std::cout << "[FAIL] Test 9: Circle-Circle touching at boundary - Expected: false, "
+                         "Got: true\n";
         }
     }
-    
+
     // Test 10: Using detectCollision template
     {
         totalTests++;
@@ -144,12 +152,13 @@ int main() {
             std::cout << "[PASS] Test 10: detectCollision template (circle-rect)\n";
             testsPassed++;
         } else {
-            std::cout << "[FAIL] Test 10: detectCollision template (circle-rect) - Expected: true, Got: false\n";
+            std::cout << "[FAIL] Test 10: detectCollision template (circle-rect) - Expected: true, "
+                         "Got: false\n";
         }
     }
-    
+
     std::cout << "==================================\n";
     std::cout << "Tests passed: " << testsPassed << "/" << totalTests << "\n";
-    
+
     return (testsPassed == totalTests) ? 0 : 1;
 }
