@@ -58,7 +58,38 @@ struct Player : Updatable, Drawable, Collidable {
     ~Player() {}
 
     bool update(int t) override { return false; }
-    void draw(glm::fvec2 cameraOffset) override {}
+    void draw(glm::fvec2 cameraOffset) override { 
+        // Camera Offset
+        float x = currentPosition.x - cameraOffset.x;
+        float y = currentPosition.y - cameraOffset.y;
+
+        // Draw Triangle
+        float size = 0.1f;
+        glColor3f(1.0f, 1.0f, 0.0f);
+        glBegin(GL_TRIANGLES);
+        glVertex2f(x, y + size);
+        glVertex2f(x - size, y - size);
+        glVertex2f(x + size, y - size);
+        glEnd();
+    }
+    void move(glm::fvec2 deltaPosition) {
+        currentPosition += deltaPosition;
+
+        float minX = -1.0f;
+        float minY = -1.0f;
+        float maxX = 1.0f;
+        float maxY = 1.0f;
+
+        // Clamp
+        if (currentPosition.x < minX)
+            currentPosition.x = minX;
+        if (currentPosition.x > maxX)
+            currentPosition.x = maxX;
+        if (currentPosition.y < minY)
+            currentPosition.y = minY;
+        if (currentPosition.y > maxY)
+            currentPosition.y = maxY;
+    }
     CollisionShape getShape() const override { return CollisionCircle(glm::vec2(0.0, 0.0), 1.0); }
 };
 
@@ -112,32 +143,56 @@ struct GameState {
     std::vector<EnemyBullet> enemyBulletObjects;
 };
 
+GameState gameState(100, 500);
+
 void keyboardDown(unsigned char key, int x, int y) { keyStates[key] = true; }
 void keyboardUp(unsigned char key, int x, int y) { keyStates[key] = false; }
 
 void display() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    // TODO
+    gameState.playerObject.draw(gameState.cameraOffset);
 
     glutSwapBuffers();
     glutPostRedisplay();
 }
 
-void update() {
+float playerSpeedBase = 0.5f;
+
+void update(float dt) {
+    float playerSpeed = playerSpeedBase * dt;
     if (keyStates[27]) {
         std::cout << "ESC pressed -> exit\n";
-        std::exit(0); // End Main Loop
-    }
-    if (keyStates['a']) {
-        std::cout << "a clicked" << std::endl;
+        std::exit(0);
     }
     if (keyStates['w']) {
-        std::cout << "w clicked" << std::endl;
+        gameState.playerObject.move(glm::vec2(0.0f, playerSpeed));
+        std::cout << "w clicked\n";
+    }
+    if (keyStates['a']) {
+        gameState.playerObject.move(glm::vec2(-playerSpeed, 0.0f));
+        std::cout << "a clicked\n";
+    }
+    if (keyStates['s']) {
+        gameState.playerObject.move(glm::vec2(0.0f, -playerSpeed));
+        std::cout << "s clicked\n";
+    }
+    if (keyStates['d']) {
+        gameState.playerObject.move(glm::vec2(playerSpeed, 0.0f));
+        std::cout << "d clicked\n";
     }
 }
 
+static int last_ms = 0;
+
 void timer(int value) {
+    int now = glutGet(GLUT_ELAPSED_TIME); // Get Time in milliseconds.
+    if (last_ms == 0)
+        last_ms = now;
+    float dt = (now - last_ms) / 1000.0f;
+    last_ms = now;
+
+    update(dt);
     glutPostRedisplay();
     glutTimerFunc(16, timer, 0);
 }
@@ -156,8 +211,6 @@ int main(int argc, char **argv) {
         std::cerr << "GLEW 초기화 실패: " << glewGetErrorString(err) << std::endl;
         return -1;
     }
-
-    GameState gameState(100, 500);
 
     glEnable(GL_DEPTH_TEST);
 
