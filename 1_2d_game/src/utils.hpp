@@ -16,6 +16,20 @@ void drawCircle(glm::fvec2 center, float radius, int numSegments, glm::fvec3 col
     glEnd();
 }
 
+void drawRect(glm::fvec2 center, float size, glm::fvec3 color) {
+    float half = size / 2.0f;
+
+    glColor3f(color.x, color.y, color.z);
+    glBegin(GL_TRIANGLES);
+    glVertex2f(center.x - half, center.y + half);
+    glVertex2f(center.x - half, center.y - half);
+    glVertex2f(center.x + half, center.y - half);
+    glVertex2f(center.x - half, center.y + half);
+    glVertex2f(center.x + half, center.y - half);
+    glVertex2f(center.x + half, center.y + half);
+    glEnd();
+}
+
 void drawTriangle(glm::fvec2 center, float size, glm::fvec3 color) {
     glColor3f(color.x, color.y, color.z);
     glBegin(GL_TRIANGLES);
