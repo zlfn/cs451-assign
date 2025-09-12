@@ -19,25 +19,45 @@ struct Drawable {
 
 bool keyStates[256] = {false};
 
+struct GameState;
+
 /// @brief Interface for objects that can be updated
 struct Updatable {
     /// @brief Update the object's state. Return true if the object should be removed.
     /// @param deltaTime Time elapsed since the last update in milliseconds
     /// @return true if the object should be removed
-    virtual bool update(int deltaTime) = 0;
+    virtual bool update(int currentTime, GameState &gameState) = 0;
     virtual ~Updatable() = default;
 };
 
 struct EnemyBullet : Updatable, Drawable, Collidable {
     glm::fvec2 initialDirection;
+    glm::fvec2 normalDirection;
     glm::fvec2 initialPosition;
+    glm::fvec2 currentPosition;
+    int initialTime;
+    float speed;
 
-    EnemyBullet(glm::fvec2 initialDirection, glm::fvec2 initialPosition)
-        : initialDirection(initialDirection), initialPosition(initialPosition) {}
+    EnemyBullet(glm::fvec2 initialDirection, glm::fvec2 initialPosition, float speed,
+                int initialTime)
+        : initialDirection(glm::normalize(initialDirection) * speed),
+          initialPosition(initialPosition), initialTime(initialTime) {
+        normalDirection = glm::normalize(glm::fvec2(-initialDirection.y, initialDirection.x)) * speed;
+    }
     ~EnemyBullet() {}
 
-    bool update(int t) override { return false; }
-    void draw(glm::fvec2 cameraOffset) override {}
+    float pos(int t) {
+        return sqrt(t * 400);
+    }
+    bool update(int currentTime, GameState &gameState) override {
+        int dt = currentTime - initialTime;
+        currentPosition =
+            initialPosition + float(dt) * initialDirection + pos(dt) * normalDirection;
+        return false;
+    }
+    void draw(glm::fvec2 cameraOffset) override {
+        drawCircle(currentPosition - cameraOffset, 0.03, 10, glm::fvec3(1.0f, 1.0f, 1.0f));
+    }
     CollisionShape getShape() const override { return CollisionCircle(glm::vec2(0.0, 0.0), 1.0); }
 };
 
@@ -47,7 +67,7 @@ struct PlayerBullet : Updatable, Drawable, Collidable {
     PlayerBullet(glm::fvec2 initialPosition) : initialPosition(initialPosition) {}
     ~PlayerBullet() {}
 
-    bool update(int t) override { return false; }
+    bool update(int currentTime, GameState &gameState) override { return false; }
     void draw(glm::fvec2 cameraOffset) override {}
     CollisionShape getShape() const override { return CollisionCircle(glm::vec2(0.0, 0.0), 1.0); }
 };
@@ -58,7 +78,7 @@ struct Player : Updatable, Drawable, Collidable {
     Player(glm::fvec2 initialPosition) : currentPosition(initialPosition) {}
     ~Player() {}
 
-    bool update(int t) override { return false; }
+    bool update(int currentTime, GameState &gameState) override { return false; }
     void draw(glm::fvec2 cameraOffset) override { 
         // Camera Offset
         float x = currentPosition.x - cameraOffset.x;
@@ -89,26 +109,12 @@ struct Player : Updatable, Drawable, Collidable {
 
 struct Boss : Updatable, Drawable, Collidable {
     glm::fvec2 currentPosition;
+    int cooltime = 0;
 
     Boss(glm::fvec2 initialPosition) : currentPosition(initialPosition) {}
     ~Boss() {}
 
-    int cooltime = 0;
-
-    std::vector<EnemyBullet> bullets;
-    std::vector<EnemyBullet> getBullet() {
-        return bullets;
-    }
-    bool update(int t) override {
-        if (cooltime > t)
-            return false;
-        cooltime = t + 10000;
-
-        
-
-        std::cout << t << std::endl;
-        return false;
-    }
+    bool update(int currentTime, GameState &gameState) override;
     void draw(glm::fvec2 cameraOffset) override {
         // Camera Offset
         float x = currentPosition.x - cameraOffset.x;
@@ -137,8 +143,6 @@ struct BossHealthBar : Drawable {
     void draw(glm::fvec2 cameraOffset) override {}
 };
 
-using Object = std::variant<Drawable *, Collidable *, Updatable *>;
-
 struct GameState {
     GameState(int h, int bh)
         : health(h), bossHealth(bh), cameraOffset(0.0f, 0.0f), playerObject(glm::fvec2(0.0f, 0.0f)),
@@ -158,6 +162,25 @@ struct GameState {
     std::vector<EnemyBullet> enemyBulletObjects;
 };
 
+bool Boss::update(int currentTime, GameState &gameState) {
+    if (this->cooltime > currentTime)
+        return false;
+    this->cooltime = currentTime + 200;
+
+    EnemyBullet testBullet1(glm::fvec2(0.1f, 0.1f), glm::fvec2(0.0f, 0.0f), 0.001f, currentTime);
+    EnemyBullet testBullet2(glm::fvec2(-0.1f, 0.1f), glm::fvec2(0.0f, 0.0f), 0.001f, currentTime);
+    EnemyBullet testBullet3(glm::fvec2(0.1f, -0.1f), glm::fvec2(0.0f, 0.0f), 0.001f, currentTime);
+    EnemyBullet testBullet4(glm::fvec2(-0.1f, -0.1f), glm::fvec2(0.0f, 0.0f), 0.001f, currentTime);
+    gameState.enemyBulletObjects.push_back(testBullet1);
+    gameState.enemyBulletObjects.push_back(testBullet2);
+    gameState.enemyBulletObjects.push_back(testBullet3);
+    gameState.enemyBulletObjects.push_back(testBullet4);
+
+    std::cout << currentTime << ", " << gameState.bossHealth << ", "
+              << gameState.enemyBulletObjects.size() << std::endl;
+    return false;
+}
+
 GameState gameState(100, 500);
 
 void keyboardDown(unsigned char key, int x, int y) { keyStates[key] = true; }
@@ -166,11 +189,11 @@ void keyboardUp(unsigned char key, int x, int y) { keyStates[key] = false; }
 void display() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    gameState.playerObject.draw(gameState.cameraOffset);
-    gameState.bossObject.draw(gameState.cameraOffset);
-    for (auto& object : gameState.enemyBulletObjects) {
+    for (auto &object : gameState.enemyBulletObjects) {
         object.draw(gameState.cameraOffset);
     }
+    gameState.playerObject.draw(gameState.cameraOffset);
+    gameState.bossObject.draw(gameState.cameraOffset);
 
     glutSwapBuffers();
     glutPostRedisplay();
@@ -178,8 +201,8 @@ void display() {
 
 float playerSpeedBase = 0.5f;
 
-void keyInputUpdate(float dt) {
-    float playerSpeed = playerSpeedBase * dt;
+void keyInputUpdate(int dt) {
+    float playerSpeed = playerSpeedBase * (dt / 1000.0f);
     if (keyStates[27]) {
         std::cout << "ESC pressed -> exit\n";
         std::exit(0);
@@ -204,20 +227,20 @@ void keyInputUpdate(float dt) {
 
 void timer(int) {
     static int last_ms = 0;
-    static int start_ms = 0;
 
     int now = glutGet(GLUT_ELAPSED_TIME); // Get Time in milliseconds.
     if (last_ms == 0) {
         last_ms = now;
-        start_ms = now;
     }
     
-    float dt = (now - last_ms) / 1000.0f;
-    int gameTime = now - start_ms;
-    
+    int dt = now - last_ms;
     last_ms = now;
-
-    gameState.bossObject.update(gameTime);
+    
+    for (auto &object : gameState.enemyBulletObjects) {
+        object.update(now, gameState);
+    }
+    gameState.playerObject.update(now, gameState);
+    gameState.bossObject.update(now, gameState);
     
     keyInputUpdate(dt);
     glutPostRedisplay();
