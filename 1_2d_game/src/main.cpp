@@ -151,33 +151,34 @@ void keyboardUp(unsigned char key, int x, int y) { keyStates[key] = false; }
 void display() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    gameState.playerSprite.draw(gameState.cameraOffset);
+    gameState.playerObject.draw(gameState.cameraOffset);
 
     glutSwapBuffers();
     glutPostRedisplay();
 }
 
-float playerSpeed = 0.01f;
+float playerSpeedBase = 0.5f;
 
 void update(float dt) {
+    float playerSpeed = playerSpeedBase * dt;
     if (keyStates[27]) {
         std::cout << "ESC pressed -> exit\n";
         std::exit(0);
     }
     if (keyStates['w']) {
-        gameState.playerSprite.move(glm::vec2(0.0f, playerSpeed));
+        gameState.playerObject.move(glm::vec2(0.0f, playerSpeed));
         std::cout << "w clicked\n";
     }
     if (keyStates['a']) {
-        gameState.playerSprite.move(glm::vec2(-playerSpeed, 0.0f));
+        gameState.playerObject.move(glm::vec2(-playerSpeed, 0.0f));
         std::cout << "a clicked\n";
     }
     if (keyStates['s']) {
-        gameState.playerSprite.move(glm::vec2(0.0f, -playerSpeed));
+        gameState.playerObject.move(glm::vec2(0.0f, -playerSpeed));
         std::cout << "s clicked\n";
     }
     if (keyStates['d']) {
-        gameState.playerSprite.move(glm::vec2(playerSpeed, 0.0f));
+        gameState.playerObject.move(glm::vec2(playerSpeed, 0.0f));
         std::cout << "d clicked\n";
     }
 }
