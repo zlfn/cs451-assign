@@ -25,7 +25,7 @@ struct CollisionCircle {
 struct CollisionRectangle {
     glm::vec2 topLeft;
     glm::vec2 bottomRight;
-    CollisionRectangle(glm::vec2 tl, glm::vec2 br) : topLeft(tl), bottomRight(br) {}
+    CollisionRectangle(const glm::vec2& tl, const glm::vec2& br) : topLeft(tl), bottomRight(br) {}
 
     bool intersects(const CollisionCircle &circle) const { return circle.intersects(*this); }
     bool intersects(const CollisionRectangle &other) const {

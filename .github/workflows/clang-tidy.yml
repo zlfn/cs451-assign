@@ -40,4 +40,4 @@ jobs:
     
     - name: Run clang-tidy
       run: |
-        find . -path ./win-x64-msvc -prune -o \( -name '*.cpp' -o -name '*.hpp' -o -name '*.h' \) -type f -print | xargs clang-tidy -p build/ --warnings-as-errors='*'
+        find . -path ./build -prune -o -path ./win-x64-msvc -prune -o -path ./_deps -prune -o -path ./cmake-build-* -prune -o \( -name '*.cpp' -o -name '*.hpp' -o -name '*.h' \) -type f -print | grep -v '^./build' | grep -v '/_deps/' | xargs clang-tidy -p build/ --warnings-as-errors='*'

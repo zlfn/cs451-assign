@@ -197,8 +197,8 @@ bool Boss::update(int currentTime, GameState &gameState) {
 }
 GameState gameState(100, 500);
 
-void keyboardDown(unsigned char key, int x, int y) { keyStates[key] = true; }
-void keyboardUp(unsigned char key, int x, int y) { keyStates[key] = false; }
+void keyboardDown(unsigned char key, int /*x*/, int /*y*/) { keyStates[key] = true; }
+void keyboardUp(unsigned char key, int /*x*/, int /*y*/) { keyStates[key] = false; }
 
 void display() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
