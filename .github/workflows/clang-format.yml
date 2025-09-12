@@ -13,6 +13,14 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     
+    - name: Cache apt packages
+      uses: actions/cache@v3
+      with:
+        path: /var/cache/apt/archives
+        key: ${{ runner.os }}-apt-clang-format
+        restore-keys: |
+          ${{ runner.os }}-apt-
+    
     - name: Install clang-format
       run: |
         sudo apt-get update
@@ -20,4 +28,4 @@ jobs:
     
     - name: Check formatting
       run: |
-        find src include -name '*.cpp' -o -name '*.hpp' -o -name '*.h' | xargs clang-format --dry-run --Werror
+        find . -path ./win-x64-msvc -prune -o \( -name '*.cpp' -o -name '*.hpp' -o -name '*.h' \) -type f -print | xargs clang-format --dry-run --Werror
