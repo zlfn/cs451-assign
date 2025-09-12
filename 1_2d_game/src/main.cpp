@@ -180,7 +180,6 @@ bool Boss::update(int currentTime, GameState &gameState) {
               << gameState.enemyBulletObjects.size() << std::endl;
     return false;
 }
-
 GameState gameState(100, 500);
 
 void keyboardDown(unsigned char key, int x, int y) { keyStates[key] = true; }
@@ -243,6 +242,7 @@ void timer(int) {
     gameState.bossObject.update(now, gameState);
     
     keyInputUpdate(dt);
+
     glutPostRedisplay();
     glutTimerFunc(16, timer, 0);
 }
