@@ -1,0 +1,26 @@
+name: Clang-Tidy
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  clang-tidy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang-tidy cmake build-essential libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev libglew-dev freeglut3-dev
+    
+    - name: Configure CMake
+      run: cmake -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+    
+    - name: Run clang-tidy
+      run: |
+        find src include -name '*.cpp' -o -name '*.hpp' -o -name '*.h' | xargs clang-tidy -p build/ --warnings-as-errors='*'

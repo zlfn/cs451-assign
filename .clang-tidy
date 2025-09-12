@@ -1,0 +1,31 @@
+---
+Checks: >
+  -*,
+  bugprone-*,
+  cppcoreguidelines-init-variables,
+  cppcoreguidelines-pro-type-member-init,
+  misc-uninitialized-local-variable,
+  readability-identifier-naming,
+  performance-*,
+  modernize-use-nullptr,
+  modernize-use-override,
+  clang-analyzer-*
+
+WarningsAsErrors: >
+  cppcoreguidelines-init-variables,
+  cppcoreguidelines-pro-type-member-init,
+  misc-uninitialized-local-variable
+
+CheckOptions:
+  - key: cppcoreguidelines-pro-type-member-init.IgnoreArrays
+    value: false
+  - key: readability-identifier-naming.ClassCase
+    value: CamelCase
+  - key: readability-identifier-naming.FunctionCase
+    value: camelCase
+  - key: readability-identifier-naming.VariableCase
+    value: camelCase
+  - key: readability-identifier-naming.ConstantCase
+    value: UPPER_CASE
+  - key: readability-identifier-naming.PrivateMemberSuffix
+    value: _
