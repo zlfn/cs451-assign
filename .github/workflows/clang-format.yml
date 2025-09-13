@@ -16,15 +16,17 @@ jobs:
     - name: Cache apt packages
       uses: actions/cache@v3
       with:
-        path: /var/cache/apt/archives
-        key: ${{ runner.os }}-apt-clang-format
+        path: |
+          ~/apt-cache
+        key: ${{ runner.os }}-apt-clang-format-${{ hashFiles('.github/workflows/clang-format.yml') }}
         restore-keys: |
-          ${{ runner.os }}-apt-
+          ${{ runner.os }}-apt-clang-format-
     
     - name: Install clang-format
       run: |
+        mkdir -p ~/apt-cache
         sudo apt-get update
-        sudo apt-get install -y clang-format
+        sudo apt-get install -y -o dir::cache::archives="$HOME/apt-cache" clang-format
     
     - name: Check formatting
       run: |

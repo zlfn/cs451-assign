@@ -16,11 +16,11 @@ jobs:
     - name: Cache apt packages
       uses: actions/cache@v3
       with:
-        path: /var/cache/apt/archives
-        key: ${{ runner.os }}-apt-clang-tidy-${{ hashFiles('**/CMakeLists.txt') }}
+        path: |
+          ~/apt-cache
+        key: ${{ runner.os }}-apt-clang-tidy-${{ hashFiles('.github/workflows/clang-tidy.yml') }}
         restore-keys: |
           ${{ runner.os }}-apt-clang-tidy-
-          ${{ runner.os }}-apt-
     
     - name: Cache CMake build
       uses: actions/cache@v3
@@ -32,8 +32,9 @@ jobs:
     
     - name: Install dependencies
       run: |
+        mkdir -p ~/apt-cache
         sudo apt-get update
-        sudo apt-get install -y clang-tidy cmake build-essential libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev libglew-dev freeglut3-dev
+        sudo apt-get install -y -o dir::cache::archives="$HOME/apt-cache" clang-tidy cmake build-essential libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev libglew-dev freeglut3-dev
     
     - name: Configure CMake
       run: cmake -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
