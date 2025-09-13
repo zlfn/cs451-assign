@@ -47,7 +47,7 @@ struct EnemyBullet : Updatable, Drawable, Collidable {
 
     float pos(int t) {
         float deltaX = static_cast<float>(t) * speed; // f/ms
-        return sqrt(deltaX);
+        return std::sqrt(deltaX);
     }
     bool update(int currentTime, GameState &gameState) override {
         int dt = currentTime - initialTime;

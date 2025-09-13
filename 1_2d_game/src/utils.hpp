@@ -8,8 +8,8 @@ void drawCircle(glm::fvec2 center, float radius, int numSegments, glm::fvec3 col
     glVertex2f(center.x, center.y);
     for (int i = 0; i <= numSegments; i++) {
         float angle = static_cast<float>(2.0f * std::numbers::pi * i / numSegments);
-        float x = center.x + radius * cos(angle);
-        float y = center.y + radius * sin(angle);
+        float x = center.x + radius * std::cos(angle);
+        float y = center.y + radius * std::sin(angle);
         glVertex2f(x, y);
     }
     glEnd();
