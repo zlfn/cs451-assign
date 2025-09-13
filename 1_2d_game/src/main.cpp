@@ -4,7 +4,9 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <iostream>
+#include <functional>
 #include <vector>
+#include <algorithm>
 #include "collision.hpp"
 #include "utils.hpp"
 
@@ -19,6 +21,7 @@ struct Drawable {
 bool keyStates[256] = {false};
 
 struct GameState;
+struct BossMove;
 
 /// @brief Interface for objects that can be updated
 struct Updatable {
@@ -36,23 +39,20 @@ struct EnemyBullet : Updatable, Drawable, Collidable {
     glm::fvec2 currentPosition;
     int initialTime;
     float speed;
+    std::function<float(int, float)> posFunc;
 
     EnemyBullet(glm::fvec2 initialDirection, glm::fvec2 initialPosition, float speed,
-                int initialTime)
+                int initialTime, std::function<float(int, float)> posFunc)
         : initialDirection(glm::normalize(initialDirection) * speed),
           normalDirection(glm::normalize(glm::fvec2(-initialDirection.y, initialDirection.x))),
           initialPosition(initialPosition), currentPosition(initialPosition),
-          initialTime(initialTime), speed(speed) {}
+          initialTime(initialTime), speed(speed), posFunc(std::move(posFunc)) {}
     ~EnemyBullet() override {}
 
-    float pos(int t) {
-        float deltaX = static_cast<float>(t) * speed; // f/ms
-        return std::sqrt(deltaX);
-    }
     bool update(int currentTime, GameState &gameState) override {
         int dt = currentTime - initialTime;
         currentPosition =
-            initialPosition + float(dt) * initialDirection + pos(dt) * normalDirection;
+            initialPosition + float(dt) * initialDirection + posFunc(dt, speed) * normalDirection;
         return abs(currentPosition.x) > 1.0f || abs(currentPosition.y) > 1.0f;
     }
     void draw(glm::fvec2 cameraOffset) override {
@@ -119,11 +119,48 @@ struct Player : Updatable, Drawable, Collidable {
     }
 };
 
+struct BossMove {
+    glm::fvec2 origin;
+    glm::fvec2 destination;
+    glm::fvec2 directionVector;
+    glm::fvec2 normalVector;
+    int travelTime;
+    int initialTime;
+    std::function<float(float)> trajectory; // [0.0, 1.0] -> R
+    std::function<float(float)> portion;    // [0.0, 1.0] -> [0.0, 1.0]
+
+    BossMove(glm::fvec2 origin, glm::fvec2 destination, int travelTime, int initialTime,
+             std::function<float(float)> trajectory, std::function<float(float)> portion)
+        : origin(origin), destination(destination), travelTime(travelTime),
+          initialTime(initialTime), trajectory(trajectory), portion(portion) {
+        directionVector = destination - origin;
+        normalVector = glm::normalize(glm::fvec2(-directionVector.y, directionVector.x));
+    }
+
+    glm::fvec2 getCurrentPosition(int currentTime) {
+        if (currentTime <= initialTime)
+            return origin;
+        if (currentTime >= initialTime + travelTime)
+            return destination;
+        float timePortion = portion((currentTime - initialTime) / ((float)travelTime));
+        glm::fvec2 currentPosition =
+            origin + directionVector * timePortion + trajectory(timePortion) * normalVector;
+        return currentPosition;
+    }
+};
+
+static BossMove idleBossMove(glm::fvec2 position, int startTime = 0) {
+    auto trivialFunc = [](float) { return 0; };
+    return BossMove(position, position, 0, startTime, trivialFunc, trivialFunc);
+}
+
 struct Boss : Updatable, Drawable, Collidable {
     glm::fvec2 currentPosition;
-    int cooltime = 0;
+    BossMove currentMove;
+    int coolTime = 0;
 
-    Boss(glm::fvec2 initialPosition) : currentPosition(initialPosition) {}
+    Boss(glm::fvec2 initialPosition)
+        : currentPosition(initialPosition), currentMove(idleBossMove(initialPosition)) {}
     ~Boss() override {}
 
     bool update(int currentTime, GameState &gameState) override;
@@ -155,9 +192,9 @@ struct BossHealthBar : Drawable {
 
 struct GameState {
     GameState(int h, int bh)
-        : health(h), bossHealth(bh), cameraOffset(0.0f, 0.0f), playerObject(glm::fvec2(0.0f, 0.0f)),
-          bossObject(glm::fvec2(0.0f, 0.0f)), bossHealthBarObject(glm::fvec2(0.0f, 0.0f)),
-          heartsObject(glm::fvec2(0.0f, 0.0f)) {}
+        : health(h), bossHealth(bh), cameraOffset(0.0f, 0.0f),
+          playerObject(glm::fvec2(0.0f, -0.8f)), bossObject(glm::fvec2(0.0f, 0.6f)),
+          bossHealthBarObject(glm::fvec2(0.0f, 0.0f)), heartsObject(glm::fvec2(0.0f, 0.0f)) {}
 
     int health;
     int bossHealth;
@@ -181,15 +218,53 @@ bool Player::update(int currentTime, GameState &gameState) {
     return false;
 }
 
-bool Boss::update(int currentTime, GameState &gameState) {
-    if (this->cooltime > currentTime)
-        return false;
-    this->cooltime = currentTime + 200;
+//////////////////////// 커스텀 함수 ////////////////////////
+float sqrtPosFunc1(int t, float speed) {
+    float deltaX = static_cast<float>(t) * speed;
+    return std::sqrt(deltaX);
+};
 
-    EnemyBullet testBullet1(glm::fvec2(1.0f, 0.0f), glm::fvec2(0.0f, 0.0f), 0.001f, currentTime);
-    EnemyBullet testBullet2(glm::fvec2(1.0f, 0.0f), glm::fvec2(0.0f, 0.0f), 0.002f, currentTime);
-    gameState.enemyBulletObjects.push_back(testBullet1);
-    gameState.enemyBulletObjects.push_back(testBullet2);
+float sqrtPosFunc2(int t, float speed) {
+    float deltaX = static_cast<float>(t) * speed;
+    return -std::sqrt(2 * deltaX);
+};
+
+std::vector<EnemyBullet> bossBulletPattern1(GameState &gameState, int currentTime) {
+    std::vector<EnemyBullet> bullets;
+    static bool isFunc1 = false;
+    bullets.reserve(30);
+
+    const int bulletCount = 30;
+    const float speed = 0.001f;
+    const glm::fvec2 center = gameState.bossObject.currentPosition;
+
+    for (int i = 0; i < bulletCount; ++i) {
+        float angle = 2.0f * std::numbers::pi * i / bulletCount;
+        glm::fvec2 dir(std::cos(angle), std::sin(angle));
+        bullets.emplace_back(dir, center, speed, currentTime,
+                             isFunc1 ? sqrtPosFunc1 : sqrtPosFunc2);
+    }
+
+    isFunc1 = !isFunc1;
+
+    return bullets;
+}
+///////////////////////////////////////////////////////////
+
+std::function<std::vector<EnemyBullet>(GameState &, int)> getCurrentBulletPattern(int currentTime) {
+    return bossBulletPattern1;
+}
+
+bool Boss::update(int currentTime, GameState &gameState) {
+    this->currentPosition = this->currentMove.getCurrentPosition(currentTime);
+
+    if (this->coolTime > currentTime)
+        return false;
+    this->coolTime = currentTime + 500;
+
+    auto newBullets = getCurrentBulletPattern(currentTime)(gameState, currentTime);
+    gameState.enemyBulletObjects.insert(gameState.enemyBulletObjects.end(), newBullets.begin(),
+                                        newBullets.end());
 
     std::cout << currentTime << ", " << gameState.bossHealth << ", "
               << gameState.enemyBulletObjects.size() << '\n';
@@ -226,23 +301,18 @@ void keyInputUpdate(int dt) {
     }
     if (keyStates['w']) {
         gameState.playerObject.move(glm::vec2(0.0f, playerSpeed));
-        std::cout << "w clicked\n";
     }
     if (keyStates['a']) {
         gameState.playerObject.move(glm::vec2(-playerSpeed, 0.0f));
-        std::cout << "a clicked\n";
     }
     if (keyStates['s']) {
         gameState.playerObject.move(glm::vec2(0.0f, -playerSpeed));
-        std::cout << "s clicked\n";
     }
     if (keyStates['d']) {
         gameState.playerObject.move(glm::vec2(playerSpeed, 0.0f));
-        std::cout << "d clicked\n";
     }
     if (keyStates['e']) { // Camera Shake
         gameState.playerObject.tryAttack();
-        std::cout << "e clicked\n";
     }
 }
 
@@ -251,6 +321,16 @@ void timer(int) {
 
     int now = glutGet(GLUT_ELAPSED_TIME); // Get Time in milliseconds.
     if (lastMs == 0) {
+        glm::fvec2 origin = gameState.bossObject.currentPosition;
+        glm::fvec2 dest = glm::fvec2(0.0f, 0.0f);
+
+        auto traj = [](float u) { return u * (1.0f - u); }; // y=x(1-x) 궤적
+        auto por = [](float t) {
+            return 3 * t * t - 2 * t * t * t;
+        }; // ease-in & ease-out 예시. por 함수는 무조건 f(1)=1, f(0)=0이어야 됨.
+        // now + 2000 (2초 뒤에 시작), 3000 (3초 동안), traj을 por 순서로 따라간다. 이때, 시작
+        // 지점은 origin, 도착지점은 dest이다.
+        gameState.bossObject.currentMove = BossMove(origin, dest, 3000, now + 2000, traj, por);
         lastMs = now;
     }
 
@@ -268,7 +348,6 @@ void timer(int) {
     gameState.playerObject.update(now, gameState);
     gameState.bossObject.update(now, gameState);
 
-    glutPostRedisplay();
     glutTimerFunc(16, timer, 0);
 }
 
