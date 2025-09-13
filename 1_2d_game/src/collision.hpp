@@ -25,7 +25,7 @@ struct CollisionCircle {
 struct CollisionRectangle {
     glm::vec2 topLeft;
     glm::vec2 bottomRight;
-    CollisionRectangle(glm::vec2 tl, glm::vec2 br) : topLeft(tl), bottomRight(br) {}
+    CollisionRectangle(const glm::vec2 &tl, const glm::vec2 &br) : topLeft(tl), bottomRight(br) {}
 
     bool intersects(const CollisionCircle &circle) const { return circle.intersects(*this); }
     bool intersects(const CollisionRectangle &other) const {
@@ -83,9 +83,9 @@ concept CollidableObject = std::is_base_of_v<Collidable, T>;
 /// @param b The second collidable objects
 /// @return true if the objects collide
 template <CollidableObject A, CollidableObject B> bool detectCollision(const A &a, const B &b) {
-    const CollisionShape shapeA = a.getShape();
-    const CollisionShape shapeB = b.getShape();
+    const CollisionShape SHAPE_A = a.getShape();
+    const CollisionShape SHAPE_B = b.getShape();
 
-    return std::visit([](const auto &s1, const auto &s2) { return s1.intersects(s2); }, shapeA,
-                      shapeB);
+    return std::visit([](const auto &s1, const auto &s2) { return s1.intersects(s2); }, SHAPE_A,
+                      SHAPE_B);
 }

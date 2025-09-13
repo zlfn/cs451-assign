@@ -1,0 +1,35 @@
+name: Clang-Tidy
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  clang-tidy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Cache and install APT packages
+      uses: awalsh128/cache-apt-pkgs-action@v1
+      with:
+        packages: clang-tidy cmake build-essential libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev libglew-dev freeglut3-dev
+        version: 1.0
+
+    - name: Cache CMake build
+      uses: actions/cache@v3
+      with:
+        path: build
+        key: ${{ runner.os }}-cmake-${{ hashFiles('**/CMakeLists.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-cmake-
+    
+    - name: Configure CMake
+      run: cmake -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+    
+    - name: Run clang-tidy
+      run: |
+        find . -path ./build -prune -o -path ./win-x64-msvc -prune -o -path ./_deps -prune -o -path ./cmake-build-* -prune -o \( -name '*.cpp' -o -name '*.hpp' -o -name '*.h' \) -type f -print | grep -v '^./build' | grep -v '/_deps/' | xargs clang-tidy -p build/ --warnings-as-errors='*'
