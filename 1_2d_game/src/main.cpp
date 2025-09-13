@@ -5,8 +5,10 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <iostream>
 #include <functional>
+#include <optional>
 #include <vector>
-#include <algorithm>
+#include <utility>
+#include <array>
 #include "collision.hpp"
 #include "utils.hpp"
 
@@ -219,40 +221,61 @@ bool Player::update(int currentTime, GameState &gameState) {
 }
 
 //////////////////////// 커스텀 함수 ////////////////////////
+using BulletVec = std::vector<EnemyBullet>;
+using BulletPattern = std::function<BulletVec(GameState &, int)>;
+using PatternEntry = std::pair<BulletPattern, int>; // {패턴함수, 시작시각(ms)}
+
 float sqrtPosFunc1(int t, float speed) {
     float deltaX = static_cast<float>(t) * speed;
     return std::sqrt(deltaX);
-};
+}
 
 float sqrtPosFunc2(int t, float speed) {
     float deltaX = static_cast<float>(t) * speed;
-    return -std::sqrt(2 * deltaX);
-};
+    return -std::sqrt(2.0f * deltaX);
+}
 
-std::vector<EnemyBullet> bossBulletPattern1(GameState &gameState, int currentTime) {
-    std::vector<EnemyBullet> bullets;
+BulletVec bossEmptyPattern(GameState &gameState, int /*currentTime*/) { return {}; }
+BulletVec bossBulletPattern1(GameState &gameState, int currentTime) {
+    BulletVec bullets;
     static bool isFunc1 = false;
     bullets.reserve(30);
 
-    const int bulletCount = 30;
-    const float speed = 0.001f;
+    constexpr int bulletCount = 30;
+    constexpr float speed = 0.001f;
     const glm::fvec2 center = gameState.bossObject.currentPosition;
 
     for (int i = 0; i < bulletCount; ++i) {
-        float angle = 2.0f * std::numbers::pi * i / bulletCount;
+        float angle = 2.0f * std::numbers::pi_v<float> * i / bulletCount;
         glm::fvec2 dir(std::cos(angle), std::sin(angle));
         bullets.emplace_back(dir, center, speed, currentTime,
                              isFunc1 ? sqrtPosFunc1 : sqrtPosFunc2);
     }
-
     isFunc1 = !isFunc1;
-
     return bullets;
 }
+
+static const std::array<PatternEntry, 5> bossPatternList = {{
+    {bossEmptyPattern, 0},
+    {bossBulletPattern1, 1000},
+    {bossEmptyPattern, 3000},
+    {bossBulletPattern1, 6000},
+    {bossEmptyPattern, 8000},
+}};
+static std::size_t bossPatternListCounter = 0;
 ///////////////////////////////////////////////////////////
 
-std::function<std::vector<EnemyBullet>(GameState &, int)> getCurrentBulletPattern(int currentTime) {
-    return bossBulletPattern1;
+BulletPattern getCurrentBulletPattern(int currentTime) {
+    static int gameStartTime = currentTime;
+    static BulletPattern current = bossEmptyPattern;
+    const int elapsedTime = currentTime - gameStartTime;
+
+    while (bossPatternListCounter < bossPatternList.size() &&
+           elapsedTime >= bossPatternList[bossPatternListCounter].second) {
+        current = bossPatternList[bossPatternListCounter].first;
+        ++bossPatternListCounter;
+    }
+    return current;
 }
 
 bool Boss::update(int currentTime, GameState &gameState) {
@@ -316,22 +339,59 @@ void keyInputUpdate(int dt) {
     }
 }
 
+//////////////////////// 커스텀 함수 ////////////////////////
+using MoveFn = std::function<BossMove(int)>;
+using MoveEntry = std::pair<MoveFn, int>;
+
+auto traj1 = [](float u) { return u * (1.0f - u); }; // y=x(1-x) 궤적
+auto por1 = [](float t) {
+    return 3 * t * t - 2 * t * t * t;
+}; // ease-in & ease-out 예시. por 함수는 무조건 f(1)=1, f(0)=0이어야 됨.
+// now + 2000 (2초 뒤에 시작), 3000 (3초 동안), traj을 por 순서로 따라간다. 이때, 시작
+// 지점은 origin, 도착지점은 dest이다.
+MoveFn bossMove1 = [](int currentTime) {
+    return BossMove(gameState.bossObject.currentPosition, glm::fvec2(0.0f, 0.0f), 3000, currentTime,
+                    traj1, por1);
+};
+
+MoveFn bossMove2 = [](int currentTime) {
+    return BossMove(gameState.bossObject.currentPosition, glm::fvec2(0.0f, 0.6f), 3000, currentTime,
+                    traj1, por1);
+};
+
+static std::array<MoveEntry, 2> bossMoveList = {{
+    {bossMove1, 2000},
+    {bossMove2, 7000},
+}};
+static std::size_t bossMoveListCounter = 0;
+///////////////////////////////////////////////////////////
+
+std::optional<BossMove> getCurrentMove(int currentTime) {
+    static int gameStartTime = currentTime;
+    const int elapsedTime = currentTime - gameStartTime;
+
+    if (bossMoveListCounter >= bossMoveList.size()) {
+        return std::nullopt;
+    }
+
+    const auto &[makeMove, startAt] = bossMoveList[bossMoveListCounter];
+
+    if (elapsedTime >= startAt) {
+        BossMove move = makeMove(currentTime);
+        ++bossMoveListCounter;
+        return move;
+    }
+
+    return std::nullopt;
+}
+
 void timer(int) {
-    static int lastMs = 0;
-
     int now = glutGet(GLUT_ELAPSED_TIME); // Get Time in milliseconds.
-    if (lastMs == 0) {
-        glm::fvec2 origin = gameState.bossObject.currentPosition;
-        glm::fvec2 dest = glm::fvec2(0.0f, 0.0f);
+    static int lastMs = now;
 
-        auto traj = [](float u) { return u * (1.0f - u); }; // y=x(1-x) 궤적
-        auto por = [](float t) {
-            return 3 * t * t - 2 * t * t * t;
-        }; // ease-in & ease-out 예시. por 함수는 무조건 f(1)=1, f(0)=0이어야 됨.
-        // now + 2000 (2초 뒤에 시작), 3000 (3초 동안), traj을 por 순서로 따라간다. 이때, 시작
-        // 지점은 origin, 도착지점은 dest이다.
-        gameState.bossObject.currentMove = BossMove(origin, dest, 3000, now + 2000, traj, por);
-        lastMs = now;
+    auto bossMoveData = getCurrentMove(now);
+    if (bossMoveData.has_value()) {
+        gameState.bossObject.currentMove = bossMoveData.value();
     }
 
     int dt = now - lastMs;
