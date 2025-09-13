@@ -31,7 +31,7 @@ struct Updatable {
 
 struct EnemyBullet : Updatable, Drawable, Collidable {
     glm::fvec2 initialDirection;
-    glm::fvec2 normalDirection{};
+    glm::fvec2 normalDirection;
     glm::fvec2 initialPosition;
     glm::fvec2 currentPosition;
     int initialTime;
