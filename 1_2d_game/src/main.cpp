@@ -251,22 +251,14 @@ void timer(int) {
     
     keyInputUpdate(dt);
 
-    for (auto it = gameState.enemyBulletObjects.begin();
-         it != gameState.enemyBulletObjects.end();) {
-        if (it->update(now, gameState)) {
-            it = gameState.enemyBulletObjects.erase(it);
-        } else {
-            ++it;
-        }
-    }
-    for (auto it = gameState.playerBulletObjects.begin();
-         it != gameState.playerBulletObjects.end();) {
-        if (it->update(now, gameState)) {
-            it = gameState.playerBulletObjects.erase(it);
-        } else {
-            ++it;
-        }
-    }
+    std::erase_if(gameState.enemyBulletObjects, [&](auto& it) {
+        return it.update(now, gameState);
+    });
+
+    std::erase_if(gameState.playerBulletObjects, [&](auto& it) {
+        return it.update(now, gameState);
+    });
+
     gameState.playerObject.update(now, gameState);
     gameState.bossObject.update(now, gameState);
     
