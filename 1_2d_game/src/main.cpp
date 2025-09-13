@@ -41,10 +41,8 @@ struct EnemyBullet : Updatable, Drawable, Collidable {
                 int initialTime)
         : initialDirection(glm::normalize(initialDirection) * speed),
           normalDirection(glm::normalize(glm::fvec2(-initialDirection.y, initialDirection.x))),
-          initialPosition(initialPosition), 
-          currentPosition(initialPosition),
-          initialTime(initialTime), 
-          speed(speed) {}
+          initialPosition(initialPosition), currentPosition(initialPosition),
+          initialTime(initialTime), speed(speed) {}
     ~EnemyBullet() override {}
 
     float pos(int t) {
