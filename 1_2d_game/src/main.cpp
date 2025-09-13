@@ -47,7 +47,7 @@ struct EnemyBullet : Updatable, Drawable, Collidable {
     ~EnemyBullet() override {}
 
     float pos(int t) {
-        float deltaX = t * speed; // f/ms
+        float deltaX = static_cast<float>(t) * speed; // f/ms
         return sqrt(deltaX);
     }
     bool update(int currentTime, GameState &gameState) override {
@@ -76,7 +76,8 @@ struct PlayerBullet : Updatable, Drawable, Collidable {
     ~PlayerBullet() override {}
 
     bool update(int currentTime, GameState &gameState) override {
-        currentPosition = initialPosition + glm::fvec2(0, speed * (currentTime - initialTime));
+        currentPosition =
+            initialPosition + glm::fvec2(0, speed * static_cast<float>(currentTime - initialTime));
         return abs(currentPosition.x) > 1.0f || abs(currentPosition.y) > 1.0f;
         ;
     }
@@ -219,7 +220,7 @@ void display() {
 float playerSpeedBase = 0.0005f; // f/ms
 
 void keyInputUpdate(int dt) {
-    float playerSpeed = playerSpeedBase * dt;
+    float playerSpeed = playerSpeedBase * static_cast<float>(dt);
     if (keyStates[27]) {
         std::cout << "ESC pressed -> exit\n";
         std::exit(0);
