@@ -364,6 +364,18 @@ void display() {
     glutPostRedisplay();
 }
 
+bool isCameraShake = false;
+glm::fvec2 cameraShake(int currentTime) {
+    static int cameraShakeStartTime = currentTime;
+    int deltaTime = currentTime - cameraShakeStartTime;
+    if (deltaTime > 2000) {
+        isCameraShake = false;
+    }
+    float offset = 0.5 / (deltaTime / 2 - 20 * std::numbers::pi) *
+                   std::sin(deltaTime / 2 - 20 * std::numbers::pi);
+    return glm::fvec2(offset, 0.0);
+}
+
 float playerSpeedBase = 0.0005f; // f/ms
 
 void keyInputUpdate(int dt) {
@@ -388,7 +400,7 @@ void keyInputUpdate(int dt) {
         gameState.playerObject.tryAttack();
     }
     if (keyStates['e']) { // Camera Shake Sample
-        // gameState.cameraOffset = cameraShake(dt);
+        isCameraShake = true;
     }
 }
 
@@ -445,6 +457,9 @@ void timer(int) {
     auto bossMoveData = getCurrentMove(now);
     if (bossMoveData.has_value()) {
         gameState.bossObject.currentMove = bossMoveData.value();
+    }
+    if (isCameraShake) {
+        gameState.cameraOffset = cameraShake(now);
     }
 
     int dt = now - lastMs;
