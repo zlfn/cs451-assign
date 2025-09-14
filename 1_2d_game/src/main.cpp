@@ -190,7 +190,7 @@ struct Boss : Updatable, Drawable, Collidable {
     ~Boss() override {}
 
     bool update(int currentTime, GameState &gameState) override;
-    void draw(glm::fvec2 cameraOffset, const GameState& gameState) override {
+    void draw(glm::fvec2 cameraOffset, const GameState &gameState) override {
         drawCircle(currentPosition - cameraOffset, 0.08f, 20, glm::fvec3(0.1f, 0.0f, 1.0f));
     }
     CollisionShape getShape() const override { return CollisionCircle(currentPosition, 0.08f); }
