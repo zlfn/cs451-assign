@@ -13,18 +13,17 @@
 #include "collision.hpp"
 #include "utils.hpp"
 
+struct GameState;
+bool keyStates[256] = {false};
+struct BossMove;
+
 /// @brief Interface for objects that can be drawn
 struct Drawable {
     /// @brief Draw the object with a given camera camera_offset
     /// @param camera_offset The camera offset to apply
-    virtual void draw(glm::vec2 camera_offset) = 0;
+    virtual void draw(glm::vec2 camera_offset, const GameState &gameState) = 0;
     virtual ~Drawable() = default;
 };
-
-bool keyStates[256] = {false};
-
-struct GameState;
-struct BossMove;
 
 /// @brief Interface for objects that can be updated
 struct Updatable {
@@ -58,7 +57,7 @@ struct EnemyBullet : Updatable, Drawable, Collidable {
             initialPosition + float(dt) * initialDirection + posFunc(dt, speed) * normalDirection;
         return abs(currentPosition.x) > 1.0f || abs(currentPosition.y) > 1.0f;
     }
-    void draw(glm::fvec2 cameraOffset) override {
+    void draw(glm::fvec2 cameraOffset, const GameState &gameState) override {
         drawCircle(currentPosition - cameraOffset, 0.03f, 10, glm::fvec3(1.0f, 1.0f, 1.0f));
     }
     CollisionShape getShape() const override { return CollisionCircle(currentPosition, 0.03f); }
@@ -81,7 +80,7 @@ struct PlayerBullet : Updatable, Drawable, Collidable {
         return abs(currentPosition.x) > 1.0f || abs(currentPosition.y) > 1.0f;
         ;
     }
-    void draw(glm::fvec2 cameraOffset) override {
+    void draw(glm::fvec2 cameraOffset, const GameState &gameState) override {
         drawRect(currentPosition - cameraOffset, 0.03f, glm::fvec3(1.0f, 0.0f, 1.0f));
     }
     CollisionShape getShape() const override {
@@ -100,7 +99,7 @@ struct Player : Updatable, Drawable, Collidable {
 
     void tryAttack() { isBullet = true; }
     bool update(int currentTime, GameState &gameState) override;
-    void draw(glm::fvec2 cameraOffset) override {
+    void draw(glm::fvec2 cameraOffset, const GameState &gameState) override {
         drawTriangle(currentPosition - cameraOffset, 0.1f, glm::fvec3(1.0f, 1.0f, 0.0f));
     }
     void move(glm::fvec2 deltaPosition) {
@@ -191,19 +190,19 @@ struct Boss : Updatable, Drawable, Collidable {
     ~Boss() override {}
 
     bool update(int currentTime, GameState &gameState) override;
-    void draw(glm::fvec2 cameraOffset) override {
+    void draw(glm::fvec2 cameraOffset, const GameState& gameState) override {
         drawCircle(currentPosition - cameraOffset, 0.08f, 20, glm::fvec3(0.1f, 0.0f, 1.0f));
     }
     CollisionShape getShape() const override { return CollisionCircle(currentPosition, 0.08f); }
 };
 
-struct Hearts : Drawable {
+struct PlayerHealthBar : Drawable {
     glm::fvec2 drawPosition;
 
-    Hearts(glm::fvec2 drawPosition) : drawPosition(drawPosition) {}
-    ~Hearts() override {}
+    PlayerHealthBar(glm::fvec2 drawPosition) : drawPosition(drawPosition) {}
+    ~PlayerHealthBar() override {}
 
-    void draw(glm::fvec2 cameraOffset) override {}
+    void draw(glm::fvec2 cameraOffset, const GameState &gameState) override;
 };
 
 struct BossHealthBar : Drawable {
@@ -212,23 +211,26 @@ struct BossHealthBar : Drawable {
     BossHealthBar(glm::fvec2 drawPosition) : drawPosition(drawPosition) {}
     ~BossHealthBar() override {}
 
-    void draw(glm::fvec2 cameraOffset) override {}
+    void draw(glm::fvec2 cameraOffset, const GameState &gameState) override;
 };
 
 struct GameState {
     GameState(int h, int bh)
-        : health(h), bossHealth(bh), cameraOffset(0.0f, 0.0f),
-          playerObject(glm::fvec2(0.0f, -0.8f)), bossObject(glm::fvec2(0.0f, 0.6f)),
-          bossHealthBarObject(glm::fvec2(0.0f, 0.0f)), heartsObject(glm::fvec2(0.0f, 0.0f)) {}
+        : MAX_PLAYER_HEALTH(h), MAX_BOSS_HEALTH(bh), playerHealth(h), bossHealth(bh),
+          cameraOffset(0.0f, 0.0f), playerObject(glm::fvec2(0.0f, -0.8f)),
+          bossObject(glm::fvec2(0.0f, 0.6f)), bossHealthBarObject(glm::fvec2(0.0f, 0.0f)),
+          heartsObject(glm::fvec2(0.0f, 0.0f)) {}
 
-    int health;
+    const int MAX_PLAYER_HEALTH;
+    const int MAX_BOSS_HEALTH;
+    int playerHealth;
     int bossHealth;
     glm::fvec2 cameraOffset;
 
     Player playerObject;
     Boss bossObject;
     BossHealthBar bossHealthBarObject;
-    Hearts heartsObject;
+    PlayerHealthBar heartsObject;
 
     std::vector<PlayerBullet> playerBulletObjects;
     std::vector<EnemyBullet> enemyBulletObjects;
@@ -367,7 +369,100 @@ bool Boss::update(int currentTime, GameState &gameState) {
               << gameState.enemyBulletObjects.size() << '\n';
     return false;
 }
-GameState gameState(100, 500);
+
+void PlayerHealthBar::draw(glm::fvec2 cameraOffset, const GameState &gameState) {
+    glPushMatrix();
+    glLoadIdentity();
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    int maxHealth = gameState.MAX_PLAYER_HEALTH;
+    int currentHealth = gameState.playerHealth;
+
+    // Calculate segment size based on max health to fit within half screen width
+    float maxTotalWidth = 1.0f; // Half of screen width
+    float spacing = 0.015f;
+    float totalSpacing = spacing * static_cast<float>(maxHealth - 1);
+    float availableWidth = maxTotalWidth - totalSpacing - 0.05f; // Leave small margin
+    float segmentWidth = availableWidth / static_cast<float>(maxHealth);
+
+    // Limit segment width to prevent too large segments
+    segmentWidth = glm::min(segmentWidth, 0.2f);
+
+    // Recalculate total width with actual segment width
+    float totalWidth = segmentWidth * static_cast<float>(maxHealth) + totalSpacing;
+
+    // Position at bottom-left corner of screen
+    float startX = -0.975f; // Near left edge
+    float startY = -0.95f;  // Near bottom edge
+    float segmentHeight = 0.04f;
+    float zDepth = 0.9f;
+
+    // Draw rectangle segments for each health point
+    for (int i = 0; i < maxHealth; i++) {
+        float x = startX + static_cast<float>(i) * (segmentWidth + spacing) + segmentWidth / 2.0f;
+
+        glm::fvec4 color;
+        if (i < currentHealth) {
+            // Active health - bright orange with gradient
+            float intensity =
+                0.8f + 0.2f * sin(static_cast<float>(glutGet(GLUT_ELAPSED_TIME)) * 0.003f +
+                                  static_cast<float>(i) * 0.5f);
+            color = glm::fvec4(1.0f, 0.5f * intensity, 0.1f, 0.9f);
+        } else {
+            // Lost health - dark gray
+            color = glm::fvec4(0.2f, 0.2f, 0.2f, 0.5f);
+        }
+
+        // Draw the rectangle with glow
+        drawRectWithGlow(x, startY, segmentWidth, segmentHeight, color,
+                         (i < currentHealth) ? 0.02f : 0.0f, zDepth);
+    }
+
+    glDisable(GL_BLEND);
+    glPopMatrix();
+}
+
+void BossHealthBar::draw(glm::fvec2 cameraOffset, const GameState &gameState) {
+    float healthPercentage =
+        static_cast<float>(gameState.bossHealth) / static_cast<float>(gameState.MAX_BOSS_HEALTH);
+    healthPercentage = glm::clamp(healthPercentage, 0.0f, 1.0f);
+
+    float barWidth = 1.9f; // Almost full screen width
+    float barHeight = 0.03f;
+    float barX = 0.0f;
+    float barY = 0.95f;
+    float zDepth = 0.9f;
+
+    glPushMatrix();
+    glLoadIdentity();
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    // Draw background bar
+    glBegin(GL_QUADS);
+    glColor4f(0.2f, 0.2f, 0.2f, 0.7f);
+    glVertex3f(-barWidth / 2, barY - barHeight / 2, zDepth);
+    glVertex3f(barWidth / 2, barY - barHeight / 2, zDepth);
+    glVertex3f(barWidth / 2, barY + barHeight / 2, zDepth);
+    glVertex3f(-barWidth / 2, barY + barHeight / 2, zDepth);
+    glEnd();
+
+    // Draw health bar with glow using the utility function
+    float healthBarWidth = barWidth * healthPercentage;
+    float healthBarX = -barWidth / 2 + healthBarWidth / 2;
+
+    drawRectWithGlow(healthBarX, barY, healthBarWidth, barHeight,
+                     glm::fvec4(0.5f, 0.8f, 1.0f, 1.0f), 0.04f, 1.0f);
+
+    glDisable(GL_BLEND);
+
+    glPopMatrix();
+}
+
+GameState gameState(5, 500);
 
 void keyboardDown(unsigned char key, int /*x*/, int /*y*/) { keyStates[key] = true; }
 void keyboardUp(unsigned char key, int /*x*/, int /*y*/) { keyStates[key] = false; }
@@ -375,14 +470,22 @@ void keyboardUp(unsigned char key, int /*x*/, int /*y*/) { keyStates[key] = fals
 void display() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    glOrtho(-1.0, 1.0, -1.0, 1.0, -1.0, 1.0);
+    glMatrixMode(GL_MODELVIEW);
+
     for (auto &object : gameState.enemyBulletObjects) {
-        object.draw(gameState.cameraOffset);
+        object.draw(gameState.cameraOffset, gameState);
     }
     for (auto &object : gameState.playerBulletObjects) {
-        object.draw(gameState.cameraOffset);
+        object.draw(gameState.cameraOffset, gameState);
     }
-    gameState.playerObject.draw(gameState.cameraOffset);
-    gameState.bossObject.draw(gameState.cameraOffset);
+    gameState.playerObject.draw(gameState.cameraOffset, gameState);
+    gameState.bossObject.draw(gameState.cameraOffset, gameState);
+
+    gameState.bossHealthBarObject.draw(gameState.cameraOffset, gameState);
+    gameState.heartsObject.draw(gameState.cameraOffset, gameState);
 
     glutSwapBuffers();
     glutPostRedisplay();
