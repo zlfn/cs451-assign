@@ -60,9 +60,7 @@ struct EnemyBullet : Updatable, Drawable, Collidable {
     void draw(glm::fvec2 cameraOffset) override {
         drawCircle(currentPosition - cameraOffset, 0.03f, 10, glm::fvec3(1.0f, 1.0f, 1.0f));
     }
-    CollisionShape getShape() const override {
-        return CollisionCircle(glm::vec2(0.0f, 0.0f), 1.0f);
-    }
+    CollisionShape getShape() const override { return CollisionCircle(currentPosition, 0.03f); }
 };
 
 struct PlayerBullet : Updatable, Drawable, Collidable {
@@ -86,7 +84,8 @@ struct PlayerBullet : Updatable, Drawable, Collidable {
         drawRect(currentPosition - cameraOffset, 0.03f, glm::fvec3(1.0f, 0.0f, 1.0f));
     }
     CollisionShape getShape() const override {
-        return CollisionCircle(glm::vec2(0.0f, 0.0f), 1.0f);
+        return CollisionRectangle(currentPosition - glm::fvec2(0.015f, 0.015f),
+                                  currentPosition + glm::fvec2(0.015f, 0.015f));
     }
 };
 
@@ -117,7 +116,8 @@ struct Player : Updatable, Drawable, Collidable {
             currentPosition.y = 1.0f;
     }
     CollisionShape getShape() const override {
-        return CollisionCircle(glm::vec2(0.0f, 0.0f), 1.0f);
+        return CollisionRectangle(currentPosition - glm::fvec2(0.05f, 0.05f),
+                                  currentPosition + glm::fvec2(0.05f, 0.05f));
     }
 };
 
@@ -168,11 +168,9 @@ struct Boss : Updatable, Drawable, Collidable {
 
     bool update(int currentTime, GameState &gameState) override;
     void draw(glm::fvec2 cameraOffset) override {
-        drawCircle(currentPosition - cameraOffset, 0.05f, 20, glm::fvec3(0.1f, 0.0f, 1.0f));
+        drawCircle(currentPosition - cameraOffset, 0.08f, 20, glm::fvec3(0.1f, 0.0f, 1.0f));
     }
-    CollisionShape getShape() const override {
-        return CollisionCircle(glm::vec2(0.0f, 0.0f), 1.0f);
-    }
+    CollisionShape getShape() const override { return CollisionCircle(currentPosition, 0.08f); }
 };
 
 struct Hearts : Drawable {
@@ -226,9 +224,7 @@ using BulletVec = std::vector<EnemyBullet>;
 using BulletPattern = std::function<BulletVec(GameState &, int)>;
 using PatternEntry = std::pair<BulletPattern, int>; // {패턴함수, 시작시각(ms)}
 
-float basePosFunc(int t, float speed) {
-    return 0;
-}
+float basePosFunc(int t, float speed) { return 0; }
 float sqrtPosFunc1(int t, float speed) {
     float deltaX = static_cast<float>(t) * speed;
     return std::sqrt(deltaX);
@@ -294,7 +290,7 @@ BulletVec bossBulletPattern3(GameState &gameState, int currentTime) {
     constexpr float speed = 0.001f;
     bullets.reserve(bulletCount);
 
-    float baseAngle = (startTime - currentTime) / 1000.0f; 
+    float baseAngle = (startTime - currentTime) / 1000.0f;
     const glm::fvec2 center = gameState.bossObject.currentPosition;
 
     for (int i = 0; i < bulletCount; ++i) {
@@ -388,8 +384,11 @@ void keyInputUpdate(int dt) {
     if (keyStates['d']) {
         gameState.playerObject.move(glm::vec2(playerSpeed, 0.0f));
     }
-    if (keyStates['e']) { // Camera Shake
+    if (keyStates[' ']) {
         gameState.playerObject.tryAttack();
+    }
+    if (keyStates['e']) { // Camera Shake Sample
+        // gameState.cameraOffset = cameraShake(dt);
     }
 }
 
