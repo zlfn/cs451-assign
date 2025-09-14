@@ -160,6 +160,7 @@ struct Boss : Updatable, Drawable, Collidable {
     glm::fvec2 currentPosition;
     BossMove currentMove;
     int coolTime = 0;
+    int coolTimePeriod = 500;
 
     Boss(glm::fvec2 initialPosition)
         : currentPosition(initialPosition), currentMove(idleBossMove(initialPosition)) {}
@@ -225,24 +226,30 @@ using BulletVec = std::vector<EnemyBullet>;
 using BulletPattern = std::function<BulletVec(GameState &, int)>;
 using PatternEntry = std::pair<BulletPattern, int>; // {패턴함수, 시작시각(ms)}
 
+float basePosFunc(int t, float speed) {
+    return 0;
+}
 float sqrtPosFunc1(int t, float speed) {
     float deltaX = static_cast<float>(t) * speed;
     return std::sqrt(deltaX);
 }
-
 float sqrtPosFunc2(int t, float speed) {
     float deltaX = static_cast<float>(t) * speed;
-    return -std::sqrt(2.0f * deltaX);
+    return -std::sqrt(3.0f * deltaX);
 }
 
-BulletVec bossEmptyPattern(GameState &gameState, int /*currentTime*/) { return {}; }
+BulletVec bossEmptyPattern(GameState &gameState, int /*currentTime*/) {
+    gameState.bossObject.coolTimePeriod = 500;
+    return {};
+}
 BulletVec bossBulletPattern1(GameState &gameState, int currentTime) {
+    gameState.bossObject.coolTimePeriod = 300;
     BulletVec bullets;
     static bool isFunc1 = false;
     bullets.reserve(30);
 
     constexpr int bulletCount = 30;
-    constexpr float speed = 0.001f;
+    constexpr float speed = 0.0005f;
     const glm::fvec2 center = gameState.bossObject.currentPosition;
 
     for (int i = 0; i < bulletCount; ++i) {
@@ -254,13 +261,60 @@ BulletVec bossBulletPattern1(GameState &gameState, int currentTime) {
     isFunc1 = !isFunc1;
     return bullets;
 }
+BulletVec bossBulletPattern2(GameState &gameState, int currentTime) {
+    gameState.bossObject.coolTimePeriod = 400;
+    BulletVec bullets;
+    constexpr int bulletCount = 15;
+    constexpr float speed = 0.0005f;
+    constexpr float spreadDeg = 75.0f;
+    constexpr float spreadRad = glm::radians(spreadDeg);
 
-static const std::array<PatternEntry, 5> bossPatternList = {{
-    {bossEmptyPattern, 0},
+    bullets.reserve(bulletCount);
+
+    const glm::fvec2 center = gameState.bossObject.currentPosition;
+    glm::fvec2 toPlayer = gameState.playerObject.currentPosition - center;
+
+    const float baseAngle = std::atan2(toPlayer.y, toPlayer.x);
+
+    for (int i = 0; i < bulletCount; ++i) {
+        float t = (bulletCount == 1) ? 0.0f : (static_cast<float>(i) / (bulletCount - 1) - 0.5f);
+        float angle = baseAngle + t * spreadRad;
+
+        glm::fvec2 dir(std::cos(angle), std::sin(angle));
+        bullets.emplace_back(dir, center, speed, currentTime, basePosFunc);
+    }
+
+    return bullets;
+}
+BulletVec bossBulletPattern3(GameState &gameState, int currentTime) {
+    gameState.bossObject.coolTimePeriod = 200;
+    BulletVec bullets;
+    static int startTime = currentTime;
+    constexpr int bulletCount = 4;
+    constexpr float speed = 0.001f;
+    bullets.reserve(bulletCount);
+
+    float baseAngle = (startTime - currentTime) / 1000.0f; 
+    const glm::fvec2 center = gameState.bossObject.currentPosition;
+
+    for (int i = 0; i < bulletCount; ++i) {
+        float t = static_cast<float>(i) / (bulletCount - 1) - 0.5f;
+        float angle = baseAngle + t;
+
+        glm::fvec2 dir(std::cos(angle), std::sin(angle));
+        bullets.emplace_back(dir, center, speed, currentTime, basePosFunc);
+    }
+
+    return bullets;
+}
+
+static const std::array<PatternEntry, 6> bossPatternList = {{
+    {bossBulletPattern2, 0},
     {bossBulletPattern1, 1000},
-    {bossEmptyPattern, 3000},
+    {bossBulletPattern3, 3000},
     {bossBulletPattern1, 6000},
-    {bossEmptyPattern, 8000},
+    {bossBulletPattern2, 8000},
+    {bossEmptyPattern, 12000},
 }};
 static std::size_t bossPatternListCounter = 0;
 ///////////////////////////////////////////////////////////
@@ -283,7 +337,7 @@ bool Boss::update(int currentTime, GameState &gameState) {
 
     if (this->coolTime > currentTime)
         return false;
-    this->coolTime = currentTime + 500;
+    this->coolTime = currentTime + this->coolTimePeriod;
 
     auto newBullets = getCurrentBulletPattern(currentTime)(gameState, currentTime);
     gameState.enemyBulletObjects.insert(gameState.enemyBulletObjects.end(), newBullets.begin(),
@@ -343,10 +397,10 @@ void keyInputUpdate(int dt) {
 using MoveFn = std::function<BossMove(int)>;
 using MoveEntry = std::pair<MoveFn, int>;
 
-auto traj1 = [](float u) { return u * (1.0f - u); }; // y=x(1-x) 궤적
+auto traj1 = [](float u) { return u * (1.0f - u); }; // y=x(1-x) 궤적. 무조건 f(0)=f(1)=0이어야 함.
 auto por1 = [](float t) {
     return 3 * t * t - 2 * t * t * t;
-}; // ease-in & ease-out 예시. por 함수는 무조건 f(1)=1, f(0)=0이어야 됨.
+}; // ease-in & ease-out 예시. por 함수는 무조건 f(0)=0, f(1)=1이어야 됨.
 // now + 2000 (2초 뒤에 시작), 3000 (3초 동안), traj을 por 순서로 따라간다. 이때, 시작
 // 지점은 origin, 도착지점은 dest이다.
 MoveFn bossMove1 = [](int currentTime) {
