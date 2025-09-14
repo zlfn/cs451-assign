@@ -122,6 +122,26 @@ struct Player : Updatable, Drawable, Collidable {
     }
 };
 
+constexpr bool approxEqual(float a, float b, float epsilon = 1e-2f) {
+    return (a > b ? a - b : b - a) < epsilon;
+}
+
+/// @brief Concept for functions f(0)=f(1)=0
+/// @tparam F Function type
+template <typename F>
+concept Map00Fn = requires {
+    { F{}(0.0f) } -> std::same_as<float>;
+    { F{}(1.0f) } -> std::same_as<float>;
+} && approxEqual(F{}(0.0f), 0.0f) && approxEqual(F{}(1.0f), 0.0f);
+
+/// @brief Concept for functions f(0)=0, f(1)=1
+/// @tparam F Function type
+template <typename F>
+concept Map01Fn = requires {
+    { F{}(0.0f) } -> std::same_as<float>;
+    { F{}(1.0f) } -> std::same_as<float>;
+} && approxEqual(F{}(0.0f), 0.0f) && approxEqual(F{}(1.0f), 1.0f);
+
 struct BossMove {
     glm::fvec2 origin;
     glm::fvec2 destination;
@@ -129,11 +149,12 @@ struct BossMove {
     glm::fvec2 normalVector{};
     int travelTime;
     int initialTime;
-    std::function<float(float)> trajectory; // [0.0, 1.0] -> R
-    std::function<float(float)> portion;    // [0.0, 1.0] -> [0.0, 1.0]
+    std::function<float(float)> trajectory; // f(0) = 0, f(1) = 0
+    std::function<float(float)> portion;    // f(1) = 0, f(1) = 1
 
+    template <Map00Fn TrajFn, Map01Fn PorFn>
     BossMove(glm::fvec2 origin, glm::fvec2 destination, int travelTime, int initialTime,
-             std::function<float(float)> trajectory, std::function<float(float)> portion)
+             TrajFn trajectory, PorFn portion)
         : origin(origin), destination(destination), travelTime(travelTime),
           initialTime(initialTime), trajectory(std::move(trajectory)), portion(std::move(portion)) {
         directionVector = destination - origin;
@@ -154,8 +175,9 @@ struct BossMove {
 };
 
 static BossMove idleBossMove(glm::fvec2 position, int startTime = 0) {
-    auto trivialFunc = [](float) { return 0; };
-    return BossMove(position, position, 0, startTime, trivialFunc, trivialFunc);
+    auto trivialFunc = [](float) { return 0.0f; };
+    auto trivialFuncPor = [](float t) { return t; };
+    return BossMove(position, position, 0, startTime, trivialFunc, trivialFuncPor);
 }
 
 struct Boss : Updatable, Drawable, Collidable {
@@ -413,7 +435,7 @@ using MoveEntry = std::pair<MoveFn, int>;
 
 auto traj1 = [](float u) { return u * (1.0f - u); }; // y=x(1-x) 궤적. 무조건 f(0)=f(1)=0이어야 함.
 auto por1 = [](float t) {
-    return 3 * t * t - 2 * t * t * t;
+    return float(3 * t * t - 2 * t * t * t);
 }; // ease-in & ease-out 예시. por 함수는 무조건 f(0)=0, f(1)=1이어야 됨.
 // now + 2000 (2초 뒤에 시작), 3000 (3초 동안), traj을 por 순서로 따라간다. 이때, 시작
 // 지점은 origin, 도착지점은 dest이다.
