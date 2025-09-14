@@ -4,7 +4,12 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <iostream>
+#include <functional>
+#include <optional>
+#include <utility>
 #include <vector>
+#include <utility>
+#include <array>
 #include "collision.hpp"
 #include "utils.hpp"
 
@@ -19,6 +24,7 @@ struct Drawable {
 bool keyStates[256] = {false};
 
 struct GameState;
+struct BossMove;
 
 /// @brief Interface for objects that can be updated
 struct Updatable {
@@ -36,31 +42,26 @@ struct EnemyBullet : Updatable, Drawable, Collidable {
     glm::fvec2 currentPosition;
     int initialTime;
     float speed;
+    std::function<float(int, float)> posFunc;
 
     EnemyBullet(glm::fvec2 initialDirection, glm::fvec2 initialPosition, float speed,
-                int initialTime)
+                int initialTime, std::function<float(int, float)> posFunc)
         : initialDirection(glm::normalize(initialDirection) * speed),
           normalDirection(glm::normalize(glm::fvec2(-initialDirection.y, initialDirection.x))),
           initialPosition(initialPosition), currentPosition(initialPosition),
-          initialTime(initialTime), speed(speed) {}
+          initialTime(initialTime), speed(speed), posFunc(std::move(posFunc)) {}
     ~EnemyBullet() override {}
 
-    float pos(int t) {
-        float deltaX = static_cast<float>(t) * speed; // f/ms
-        return std::sqrt(deltaX);
-    }
     bool update(int currentTime, GameState &gameState) override {
         int dt = currentTime - initialTime;
         currentPosition =
-            initialPosition + float(dt) * initialDirection + pos(dt) * normalDirection;
+            initialPosition + float(dt) * initialDirection + posFunc(dt, speed) * normalDirection;
         return abs(currentPosition.x) > 1.0f || abs(currentPosition.y) > 1.0f;
     }
     void draw(glm::fvec2 cameraOffset) override {
         drawCircle(currentPosition - cameraOffset, 0.03f, 10, glm::fvec3(1.0f, 1.0f, 1.0f));
     }
-    CollisionShape getShape() const override {
-        return CollisionCircle(glm::vec2(0.0f, 0.0f), 1.0f);
-    }
+    CollisionShape getShape() const override { return CollisionCircle(currentPosition, 0.03f); }
 };
 
 struct PlayerBullet : Updatable, Drawable, Collidable {
@@ -84,7 +85,8 @@ struct PlayerBullet : Updatable, Drawable, Collidable {
         drawRect(currentPosition - cameraOffset, 0.03f, glm::fvec3(1.0f, 0.0f, 1.0f));
     }
     CollisionShape getShape() const override {
-        return CollisionCircle(glm::vec2(0.0f, 0.0f), 1.0f);
+        return CollisionRectangle(currentPosition - glm::fvec2(0.015f, 0.015f),
+                                  currentPosition + glm::fvec2(0.015f, 0.015f));
     }
 };
 
@@ -115,24 +117,84 @@ struct Player : Updatable, Drawable, Collidable {
             currentPosition.y = 1.0f;
     }
     CollisionShape getShape() const override {
-        return CollisionCircle(glm::vec2(0.0f, 0.0f), 1.0f);
+        return CollisionRectangle(currentPosition - glm::fvec2(0.05f, 0.05f),
+                                  currentPosition + glm::fvec2(0.05f, 0.05f));
     }
 };
 
+constexpr bool approxEqual(float a, float b, float epsilon = 1e-2f) {
+    return (a > b ? a - b : b - a) < epsilon;
+}
+
+/// @brief Concept for functions f(0)=f(1)=0
+/// @tparam F Function type
+template <typename F>
+concept Map00Fn = requires {
+    { F{}(0.0f) } -> std::same_as<float>;
+    { F{}(1.0f) } -> std::same_as<float>;
+} && approxEqual(F{}(0.0f), 0.0f) && approxEqual(F{}(1.0f), 0.0f);
+
+/// @brief Concept for functions f(0)=0, f(1)=1
+/// @tparam F Function type
+template <typename F>
+concept Map01Fn = requires {
+    { F{}(0.0f) } -> std::same_as<float>;
+    { F{}(1.0f) } -> std::same_as<float>;
+} && approxEqual(F{}(0.0f), 0.0f) && approxEqual(F{}(1.0f), 1.0f);
+
+struct BossMove {
+    glm::fvec2 origin;
+    glm::fvec2 destination;
+    glm::fvec2 directionVector{};
+    glm::fvec2 normalVector{};
+    int travelTime;
+    int initialTime;
+    std::function<float(float)> trajectory; // f(0) = 0, f(1) = 0
+    std::function<float(float)> portion;    // f(1) = 0, f(1) = 1
+
+    template <Map00Fn TrajFn, Map01Fn PorFn>
+    BossMove(glm::fvec2 origin, glm::fvec2 destination, int travelTime, int initialTime,
+             TrajFn trajectory, PorFn portion)
+        : origin(origin), destination(destination), travelTime(travelTime),
+          initialTime(initialTime), trajectory(std::move(trajectory)), portion(std::move(portion)) {
+        directionVector = destination - origin;
+        normalVector = glm::normalize(glm::fvec2(-directionVector.y, directionVector.x));
+    }
+
+    glm::fvec2 getCurrentPosition(int currentTime) {
+        if (currentTime <= initialTime)
+            return origin;
+        if (currentTime >= initialTime + travelTime)
+            return destination;
+        float timePortion =
+            portion(static_cast<float>(currentTime - initialTime) / ((float)travelTime));
+        glm::fvec2 currentPosition =
+            origin + directionVector * timePortion + trajectory(timePortion) * normalVector;
+        return currentPosition;
+    }
+};
+
+static BossMove idleBossMove(glm::fvec2 position, int startTime = 0) {
+    auto trivialFunc = [](float) { return 0.0f; };
+    auto trivialFuncPor = [](float t) { return t; };
+    return BossMove(position, position, 0, startTime, trivialFunc, trivialFuncPor);
+}
+
 struct Boss : Updatable, Drawable, Collidable {
     glm::fvec2 currentPosition;
-    int cooltime = 0;
+    BossMove currentMove;
+    int coolTime = 0;
+    int coolTimePeriod = 500;
 
-    Boss(glm::fvec2 initialPosition) : currentPosition(initialPosition) {}
+    Boss(glm::fvec2 initialPosition)
+        : currentPosition(initialPosition), currentMove(idleBossMove(initialPosition)) {}
     ~Boss() override {}
 
     bool update(int currentTime, GameState &gameState) override;
     void draw(glm::fvec2 cameraOffset) override {
-        drawCircle(currentPosition - cameraOffset, 0.05f, 20, glm::fvec3(0.1f, 0.0f, 1.0f));
+        drawCircle(currentPosition - cameraOffset, 0.08f, 20, glm::fvec3(0.1f, 0.0f, 1.0f));
     }
-    CollisionShape getShape() const override {
-        return CollisionCircle(glm::vec2(0.0f, 0.0f), 1.0f);
-    }
+    CollisionShape getShape() const override { return CollisionCircle(currentPosition, 0.08f); }
 };
 
 struct Hearts : Drawable {
@@ -155,9 +217,9 @@ struct BossHealthBar : Drawable {
 
 struct GameState {
     GameState(int h, int bh)
-        : health(h), bossHealth(bh), cameraOffset(0.0f, 0.0f), playerObject(glm::fvec2(0.0f, 0.0f)),
-          bossObject(glm::fvec2(0.0f, 0.0f)), bossHealthBarObject(glm::fvec2(0.0f, 0.0f)),
-          heartsObject(glm::fvec2(0.0f, 0.0f)) {}
+        : health(h), bossHealth(bh), cameraOffset(0.0f, 0.0f),
+          playerObject(glm::fvec2(0.0f, -0.8f)), bossObject(glm::fvec2(0.0f, 0.6f)),
+          bossHealthBarObject(glm::fvec2(0.0f, 0.0f)), heartsObject(glm::fvec2(0.0f, 0.0f)) {}
 
     int health;
     int bossHealth;
@@ -181,15 +243,125 @@ bool Player::update(int currentTime, GameState &gameState) {
     return false;
 }
 
-bool Boss::update(int currentTime, GameState &gameState) {
-    if (this->cooltime > currentTime)
-        return false;
-    this->cooltime = currentTime + 200;
+//////////////////////// 커스텀 함수 ////////////////////////
+using BulletVec = std::vector<EnemyBullet>;
+using BulletPattern = std::function<BulletVec(GameState &, int)>;
+using PatternEntry = std::pair<BulletPattern, int>; // {패턴함수, 시작시각(ms)}
 
-    EnemyBullet testBullet1(glm::fvec2(1.0f, 0.0f), glm::fvec2(0.0f, 0.0f), 0.001f, currentTime);
-    EnemyBullet testBullet2(glm::fvec2(1.0f, 0.0f), glm::fvec2(0.0f, 0.0f), 0.002f, currentTime);
-    gameState.enemyBulletObjects.push_back(testBullet1);
-    gameState.enemyBulletObjects.push_back(testBullet2);
+float basePosFunc(int t, float speed) { return 0; }
+float sqrtPosFunc1(int t, float speed) {
+    float deltaX = static_cast<float>(t) * speed;
+    return std::sqrt(deltaX);
+}
+float sqrtPosFunc2(int t, float speed) {
+    float deltaX = static_cast<float>(t) * speed;
+    return -std::sqrt(3.0f * deltaX);
+}
+
+BulletVec bossEmptyPattern(GameState &gameState, int /*currentTime*/) {
+    gameState.bossObject.coolTimePeriod = 500;
+    return {};
+}
+BulletVec bossBulletPattern1(GameState &gameState, int currentTime) {
+    gameState.bossObject.coolTimePeriod = 300;
+    BulletVec bullets;
+    static bool isFunc1 = false;
+    bullets.reserve(30);
+
+    constexpr int BULLET_COUNT = 30;
+    constexpr float SPEED = 0.0005f;
+    const glm::fvec2 CENTER = gameState.bossObject.currentPosition;
+
+    for (int i = 0; i < BULLET_COUNT; ++i) {
+        float angle = 2.0f * std::numbers::pi_v<float> * float(i) / BULLET_COUNT;
+        glm::fvec2 dir(std::cos(angle), std::sin(angle));
+        bullets.emplace_back(dir, CENTER, SPEED, currentTime,
+                             isFunc1 ? sqrtPosFunc1 : sqrtPosFunc2);
+    }
+    isFunc1 = !isFunc1;
+    return bullets;
+}
+BulletVec bossBulletPattern2(GameState &gameState, int currentTime) {
+    gameState.bossObject.coolTimePeriod = 400;
+    BulletVec bullets;
+    constexpr int BULLET_COUNT = 15;
+    constexpr float SPEED = 0.0005f;
+    constexpr float SPREAD_DEG = 75.0f;
+    constexpr float SPREAD_RAD = glm::radians(SPREAD_DEG);
+
+    bullets.reserve(BULLET_COUNT);
+
+    const glm::fvec2 CENTER = gameState.bossObject.currentPosition;
+    glm::fvec2 toPlayer = gameState.playerObject.currentPosition - CENTER;
+
+    const float BASE_ANGLE = std::atan2(toPlayer.y, toPlayer.x);
+
+    for (int i = 0; i < BULLET_COUNT; ++i) {
+        float t = (BULLET_COUNT == 1) ? 0.0f : (static_cast<float>(i) / (BULLET_COUNT - 1) - 0.5f);
+        float angle = BASE_ANGLE + t * SPREAD_RAD;
+
+        glm::fvec2 dir(std::cos(angle), std::sin(angle));
+        bullets.emplace_back(dir, CENTER, SPEED, currentTime, basePosFunc);
+    }
+
+    return bullets;
+}
+BulletVec bossBulletPattern3(GameState &gameState, int currentTime) {
+    gameState.bossObject.coolTimePeriod = 200;
+    BulletVec bullets;
+    static int startTime = currentTime;
+    constexpr int BULLET_COUNT = 4;
+    constexpr float SPEED = 0.001f;
+    bullets.reserve(BULLET_COUNT);
+
+    float baseAngle = static_cast<float>(startTime - currentTime) / 1000.0f;
+    const glm::fvec2 CENTER = gameState.bossObject.currentPosition;
+
+    for (int i = 0; i < BULLET_COUNT; ++i) {
+        float t = static_cast<float>(i) / (BULLET_COUNT - 1) - 0.5f;
+        float angle = baseAngle + t;
+
+        glm::fvec2 dir(std::cos(angle), std::sin(angle));
+        bullets.emplace_back(dir, CENTER, SPEED, currentTime, basePosFunc);
+    }
+
+    return bullets;
+}
+
+static const std::array<PatternEntry, 6> BOSS_PATTERN_LIST = {{
+    {bossBulletPattern2, 0},
+    {bossBulletPattern1, 1000},
+    {bossBulletPattern3, 3000},
+    {bossBulletPattern1, 6000},
+    {bossBulletPattern2, 8000},
+    {bossEmptyPattern, 12000},
+}};
+static std::size_t bossPatternListCounter = 0;
+///////////////////////////////////////////////////////////
+
+BulletPattern getCurrentBulletPattern(int currentTime) {
+    static int gameStartTime = currentTime;
+    static BulletPattern current = bossEmptyPattern;
+    const int ELAPSED_TIME = currentTime - gameStartTime;
+
+    while (bossPatternListCounter < BOSS_PATTERN_LIST.size() &&
+           ELAPSED_TIME >= BOSS_PATTERN_LIST[bossPatternListCounter].second) {
+        current = BOSS_PATTERN_LIST[bossPatternListCounter].first;
+        ++bossPatternListCounter;
+    }
+    return current;
+}
+
+bool Boss::update(int currentTime, GameState &gameState) {
+    this->currentPosition = this->currentMove.getCurrentPosition(currentTime);
+
+    if (this->coolTime > currentTime)
+        return false;
+    this->coolTime = currentTime + this->coolTimePeriod;
+
+    auto newBullets = getCurrentBulletPattern(currentTime)(gameState, currentTime);
+    gameState.enemyBulletObjects.insert(gameState.enemyBulletObjects.end(), newBullets.begin(),
+                                        newBullets.end());
 
     std::cout << currentTime << ", " << gameState.bossHealth << ", "
               << gameState.enemyBulletObjects.size() << '\n';
@@ -216,6 +388,19 @@ void display() {
     glutPostRedisplay();
 }
 
+bool isCameraShake = false;
+glm::fvec2 cameraShake(int currentTime) {
+    static int cameraShakeStartTime = currentTime;
+    int deltaTime = currentTime - cameraShakeStartTime;
+    if (deltaTime > 2000) {
+        isCameraShake = false;
+    }
+    float offset =
+        0.5f / (static_cast<float>(deltaTime) / 2.0f - 20.0f * std::numbers::pi_v<float>)*std::sin(
+                   static_cast<float>(deltaTime) / 2.0f - 20.0f * std::numbers::pi_v<float>);
+    return glm::fvec2(offset, 0.0);
+}
+
 float playerSpeedBase = 0.0005f; // f/ms
 
 void keyInputUpdate(int dt) {
@@ -226,32 +411,80 @@ void keyInputUpdate(int dt) {
     }
     if (keyStates['w']) {
         gameState.playerObject.move(glm::vec2(0.0f, playerSpeed));
-        std::cout << "w clicked\n";
     }
     if (keyStates['a']) {
         gameState.playerObject.move(glm::vec2(-playerSpeed, 0.0f));
-        std::cout << "a clicked\n";
     }
     if (keyStates['s']) {
         gameState.playerObject.move(glm::vec2(0.0f, -playerSpeed));
-        std::cout << "s clicked\n";
     }
     if (keyStates['d']) {
         gameState.playerObject.move(glm::vec2(playerSpeed, 0.0f));
-        std::cout << "d clicked\n";
     }
-    if (keyStates['e']) { // Camera Shake
+    if (keyStates[' ']) {
         gameState.playerObject.tryAttack();
-        std::cout << "e clicked\n";
+    }
+    if (keyStates['e']) { // Camera Shake Sample
+        isCameraShake = true;
     }
 }
 
-void timer(int) {
-    static int lastMs = 0;
+//////////////////////// 커스텀 함수 ////////////////////////
+using MoveFn = std::function<BossMove(int)>;
+using MoveEntry = std::pair<MoveFn, int>;
 
+auto traj1 = [](float u) { return u * (1.0f - u); }; // y=x(1-x) 궤적. 무조건 f(0)=f(1)=0이어야 함.
+auto por1 = [](float t) {
+    return float(3 * t * t - 2 * t * t * t);
+}; // ease-in & ease-out 예시. por 함수는 무조건 f(0)=0, f(1)=1이어야 됨.
+// now + 2000 (2초 뒤에 시작), 3000 (3초 동안), traj을 por 순서로 따라간다. 이때, 시작
+// 지점은 origin, 도착지점은 dest이다.
+MoveFn bossMove1 = [](int currentTime) {
+    return BossMove(gameState.bossObject.currentPosition, glm::fvec2(0.0f, 0.0f), 3000, currentTime,
+                    traj1, por1);
+};
+
+MoveFn bossMove2 = [](int currentTime) {
+    return BossMove(gameState.bossObject.currentPosition, glm::fvec2(0.0f, 0.6f), 3000, currentTime,
+                    traj1, por1);
+};
+
+static std::array<MoveEntry, 2> bossMoveList = {{
+    {bossMove1, 2000},
+    {bossMove2, 7000},
+}};
+static std::size_t bossMoveListCounter = 0;
+///////////////////////////////////////////////////////////
+
+std::optional<BossMove> getCurrentMove(int currentTime) {
+    static int gameStartTime = currentTime;
+    const int ELAPSED_TIME = currentTime - gameStartTime;
+
+    if (bossMoveListCounter >= bossMoveList.size()) {
+        return std::nullopt;
+    }
+
+    const auto &[makeMove, startAt] = bossMoveList[bossMoveListCounter];
+
+    if (ELAPSED_TIME >= startAt) {
+        BossMove move = makeMove(currentTime);
+        ++bossMoveListCounter;
+        return move;
+    }
+
+    return std::nullopt;
+}
+
+void timer(int) {
     int now = glutGet(GLUT_ELAPSED_TIME); // Get Time in milliseconds.
-    if (lastMs == 0) {
-        lastMs = now;
+    static int lastMs = now;
+
+    auto bossMoveData = getCurrentMove(now);
+    if (bossMoveData.has_value()) {
+        gameState.bossObject.currentMove = bossMoveData.value();
+    }
+    if (isCameraShake) {
+        gameState.cameraOffset = cameraShake(now);
     }
 
     int dt = now - lastMs;
@@ -268,7 +501,6 @@ void timer(int) {
     gameState.playerObject.update(now, gameState);
     gameState.bossObject.update(now, gameState);
 
-    glutPostRedisplay();
     glutTimerFunc(16, timer, 0);
 }
 
