@@ -98,8 +98,8 @@ void drawRectWithGlow(float x, float y, float width, float height, glm::fvec4 co
     glColor4f(color.r, color.g, color.b, 0.0f);
     for (int i = 0; i <= 16; i++) {
         float angle = (static_cast<float>(i) / 16.0f) * 3.14159f / 2.0f;
-        float cx = x - width / 2 - glowSize * sin(angle);
-        float cy = y + height / 2 + glowSize * cos(angle);
+        float cx = x - width / 2.0f - glowSize * std::sinf(angle);
+        float cy = y + height / 2.0f + glowSize * std::cosf(angle);
         glVertex3f(cx, cy, zDepth - 0.01f);
     }
     glEnd();
@@ -112,8 +112,8 @@ void drawRectWithGlow(float x, float y, float width, float height, glm::fvec4 co
     glColor4f(color.r, color.g, color.b, 0.0f);
     for (int i = 0; i <= 16; i++) {
         float angle = (static_cast<float>(i) / 16.0f) * 3.14159f / 2.0f;
-        float cx = x + width / 2 + glowSize * cos(angle);
-        float cy = y + height / 2 + glowSize * sin(angle);
+        float cx = x + width / 2.0f + glowSize * std::cosf(angle);
+        float cy = y + height / 2.0f + glowSize * std::sinf(angle);
         glVertex3f(cx, cy, zDepth - 0.01f);
     }
     glEnd();
@@ -126,8 +126,8 @@ void drawRectWithGlow(float x, float y, float width, float height, glm::fvec4 co
     glColor4f(color.r, color.g, color.b, 0.0f);
     for (int i = 0; i <= 16; i++) {
         float angle = (static_cast<float>(i) / 16.0f) * 3.14159f / 2.0f;
-        float cx = x - width / 2 - glowSize * cos(angle);
-        float cy = y - height / 2 - glowSize * sin(angle);
+        float cx = x - width / 2.0f - glowSize * std::cosf(angle);
+        float cy = y - height / 2.0f - glowSize * std::sinf(angle);
         glVertex3f(cx, cy, zDepth - 0.01f);
     }
     glEnd();
@@ -140,8 +140,8 @@ void drawRectWithGlow(float x, float y, float width, float height, glm::fvec4 co
     glColor4f(color.r, color.g, color.b, 0.0f);
     for (int i = 0; i <= 16; i++) {
         float angle = (static_cast<float>(i) / 16.0f) * 3.14159f / 2.0f;
-        float cx = x + width / 2 + glowSize * sin(angle);
-        float cy = y - height / 2 - glowSize * cos(angle);
+        float cx = x + width / 2.0f + glowSize * std::sinf(angle);
+        float cy = y - height / 2.0f - glowSize * std::cosf(angle);
         glVertex3f(cx, cy, zDepth - 0.01f);
     }
     glEnd();
