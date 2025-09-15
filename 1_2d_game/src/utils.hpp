@@ -1,7 +1,14 @@
 #include <GL/glew.h>
 #include <glm/glm.hpp>
 #include <numbers>
+#include <random>
 
+int getRandomRange(int a, int b) { // a, b 포함
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+    static std::uniform_int_distribution<int> dist(a, b);
+    return dist(gen);
+}
 void drawCircle(glm::fvec2 center, float radius, int numSegments, glm::fvec3 color) {
     glColor3f(color.x, color.y, color.z);
     glBegin(GL_TRIANGLE_FAN);
