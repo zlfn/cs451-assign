@@ -38,6 +38,15 @@ void drawTriangle(glm::fvec2 center, float size, glm::fvec3 color) {
     glEnd();
 }
 
+void drawTriangle(glm::fvec2 center, float size, glm::fvec4 color) {
+    glColor4f(color.x, color.y, color.z, color.w);
+    glBegin(GL_TRIANGLES);
+    glVertex2f(center.x, center.y + size / 2);
+    glVertex2f(center.x - size / 2, center.y - size / 2);
+    glVertex2f(center.x + size / 2, center.y - size / 2);
+    glEnd();
+}
+
 void drawRectWithGlow(float x, float y, float width, float height, glm::fvec4 color, float glowSize,
                       float zDepth) {
     // Draw glow effect using gradients
