@@ -1400,9 +1400,9 @@ static const std::vector<MoveEntry> BOSS_MOVE_LIST_UNDER_HALF = {{
 static std::size_t bossMoveListCounter = 0;
 ///////////////////////////////////////////////////////////
 
+int randomIteration = 0;
 std::optional<BossMove> getCurrentMove(int currentTime) {
     int elapsedTime = currentTime - bossUnderHalfTime;
-    static int randomIteration = 0;
     const std::vector<MoveEntry> &currentBossMoveList =
         isBossHealthUnderHalf ? BOSS_MOVE_LIST_UNDER_HALF : BOSS_MOVE_LIST;
 
@@ -1449,6 +1449,7 @@ void timer(int) {
         bossRushCoolTime = now + 12000;
         bossPatternListCounter = 0;
         bossMoveListCounter = 0;
+        randomIteration = 0;
     }
 
     auto bossMoveData = getCurrentMove(now);
