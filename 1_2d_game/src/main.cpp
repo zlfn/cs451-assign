@@ -34,6 +34,25 @@ struct Updatable {
     virtual ~Updatable() = default;
 };
 
+bool isCameraShake = false;
+int cameraShakeStartTime = 0;
+
+void startCameraShake(int currentTime) {
+    isCameraShake = true;
+    cameraShakeStartTime = currentTime;
+}
+
+glm::fvec2 cameraShake(int currentTime) {
+    int deltaTime = currentTime - cameraShakeStartTime;
+    if (deltaTime > 2000) {
+        isCameraShake = false;
+    }
+    float offset =
+        0.5f / (static_cast<float>(deltaTime) / 2.0f - 20.0f * std::numbers::pi_v<float>)*std::sin(
+                   static_cast<float>(deltaTime) / 2.0f - 20.0f * std::numbers::pi_v<float>);
+    return glm::fvec2(offset, 0.0);
+}
+
 struct EnemyBullet : Updatable, Drawable, Collidable {
     glm::fvec2 initialDirection;
     glm::fvec2 normalDirection;
@@ -51,12 +70,7 @@ struct EnemyBullet : Updatable, Drawable, Collidable {
           initialTime(initialTime), speed(speed), posFunc(std::move(posFunc)) {}
     ~EnemyBullet() override {}
 
-    bool update(int currentTime, GameState &gameState) override {
-        int dt = currentTime - initialTime;
-        currentPosition =
-            initialPosition + float(dt) * initialDirection + posFunc(dt, speed) * normalDirection;
-        return abs(currentPosition.x) > 1.0f || abs(currentPosition.y) > 1.0f;
-    }
+    bool update(int currentTime, GameState &gameState) override;
     void draw(glm::fvec2 cameraOffset, const GameState &gameState) override {
         drawCircle(currentPosition - cameraOffset, 0.03f, 10, glm::fvec3(1.0f, 1.0f, 1.0f));
     }
@@ -74,12 +88,7 @@ struct PlayerBullet : Updatable, Drawable, Collidable {
           initialTime(initialTime), speed(speed) {}
     ~PlayerBullet() override {}
 
-    bool update(int currentTime, GameState &gameState) override {
-        currentPosition =
-            initialPosition + glm::fvec2(0, speed * static_cast<float>(currentTime - initialTime));
-        return abs(currentPosition.x) > 1.0f || abs(currentPosition.y) > 1.0f;
-        ;
-    }
+    bool update(int currentTime, GameState &gameState) override;
     void draw(glm::fvec2 cameraOffset, const GameState &gameState) override {
         drawRect(currentPosition - cameraOffset, 0.03f, glm::fvec3(1.0f, 0.0f, 1.0f));
     }
@@ -93,6 +102,9 @@ struct Player : Updatable, Drawable, Collidable {
     glm::fvec2 currentPosition;
     bool isBullet = false;
     int coolTime = 0;
+    bool isInvincible = false;
+    int invincibilityEndTime = 0;
+    static constexpr int INVINCIBILITY_DURATION = 1200; // 1.2 seconds of invincibility
 
     Player(glm::fvec2 initialPosition) : currentPosition(initialPosition) {}
     ~Player() override {}
@@ -100,7 +112,19 @@ struct Player : Updatable, Drawable, Collidable {
     void tryAttack() { isBullet = true; }
     bool update(int currentTime, GameState &gameState) override;
     void draw(glm::fvec2 cameraOffset, const GameState &gameState) override {
-        drawTriangle(currentPosition - cameraOffset, 0.1f, glm::fvec3(1.0f, 1.0f, 0.0f));
+        // Semi-transparent rendering during invincibility
+        if (isInvincible) {
+            // Flashing effect during invincibility
+            float alpha =
+                0.3f +
+                0.4f * std::abs(std::sin(static_cast<float>(glutGet(GLUT_ELAPSED_TIME)) * 0.01f));
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+            drawTriangle(currentPosition - cameraOffset, 0.1f, glm::fvec4(1.0f, 1.0f, 0.0f, alpha));
+            glDisable(GL_BLEND);
+        } else {
+            drawTriangle(currentPosition - cameraOffset, 0.1f, glm::fvec3(1.0f, 1.0f, 0.0f));
+        }
     }
     void move(glm::fvec2 deltaPosition) {
         currentPosition += deltaPosition;
@@ -115,9 +139,15 @@ struct Player : Updatable, Drawable, Collidable {
         if (currentPosition.y > 1.0f)
             currentPosition.y = 1.0f;
     }
+    void takeDamage(int currentTime) {
+        if (!isInvincible) {
+            isInvincible = true;
+            invincibilityEndTime = currentTime + INVINCIBILITY_DURATION;
+        }
+    }
     CollisionShape getShape() const override {
-        return CollisionRectangle(currentPosition - glm::fvec2(0.05f, 0.05f),
-                                  currentPosition + glm::fvec2(0.05f, 0.05f));
+        return CollisionRectangle(currentPosition - glm::fvec2(0.015f, 0.015f + 0.025f),
+                                  currentPosition + glm::fvec2(0.015f, 0.015f - 0.025f));
     }
 };
 
@@ -191,9 +221,9 @@ struct Boss : Updatable, Drawable, Collidable {
 
     bool update(int currentTime, GameState &gameState) override;
     void draw(glm::fvec2 cameraOffset, const GameState &gameState) override {
-        drawCircle(currentPosition - cameraOffset, 0.08f, 20, glm::fvec3(0.1f, 0.0f, 1.0f));
+        drawCircle(currentPosition - cameraOffset, 0.15f, 20, glm::fvec3(0.1f, 0.0f, 1.0f));
     }
-    CollisionShape getShape() const override { return CollisionCircle(currentPosition, 0.08f); }
+    CollisionShape getShape() const override { return CollisionCircle(currentPosition, 0.15f); }
 };
 
 struct PlayerHealthBar : Drawable {
@@ -237,12 +267,44 @@ struct GameState {
 };
 
 bool Player::update(int currentTime, GameState &gameState) {
+    // Check if invincibility period has ended
+    if (isInvincible && currentTime >= invincibilityEndTime) {
+        isInvincible = false;
+    }
+
     if (currentTime >= this->coolTime && this->isBullet) {
-        gameState.playerBulletObjects.emplace_back(this->currentPosition, 0.001f, currentTime);
+        gameState.playerBulletObjects.emplace_back(this->currentPosition, 0.003f, currentTime);
         this->isBullet = false;
-        this->coolTime = currentTime + 200;
+        this->coolTime = currentTime + 100;
     }
     return false;
+}
+
+bool EnemyBullet::update(int currentTime, GameState &gameState) {
+    int dt = currentTime - initialTime;
+    currentPosition =
+        initialPosition + float(dt) * initialDirection + posFunc(dt, speed) * normalDirection;
+    if (!gameState.playerObject.isInvincible && detectCollision(*this, gameState.playerObject)) {
+        gameState.playerHealth -= 1;
+        gameState.playerObject.takeDamage(currentTime);
+        startCameraShake(currentTime);
+        if (gameState.playerHealth < 0)
+            gameState.playerHealth = 0;
+        return true;
+    }
+    return abs(currentPosition.x) > 1.0f || abs(currentPosition.y) > 1.0f;
+}
+
+bool PlayerBullet::update(int currentTime, GameState &gameState) {
+    currentPosition =
+        initialPosition + glm::fvec2(0, speed * static_cast<float>(currentTime - initialTime));
+    if (detectCollision(*this, gameState.bossObject)) {
+        gameState.bossHealth -= 1;
+        if (gameState.bossHealth < 0)
+            gameState.bossHealth = 0;
+        return true;
+    }
+    return abs(currentPosition.x) > 1.0f || abs(currentPosition.y) > 1.0f;
 }
 
 //////////////////////// 커스텀 함수 ////////////////////////
@@ -268,10 +330,9 @@ BulletVec bossBulletPattern1(GameState &gameState, int currentTime) {
     gameState.bossObject.coolTimePeriod = 300;
     BulletVec bullets;
     static bool isFunc1 = false;
-    bullets.reserve(30);
-
-    constexpr int BULLET_COUNT = 30;
-    constexpr float SPEED = 0.0005f;
+    constexpr int BULLET_COUNT = 20;
+    bullets.reserve(BULLET_COUNT);
+    constexpr float SPEED = 0.0003f;
     const glm::fvec2 CENTER = gameState.bossObject.currentPosition;
 
     for (int i = 0; i < BULLET_COUNT; ++i) {
@@ -286,7 +347,7 @@ BulletVec bossBulletPattern1(GameState &gameState, int currentTime) {
 BulletVec bossBulletPattern2(GameState &gameState, int currentTime) {
     gameState.bossObject.coolTimePeriod = 400;
     BulletVec bullets;
-    constexpr int BULLET_COUNT = 15;
+    constexpr int BULLET_COUNT = 8;
     constexpr float SPEED = 0.0005f;
     constexpr float SPREAD_DEG = 75.0f;
     constexpr float SPREAD_RAD = glm::radians(SPREAD_DEG);
@@ -312,7 +373,7 @@ BulletVec bossBulletPattern3(GameState &gameState, int currentTime) {
     gameState.bossObject.coolTimePeriod = 200;
     BulletVec bullets;
     static int startTime = currentTime;
-    constexpr int BULLET_COUNT = 4;
+    constexpr int BULLET_COUNT = 5;
     constexpr float SPEED = 0.001f;
     bullets.reserve(BULLET_COUNT);
 
@@ -356,6 +417,14 @@ BulletPattern getCurrentBulletPattern(int currentTime) {
 
 bool Boss::update(int currentTime, GameState &gameState) {
     this->currentPosition = this->currentMove.getCurrentPosition(currentTime);
+
+    if (!gameState.playerObject.isInvincible && detectCollision(*this, gameState.playerObject)) {
+        gameState.playerHealth -= 1;
+        gameState.playerObject.takeDamage(currentTime);
+        startCameraShake(currentTime);
+        if (gameState.playerHealth < 0)
+            gameState.playerHealth = 0;
+    }
 
     if (this->coolTime > currentTime)
         return false;
@@ -491,19 +560,6 @@ void display() {
     glutPostRedisplay();
 }
 
-bool isCameraShake = false;
-glm::fvec2 cameraShake(int currentTime) {
-    static int cameraShakeStartTime = currentTime;
-    int deltaTime = currentTime - cameraShakeStartTime;
-    if (deltaTime > 2000) {
-        isCameraShake = false;
-    }
-    float offset =
-        0.5f / (static_cast<float>(deltaTime) / 2.0f - 20.0f * std::numbers::pi_v<float>)*std::sin(
-                   static_cast<float>(deltaTime) / 2.0f - 20.0f * std::numbers::pi_v<float>);
-    return glm::fvec2(offset, 0.0);
-}
-
 float playerSpeedBase = 0.0005f; // f/ms
 
 void keyInputUpdate(int dt) {
@@ -526,9 +582,6 @@ void keyInputUpdate(int dt) {
     }
     if (keyStates[' ']) {
         gameState.playerObject.tryAttack();
-    }
-    if (keyStates['e']) { // Camera Shake Sample
-        isCameraShake = true;
     }
 }
 
