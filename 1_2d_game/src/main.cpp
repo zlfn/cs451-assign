@@ -864,13 +864,14 @@ BulletVec bossBulletPattern1(GameState &gameState, int currentTime) {
     gameState.bossObject.coolTimePeriod = 300;
     BulletVec bullets;
     static bool isFunc1 = false;
-    int BULLET_COUNT = isBossHealthUnderHalf ? 13 : 10;
-    bullets.reserve(BULLET_COUNT);
+    int bulletCount = isBossHealthUnderHalf ? 13 : 10;
+    bullets.reserve(bulletCount);
     constexpr float SPEED = 0.0003f;
     const glm::fvec2 CENTER = gameState.bossObject.currentPosition;
 
-    for (int i = 0; i < BULLET_COUNT; ++i) {
-        float angle = 2.0f * std::numbers::pi_v<float> * float(i) / BULLET_COUNT;
+    for (int i = 0; i < bulletCount; ++i) {
+        float angle = 2.0f * std::numbers::pi_v<float> * static_cast<float>(i) /
+                      static_cast<float>(bulletCount);
         glm::fvec2 dir(std::cos(angle), std::sin(angle));
         bullets.emplace_back(dir, CENTER, SPEED, currentTime,
                              isFunc1 ? sqrtPosFunc1 : sqrtPosFunc2);
@@ -881,20 +882,22 @@ BulletVec bossBulletPattern1(GameState &gameState, int currentTime) {
 BulletVec bossBulletPattern2(GameState &gameState, int currentTime) {
     gameState.bossObject.coolTimePeriod = 400;
     BulletVec bullets;
-    int BULLET_COUNT = isBossHealthUnderHalf ? 8 : 6;
+    int bulletCount = isBossHealthUnderHalf ? 8 : 6;
     constexpr float SPEED = 0.0005f;
     constexpr float SPREAD_DEG = 75.0f;
     constexpr float SPREAD_RAD = glm::radians(SPREAD_DEG);
 
-    bullets.reserve(BULLET_COUNT);
+    bullets.reserve(bulletCount);
 
     const glm::fvec2 CENTER = gameState.bossObject.currentPosition;
     glm::fvec2 toPlayer = gameState.playerObject.currentPosition - CENTER;
 
     const float BASE_ANGLE = std::atan2(toPlayer.y, toPlayer.x);
 
-    for (int i = 0; i < BULLET_COUNT; ++i) {
-        float t = (BULLET_COUNT == 1) ? 0.0f : (static_cast<float>(i) / (BULLET_COUNT - 1) - 0.5f);
+    for (int i = 0; i < bulletCount; ++i) {
+        float t = (bulletCount == 1)
+                      ? 0.0f
+                      : (static_cast<float>(i) / static_cast<float>(bulletCount - 1) - 0.5f);
         float angle = BASE_ANGLE + t * SPREAD_RAD;
 
         glm::fvec2 dir(std::cos(angle), std::sin(angle));
@@ -906,15 +909,15 @@ BulletVec bossBulletPattern2(GameState &gameState, int currentTime) {
 BulletVec bossBulletPattern3(GameState &gameState, int currentTime) {
     gameState.bossObject.coolTimePeriod = 200;
     BulletVec bullets;
-    int BULLET_COUNT = isBossHealthUnderHalf ? 5 : 3;
+    int bulletCount = isBossHealthUnderHalf ? 5 : 3;
     constexpr float SPEED = 0.001f;
-    bullets.reserve(BULLET_COUNT);
+    bullets.reserve(bulletCount);
 
     float baseAngle = static_cast<float>(currentTime) / 1000.0f;
     const glm::fvec2 CENTER = gameState.bossObject.currentPosition;
 
-    for (int i = 0; i < BULLET_COUNT; ++i) {
-        float t = static_cast<float>(i) / (BULLET_COUNT - 1) - 0.5f;
+    for (int i = 0; i < bulletCount; ++i) {
+        float t = static_cast<float>(i) / static_cast<float>(bulletCount - 1) - 0.5f;
         float angle = baseAngle + t;
 
         glm::fvec2 dir(std::cos(angle), std::sin(angle));
@@ -960,17 +963,18 @@ BulletVec bossBulletRandomPattern(GameState &gameState, int currentTime) {
     gameState.bossObject.coolTimePeriod = 200;
     return result;
 }
-BulletVec bossTransitionBulletPattern(GameState &gameState, int currentTime) {    
+BulletVec bossTransitionBulletPattern(GameState &gameState, int currentTime) {
     gameState.bossObject.coolTimePeriod = 300;
     BulletVec bullets;
     static bool isFunc1 = false;
-    int BULLET_COUNT = 20;
-    bullets.reserve(BULLET_COUNT);
+    int bulletCount = 20;
+    bullets.reserve(bulletCount);
     constexpr float SPEED = 0.0003f;
     const glm::fvec2 CENTER = gameState.bossObject.currentPosition;
 
-    for (int i = 0; i < BULLET_COUNT; ++i) {
-        float angle = 2.0f * std::numbers::pi_v<float> * float(i) / BULLET_COUNT;
+    for (int i = 0; i < bulletCount; ++i) {
+        float angle = 2.0f * std::numbers::pi_v<float> * static_cast<float>(i) /
+                      static_cast<float>(bulletCount);
         glm::fvec2 dir(std::cos(angle), std::sin(angle));
         bullets.emplace_back(dir, CENTER, SPEED, currentTime,
                              isFunc1 ? sqrtPosFunc1 : sqrtPosFunc2);
