@@ -1,8 +1,8 @@
 #include <GL/glew.h>
 #include <glm/glm.hpp>
 #include <numbers>
-#include <random>
 #include <algorithm>
+#include <random>
 
 int getRandomRange(int a, int b) { // a, b 포함
     static std::random_device rd;
