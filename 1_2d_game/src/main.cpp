@@ -183,6 +183,53 @@ struct PlayerBullet : Updatable, Drawable, Collidable {
     }
 };
 
+struct PlayerFragment : Drawable, Updatable {
+    glm::fvec2 position;
+    glm::fvec2 velocity;
+    float rotation;
+    float rotationSpeed;
+    float size;
+    float alpha;
+    glm::fvec3 color;
+
+    PlayerFragment(glm::fvec2 pos, glm::fvec2 vel, float rot, float rotSpeed, float sz,
+                   glm::fvec3 col)
+        : position(pos), velocity(vel), rotation(rot), rotationSpeed(rotSpeed), size(sz),
+          alpha(1.0f), color(col) {}
+
+    bool update(int deltaTime, GameState &) override {
+        float dt = static_cast<float>(deltaTime) * 0.0005f;
+        position += velocity * dt;
+        rotation += rotationSpeed * dt;
+        velocity.y -= 0.4f * dt;
+        alpha -= dt * 0.2f;
+        size *= (1.0f - dt * 0.15f);
+        return alpha <= 0.0f || size <= 0.001f;
+    }
+
+    void draw(glm::fvec2 cameraOffset, const GameState &) override {
+        glm::fvec2 pos = position - cameraOffset;
+
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+
+        glPushMatrix();
+        glTranslatef(pos.x, pos.y, 0.0f);
+        glRotatef(rotation, 0.0f, 0.0f, 1.0f);
+
+        glBegin(GL_TRIANGLES);
+        glColor4f(color.r, color.g, color.b, alpha);
+        glVertex3f(0.0f, size, 0.0f);
+        glColor4f(color.r * 0.5f, color.g * 0.5f, color.b * 0.5f, alpha * 0.5f);
+        glVertex3f(-size * 0.866f, -size * 0.5f, 0.0f);
+        glVertex3f(size * 0.866f, -size * 0.5f, 0.0f);
+        glEnd();
+
+        glPopMatrix();
+        glDisable(GL_BLEND);
+    }
+};
+
 struct Player : Updatable, Drawable, Collidable {
     glm::fvec2 currentPosition;
     bool isBullet = false;
@@ -192,13 +239,85 @@ struct Player : Updatable, Drawable, Collidable {
     float tiltAngle = 0.0f;                             // Rotation angle for tilting
     float targetTiltAngle = 0.0f;                       // Target angle for smooth transition
     static constexpr int INVINCIBILITY_DURATION = 1200; // 1.2 seconds of invincibility
+    bool isDying = false;
+    int deathStartTime = 0;
+    std::vector<PlayerFragment> fragments;
 
     Player(glm::fvec2 initialPosition) : currentPosition(initialPosition) {}
     ~Player() override {}
 
-    void tryAttack() { isBullet = true; }
+    void startDeathAnimation(int currentTime) {
+        if (isDying)
+            return;
+        isDying = true;
+        deathStartTime = currentTime;
+
+        // Create fragments
+        std::uniform_real_distribution<float> speedDist(0.4f, 1.5f);
+        std::uniform_real_distribution<float> angleDist(0.0f, 2.0f * std::numbers::pi_v<float>);
+        std::uniform_real_distribution<float> rotSpeedDist(-360.0f, 360.0f);
+        std::uniform_real_distribution<float> sizeDist(0.02f, 0.06f);
+
+        for (int i = 0; i < 15; ++i) {
+            float speed = speedDist(gen);
+            float angle = angleDist(gen);
+            glm::fvec2 vel(speed * std::cos(angle), speed * std::sin(angle));
+            float rotSpeed = rotSpeedDist(gen);
+            float size = sizeDist(gen);
+
+            glm::fvec3 color;
+            if (i % 3 == 0) {
+                color = glm::fvec3(1.0f, 1.0f, 0.0f); // Yellow
+            } else if (i % 3 == 1) {
+                color = glm::fvec3(1.0f, 0.6f, 0.0f); // Orange
+            } else {
+                color = glm::fvec3(1.0f, 0.8f, 0.2f); // Light orange
+            }
+
+            fragments.emplace_back(currentPosition, vel, 0.0f, rotSpeed, size, color);
+        }
+    }
+
+    void tryAttack() {
+        if (!isDying)
+            isBullet = true;
+    }
     bool update(int currentTime, GameState &gameState) override;
     void draw(glm::fvec2 cameraOffset, const GameState &gameState) override {
+        if (isDying) {
+            // Draw fragments
+            for (auto &fragment : fragments) {
+                fragment.draw(cameraOffset, gameState);
+            }
+
+            // Add explosion effect
+            int currentTime = glutGet(GLUT_ELAPSED_TIME);
+            float timeSinceDeath = static_cast<float>(currentTime - deathStartTime) * 0.001f;
+            if (timeSinceDeath < 1.2f) {
+                glEnable(GL_BLEND);
+                glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+
+                float explosionSize = 0.2f * (1.0f + timeSinceDeath * 3.0f);
+                float alpha = 1.0f - timeSinceDeath * 0.83f;
+
+                glm::fvec2 pos = currentPosition - cameraOffset;
+                glBegin(GL_TRIANGLE_FAN);
+                glColor4f(1.0f, 0.9f, 0.0f, alpha * 0.8f);
+                glVertex3f(pos.x, pos.y, 0.0f);
+                glColor4f(1.0f, 0.5f, 0.0f, 0.0f);
+                for (int i = 0; i <= 20; i++) {
+                    float angle = static_cast<float>(i) * 2.0f * std::numbers::pi_v<float> / 20.0f;
+                    float x = pos.x + explosionSize * std::cos(angle);
+                    float y = pos.y + explosionSize * std::sin(angle);
+                    glVertex3f(x, y, 0.0f);
+                }
+                glEnd();
+
+                glDisable(GL_BLEND);
+            }
+            return;
+        }
+
         glPushMatrix();
         // Apply rotation for rolling effect (Y-axis rotation)
         glTranslatef(currentPosition.x - cameraOffset.x, currentPosition.y - cameraOffset.y, 0.0f);
@@ -224,6 +343,9 @@ struct Player : Updatable, Drawable, Collidable {
         glPopMatrix();
     }
     void move(glm::fvec2 deltaPosition) {
+        if (isDying)
+            return; // No movement when dying
+
         currentPosition += deltaPosition;
 
         // Clamp
@@ -243,6 +365,10 @@ struct Player : Updatable, Drawable, Collidable {
         }
     }
     CollisionShape getShape() const override {
+        if (isDying) {
+            // No collision when dying
+            return CollisionCircle(glm::fvec2(-999.0f, -999.0f), 0.0f);
+        }
         return CollisionRectangle(currentPosition - glm::fvec2(0.015f, 0.015f + 0.025f),
                                   currentPosition + glm::fvec2(0.015f, 0.015f - 0.025f));
     }
@@ -306,18 +432,133 @@ static BossMove idleBossMove(glm::fvec2 position, int startTime = 0) {
     return BossMove(position, position, 0, startTime, trivialFunc, trivialFuncPor);
 }
 
+struct BossFragment : Drawable, Updatable {
+    glm::fvec2 position;
+    glm::fvec2 velocity;
+    float rotation;
+    float rotationSpeed;
+    float size;
+    float alpha;
+    glm::fvec3 color;
+
+    BossFragment(glm::fvec2 pos, glm::fvec2 vel, float rot, float rotSpeed, float sz,
+                 glm::fvec3 col)
+        : position(pos), velocity(vel), rotation(rot), rotationSpeed(rotSpeed), size(sz),
+          alpha(1.0f), color(col) {}
+
+    bool update(int deltaTime, GameState &) override {
+        float dt = static_cast<float>(deltaTime) * 0.0005f; // Slower animation
+        position += velocity * dt;
+        rotation += rotationSpeed * dt;
+        velocity.y -= 0.3f * dt;    // Slower gravity
+        alpha -= dt * 0.15f;        // Slower fade out
+        size *= (1.0f - dt * 0.1f); // Slower shrink
+        return alpha <= 0.0f || size <= 0.001f;
+    }
+
+    void draw(glm::fvec2 cameraOffset, const GameState &) override {
+        glm::fvec2 pos = position - cameraOffset;
+
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+
+        glPushMatrix();
+        glTranslatef(pos.x, pos.y, 0.0f);
+        glRotatef(rotation, 0.0f, 0.0f, 1.0f);
+
+        glBegin(GL_TRIANGLES);
+        glColor4f(color.r, color.g, color.b, alpha);
+        glVertex3f(0.0f, size, 0.0f);
+        glColor4f(color.r * 0.5f, color.g * 0.5f, color.b * 0.5f, alpha * 0.5f);
+        glVertex3f(-size * 0.866f, -size * 0.5f, 0.0f);
+        glVertex3f(size * 0.866f, -size * 0.5f, 0.0f);
+        glEnd();
+
+        glPopMatrix();
+        glDisable(GL_BLEND);
+    }
+};
+
 struct Boss : Updatable, Drawable, Collidable {
     glm::fvec2 currentPosition;
     BossMove currentMove;
     int coolTime = 0;
     int coolTimePeriod = 500;
+    bool isDying = false;
+    int deathStartTime = 0;
+    std::vector<BossFragment> fragments;
 
     Boss(glm::fvec2 initialPosition)
         : currentPosition(initialPosition), currentMove(idleBossMove(initialPosition)) {}
     ~Boss() override {}
 
+    void startDeathAnimation(int currentTime) {
+        if (isDying)
+            return;
+        isDying = true;
+        deathStartTime = currentTime;
+
+        // Create fragments
+        std::uniform_real_distribution<float> speedDist(0.3f, 1.2f); // Slower speed
+        std::uniform_real_distribution<float> angleDist(0.0f, 2.0f * std::numbers::pi_v<float>);
+        std::uniform_real_distribution<float> rotSpeedDist(-180.0f, 180.0f); // Slower rotation
+        std::uniform_real_distribution<float> sizeDist(0.03f, 0.1f);         // Bigger fragments
+
+        for (int i = 0; i < 20; ++i) {
+            float speed = speedDist(gen);
+            float angle = angleDist(gen);
+            glm::fvec2 vel(speed * std::cos(angle), speed * std::sin(angle));
+            float rotSpeed = rotSpeedDist(gen);
+            float size = sizeDist(gen);
+
+            glm::fvec3 color;
+            if (i % 3 == 0) {
+                color = glm::fvec3(1.0f, 0.2f, 0.8f); // Pink
+            } else if (i % 3 == 1) {
+                color = glm::fvec3(0.6f, 0.1f, 1.0f); // Purple
+            } else {
+                color = glm::fvec3(0.8f, 0.4f, 1.0f); // Light purple
+            }
+
+            fragments.emplace_back(currentPosition, vel, 0.0f, rotSpeed, size, color);
+        }
+    }
+
     bool update(int currentTime, GameState &gameState) override;
     void draw(glm::fvec2 cameraOffset, const GameState &gameState) override {
+        if (isDying) {
+            // Draw fragments
+            for (auto &fragment : fragments) {
+                fragment.draw(cameraOffset, gameState);
+            }
+
+            // Add explosion effect
+            int currentTime = glutGet(GLUT_ELAPSED_TIME);
+            float timeSinceDeath = static_cast<float>(currentTime - deathStartTime) * 0.001f;
+            if (timeSinceDeath < 1.5f) { // Longer explosion effect
+                glEnable(GL_BLEND);
+                glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+
+                float explosionSize = 0.3f * (1.0f + timeSinceDeath * 2.0f); // Slower expansion
+                float alpha = 1.0f - timeSinceDeath * 0.67f;                 // Slower fade
+
+                glm::fvec2 pos = currentPosition - cameraOffset;
+                glBegin(GL_TRIANGLE_FAN);
+                glColor4f(1.0f, 0.8f, 1.0f, alpha * 0.8f);
+                glVertex3f(pos.x, pos.y, 0.0f);
+                glColor4f(0.8f, 0.2f, 1.0f, 0.0f);
+                for (int i = 0; i <= 20; i++) {
+                    float angle = static_cast<float>(i) * 2.0f * std::numbers::pi_v<float> / 20.0f;
+                    float x = pos.x + explosionSize * std::cos(angle);
+                    float y = pos.y + explosionSize * std::sin(angle);
+                    glVertex3f(x, y, 0.0f);
+                }
+                glEnd();
+
+                glDisable(GL_BLEND);
+            }
+            return;
+        }
         glm::fvec2 pos = currentPosition - cameraOffset;
         float size = 0.15f;
 
@@ -395,7 +636,13 @@ struct Boss : Updatable, Drawable, Collidable {
 
         glDisable(GL_BLEND);
     }
-    CollisionShape getShape() const override { return CollisionCircle(currentPosition, 0.15f); }
+    CollisionShape getShape() const override {
+        if (isDying) {
+            // No collision when dying
+            return CollisionCircle(glm::fvec2(-999.0f, -999.0f), 0.0f);
+        }
+        return CollisionCircle(currentPosition, 0.15f);
+    }
 };
 
 struct PlayerHealthBar : Drawable {
@@ -516,6 +763,29 @@ struct GameState {
 };
 
 bool Player::update(int currentTime, GameState &gameState) {
+    if (isDying) {
+        // Update fragments
+        int deltaTime = currentTime - deathStartTime;
+        std::erase_if(fragments, [deltaTime, &gameState](auto &fragment) {
+            return fragment.update(deltaTime, gameState);
+        });
+
+        // Exit game after 4 seconds
+        if ((currentTime - deathStartTime) > 4000) {
+            std::cout << "Game Over! Exiting...\n";
+            std::exit(0);
+        }
+
+        return false;
+    }
+
+    // Check if player should die
+    if (gameState.playerHealth <= 0 && !isDying) {
+        startDeathAnimation(currentTime);
+        startCameraShake(currentTime);
+        return false;
+    }
+
     // Check if invincibility period has ended
     if (isInvincible && currentTime >= invincibilityEndTime) {
         isInvincible = false;
@@ -540,7 +810,9 @@ bool EnemyBullet::update(int currentTime, GameState &gameState) {
     int dt = currentTime - initialTime;
     currentPosition =
         initialPosition + float(dt) * initialDirection + posFunc(dt, speed) * normalDirection;
-    if (!gameState.playerObject.isInvincible && detectCollision(*this, gameState.playerObject)) {
+    // Don't damage player if boss is already dying
+    if (!gameState.bossObject.isDying && !gameState.playerObject.isInvincible &&
+        detectCollision(*this, gameState.playerObject)) {
         gameState.playerHealth -= 1;
         gameState.playerObject.takeDamage(currentTime);
         startCameraShake(currentTime);
@@ -554,7 +826,8 @@ bool EnemyBullet::update(int currentTime, GameState &gameState) {
 bool PlayerBullet::update(int currentTime, GameState &gameState) {
     currentPosition =
         initialPosition + glm::fvec2(0, speed * static_cast<float>(currentTime - initialTime));
-    if (detectCollision(*this, gameState.bossObject)) {
+    // Don't damage boss if player is already dying
+    if (!gameState.playerObject.isDying && detectCollision(*this, gameState.bossObject)) {
         gameState.bossHealth -= 1;
         if (gameState.bossHealth < 0)
             gameState.bossHealth = 0;
@@ -672,9 +945,35 @@ BulletPattern getCurrentBulletPattern(int currentTime) {
 }
 
 bool Boss::update(int currentTime, GameState &gameState) {
+    if (isDying) {
+        // Update fragments
+        int deltaTime = currentTime - deathStartTime;
+        std::erase_if(fragments, [deltaTime, &gameState](auto &fragment) {
+            return fragment.update(deltaTime, gameState);
+        });
+
+        // Exit game after 5 seconds
+        if ((currentTime - deathStartTime) > 5000) {
+            std::cout << "Boss defeated! Exiting game...\n";
+            std::exit(0);
+        }
+
+        // Boss is completely destroyed after 6 seconds (won't reach here due to exit)
+        return (currentTime - deathStartTime) > 5000;
+    }
+
+    // Check if boss should die
+    if (gameState.bossHealth <= 0 && !isDying) {
+        startDeathAnimation(currentTime);
+        startCameraShake(currentTime);
+        return false;
+    }
+
     this->currentPosition = this->currentMove.getCurrentPosition(currentTime);
 
-    if (!gameState.playerObject.isInvincible && detectCollision(*this, gameState.playerObject)) {
+    // Don't damage player if boss is already dying
+    if (!isDying && !gameState.playerObject.isInvincible &&
+        detectCollision(*this, gameState.playerObject)) {
         gameState.playerHealth -= 1;
         gameState.playerObject.takeDamage(currentTime);
         startCameraShake(currentTime);
@@ -789,7 +1088,9 @@ void BossHealthBar::draw(glm::fvec2 cameraOffset, const GameState &gameState) {
         healthColor = glm::fvec4(1.0f, 0.2f, 0.6f, 1.0f); // Red-purple (critical)
     }
 
-    drawRectWithGlow(healthBarX, barY, healthBarWidth, barHeight, healthColor, 0.05f, 1.0f);
+    if (gameState.bossHealth > 0) {
+        drawRectWithGlow(healthBarX, barY, healthBarWidth, barHeight, healthColor, 0.05f, 1.0f);
+    }
 
     glDisable(GL_BLEND);
 
