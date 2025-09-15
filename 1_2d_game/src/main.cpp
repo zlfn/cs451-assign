@@ -746,7 +746,7 @@ struct GameState {
           bossObject(glm::fvec2(0.0f, 0.6f)), bossHealthBarObject(glm::fvec2(0.0f, 0.0f)),
           heartsObject(glm::fvec2(0.0f, 0.0f)) {}
 
-    const int MAX_PLAYER_HEALTH;
+    int MAX_PLAYER_HEALTH;
     const int MAX_BOSS_HEALTH;
     int playerHealth;
     int bossHealth;
@@ -760,6 +760,60 @@ struct GameState {
 
     std::vector<PlayerBullet> playerBulletObjects;
     std::vector<EnemyBullet> enemyBulletObjects;
+};
+
+struct CommandExecutor : Updatable {
+    std::vector<char> commandSequence;
+    std::size_t currentIndex = 0;
+    bool previousKeyStates[256] = {false};
+    bool commandUsed = false;
+    std::function<void(GameState &)> onActivate;
+
+    CommandExecutor(std::vector<char> sequence, std::function<void(GameState &)> activateFunc)
+        : commandSequence(std::move(sequence)), onActivate(std::move(activateFunc)) {}
+    ~CommandExecutor() override = default;
+
+    bool update(int currentTime, GameState &gameState) override {
+        // Check for key press events (rising edge detection)
+        for (int i = 0; i < 256; i++) {
+            if (keyStates[i] && !previousKeyStates[i]) {
+                // Key was just pressed
+                handleKeyPress(static_cast<char>(i), gameState);
+            }
+            previousKeyStates[i] = keyStates[i];
+        }
+        return false;
+    }
+
+    void handleKeyPress(char key, GameState &gameState) {
+        if (commandUsed)
+            return;
+
+        // Check if the pressed key matches the current position in the sequence
+        if (currentIndex < commandSequence.size() && key == commandSequence[currentIndex]) {
+            currentIndex++;
+
+            // Check if the entire sequence has been completed
+            if (currentIndex >= commandSequence.size()) {
+                activateCommand(gameState);
+            }
+        } else {
+            // Reset if wrong key pressed, but check if this key could start the sequence
+            if (!commandSequence.empty() && key == commandSequence[0]) {
+                currentIndex = 1;
+            } else {
+                currentIndex = 0;
+            }
+        }
+    }
+
+    void activateCommand(GameState &gameState) {
+        if (commandUsed)
+            return;
+
+        commandUsed = true;
+        onActivate(gameState);
+    }
 };
 
 bool Player::update(int currentTime, GameState &gameState) {
@@ -813,7 +867,7 @@ bool EnemyBullet::update(int currentTime, GameState &gameState) {
     // Don't damage player if boss is already dying
     if (!gameState.bossObject.isDying && !gameState.playerObject.isInvincible &&
         detectCollision(*this, gameState.playerObject)) {
-        gameState.playerHealth -= 1;
+        gameState.playerHealth -= 0;
         gameState.playerObject.takeDamage(currentTime);
         startCameraShake(currentTime);
         if (gameState.playerHealth < 0)
@@ -1099,6 +1153,23 @@ void BossHealthBar::draw(glm::fvec2 cameraOffset, const GameState &gameState) {
 
 GameState gameState(5, 500);
 
+// Konami Command: up, up, down, down, left, right, left, right, B, A
+// This command is widely known in gaming culture for granting special
+CommandExecutor commandExecutor({'w', 'w', 's', 's', 'a', 'd', 'a', 'd', 'b', 'a'},
+                                [](GameState &gameState) {
+                                    // Activate Konami command effects
+                                    gameState.MAX_PLAYER_HEALTH = 10;
+                                    gameState.playerHealth = 10;
+
+                                    // Grant 5 seconds of invincibility
+                                    int currentTime = glutGet(GLUT_ELAPSED_TIME);
+                                    gameState.playerObject.isInvincible = true;
+                                    gameState.playerObject.invincibilityEndTime =
+                                        currentTime + 5000; // 5 seconds
+
+                                    std::cout << "Konami Command Activated! Power up!" << '\n';
+                                });
+
 void keyboardDown(unsigned char key, int /*x*/, int /*y*/) { keyStates[key] = true; }
 void keyboardUp(unsigned char key, int /*x*/, int /*y*/) { keyStates[key] = false; }
 
@@ -1239,6 +1310,7 @@ void timer(int) {
     gameState.backgroundObject.update(now, gameState);
     gameState.playerObject.update(now, gameState);
     gameState.bossObject.update(now, gameState);
+    commandExecutor.update(now, gameState);
 
     glutTimerFunc(16, timer, 0);
 }
