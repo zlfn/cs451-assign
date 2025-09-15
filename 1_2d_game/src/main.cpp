@@ -147,7 +147,7 @@ struct PlayerBullet : Updatable, Drawable, Collidable {
         glm::fvec2 pos = currentPosition - cameraOffset;
         float width = 0.015f;
         float height = 0.04f;
-        float zDepth = -0.1f;
+        float zDepth = 0.0f;
 
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE);
@@ -242,6 +242,7 @@ struct Player : Updatable, Drawable, Collidable {
     bool isDying = false;
     int deathStartTime = 0;
     std::vector<PlayerFragment> fragments;
+    int bulletCount = 3; // Number of bullets to fire at once
 
     Player(glm::fvec2 initialPosition) : currentPosition(initialPosition) {}
     ~Player() override {}
@@ -853,7 +854,25 @@ bool Player::update(int currentTime, GameState &gameState) {
     }
 
     if (currentTime >= this->coolTime && this->isBullet) {
-        gameState.playerBulletObjects.emplace_back(this->currentPosition, 0.003f, currentTime);
+        // Fire bullets dynamically based on bulletCount
+        float spacing = 0.03f; // Base spacing between bullets
+        float totalWidth = spacing * static_cast<float>(bulletCount - 1);
+        float startX = -totalWidth / 2.0f;
+        float yForwardOffset = 0.04f; // How far forward the center bullet is
+
+        for (int i = 0; i < bulletCount; ++i) {
+            float xOffset = startX + (spacing * static_cast<float>(i));
+            // Calculate Y offset - center bullets are more forward
+            float centerDistance =
+                std::abs(static_cast<float>(i) - static_cast<float>(bulletCount - 1) / 2.0f);
+            float normalizedDistance =
+                centerDistance / (static_cast<float>(bulletCount - 1) / 2.0f);
+            float yOffset = yForwardOffset * (1.0f - normalizedDistance);
+
+            gameState.playerBulletObjects.emplace_back(
+                this->currentPosition + glm::fvec2(xOffset, yOffset), 0.003f, currentTime);
+        }
+
         this->isBullet = false;
         this->coolTime = currentTime + 100;
     }
@@ -1151,7 +1170,7 @@ void BossHealthBar::draw(glm::fvec2 cameraOffset, const GameState &gameState) {
     glPopMatrix();
 }
 
-GameState gameState(5, 500);
+GameState gameState(5, 1000);
 
 // Konami Command: up, up, down, down, left, right, left, right, B, A
 // This command is widely known in gaming culture for granting special
@@ -1166,6 +1185,9 @@ CommandExecutor commandExecutor({'w', 'w', 's', 's', 'a', 'd', 'a', 'd', 'b', 'a
                                     gameState.playerObject.isInvincible = true;
                                     gameState.playerObject.invincibilityEndTime =
                                         currentTime + 5000; // 5 seconds
+
+                                    // Upgrade to 5 bullets
+                                    gameState.playerObject.bulletCount = 5;
 
                                     std::cout << "Konami Command Activated! Power up!" << '\n';
                                 });
