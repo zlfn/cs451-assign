@@ -816,7 +816,7 @@ bool EnemyBullet::update(int currentTime, GameState &gameState) {
     // Don't damage player if boss is already dying
     if (!gameState.bossObject.isDying && !gameState.playerObject.isInvincible &&
         detectCollision(*this, gameState.playerObject)) {
-        // gameState.playerHealth -= 1;
+        gameState.playerHealth -= 1;
         gameState.playerObject.takeDamage(currentTime);
         startCameraShake(currentTime);
         if (gameState.playerHealth < 0)
