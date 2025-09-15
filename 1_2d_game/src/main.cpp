@@ -1243,10 +1243,18 @@ void timer(int) {
     glutTimerFunc(16, timer, 0);
 }
 
+void reshape(int width, int height) {
+    // Force window size to remain 800x800
+    if (width != 800 || height != 800) {
+        glutReshapeWindow(800, 800);
+    }
+    glViewport(0, 0, 800, 800);
+}
+
 int main(int argc, char **argv) {
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
-    glutInitWindowSize(600, 600);
+    glutInitWindowSize(800, 800);
     glutCreateWindow("CSED451 Assn 1");
 
     // Test GLM properly linked
@@ -1263,6 +1271,7 @@ int main(int argc, char **argv) {
     glutKeyboardFunc(keyboardDown);
     glutKeyboardUpFunc(keyboardUp);
     glutDisplayFunc(display);
+    glutReshapeFunc(reshape);
     glutTimerFunc(0, timer, 0);
 
     glutMainLoop();
