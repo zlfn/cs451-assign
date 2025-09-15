@@ -1,6 +1,7 @@
 #include <GL/glew.h>
 #include <glm/glm.hpp>
 #include <numbers>
+#include <algorithm>
 
 void drawCircle(glm::fvec2 center, float radius, int numSegments, glm::fvec3 color) {
     glColor3f(color.x, color.y, color.z);
@@ -179,118 +180,93 @@ void drawSpaceship(glm::fvec2 center, float size, glm::fvec4 color) {
 
 void drawRectWithGlow(float x, float y, float width, float height, glm::fvec4 color, float glowSize,
                       float zDepth) {
-    // Draw glow effect using gradients
-    // Top glow gradient
-    glBegin(GL_QUAD_STRIP);
-    for (int i = 0; i <= 8; i++) {
-        float t = static_cast<float>(i) / 8.0f;
-        float alpha = (1.0f - t) * color.a * 0.6f;
-        float offset = t * glowSize;
-        glColor4f(color.r, color.g, color.b, alpha);
-        glVertex3f(x - width / 2, y + height / 2 + offset, zDepth - 0.01f);
-        glVertex3f(x + width / 2, y + height / 2 + offset, zDepth - 0.01f);
-    }
-    glEnd();
+    float halfW = width / 2.0f;
+    float halfH = height / 2.0f;
 
-    // Bottom glow gradient
-    glBegin(GL_QUAD_STRIP);
-    for (int i = 0; i <= 8; i++) {
-        float t = static_cast<float>(i) / 8.0f;
-        float alpha = (1.0f - t) * color.a * 0.6f;
-        float offset = t * glowSize;
-        glColor4f(color.r, color.g, color.b, alpha);
-        glVertex3f(x - width / 2, y - height / 2 - offset, zDepth - 0.01f);
-        glVertex3f(x + width / 2, y - height / 2 - offset, zDepth - 0.01f);
-    }
-    glEnd();
+    // Draw outer glow quad (fully transparent at edges)
+    glBegin(GL_QUADS);
 
-    // Left glow gradient
-    glBegin(GL_QUAD_STRIP);
-    for (int i = 0; i <= 8; i++) {
-        float t = static_cast<float>(i) / 8.0f;
-        float alpha = (1.0f - t) * color.a * 0.6f;
-        float offset = t * glowSize;
-        glColor4f(color.r, color.g, color.b, alpha);
-        glVertex3f(x - width / 2 - offset, y - height / 2, zDepth - 0.01f);
-        glVertex3f(x - width / 2 - offset, y + height / 2, zDepth - 0.01f);
-    }
-    glEnd();
-
-    // Right glow gradient
-    glBegin(GL_QUAD_STRIP);
-    for (int i = 0; i <= 8; i++) {
-        float t = static_cast<float>(i) / 8.0f;
-        float alpha = (1.0f - t) * color.a * 0.6f;
-        float offset = t * glowSize;
-        glColor4f(color.r, color.g, color.b, alpha);
-        glVertex3f(x + width / 2 + offset, y - height / 2, zDepth - 0.01f);
-        glVertex3f(x + width / 2 + offset, y + height / 2, zDepth - 0.01f);
-    }
-    glEnd();
-
-    // Corner glows - draw as simple quarter circles
-    // Top-Left corner
-    glBegin(GL_TRIANGLE_FAN);
-    glColor4f(color.r, color.g, color.b, color.a * 0.5f);
-    glVertex3f(x - width / 2, y + height / 2, zDepth - 0.01f);
-
+    // Top edge glow
     glColor4f(color.r, color.g, color.b, 0.0f);
-    for (int i = 0; i <= 16; i++) {
-        float angle = (static_cast<float>(i) / 16.0f) * 3.14159f / 2.0f;
-        float cx = x - width / 2.0f - glowSize * std::sinf(angle);
-        float cy = y + height / 2.0f + glowSize * std::cosf(angle);
-        glVertex3f(cx, cy, zDepth - 0.01f);
-    }
+    glVertex3f(x - halfW - glowSize, y + halfH + glowSize, zDepth - 0.01f);
+    glVertex3f(x + halfW + glowSize, y + halfH + glowSize, zDepth - 0.01f);
+    glColor4f(color.r, color.g, color.b, color.a * 0.6f);
+    glVertex3f(x + halfW, y + halfH, zDepth - 0.01f);
+    glVertex3f(x - halfW, y + halfH, zDepth - 0.01f);
+
+    // Bottom edge glow
+    glColor4f(color.r, color.g, color.b, color.a * 0.6f);
+    glVertex3f(x - halfW, y - halfH, zDepth - 0.01f);
+    glVertex3f(x + halfW, y - halfH, zDepth - 0.01f);
+    glColor4f(color.r, color.g, color.b, 0.0f);
+    glVertex3f(x + halfW + glowSize, y - halfH - glowSize, zDepth - 0.01f);
+    glVertex3f(x - halfW - glowSize, y - halfH - glowSize, zDepth - 0.01f);
+
+    // Left edge glow
+    glColor4f(color.r, color.g, color.b, 0.0f);
+    glVertex3f(x - halfW - glowSize, y - halfH - glowSize, zDepth - 0.01f);
+    glVertex3f(x - halfW - glowSize, y + halfH + glowSize, zDepth - 0.01f);
+    glColor4f(color.r, color.g, color.b, color.a * 0.6f);
+    glVertex3f(x - halfW, y + halfH, zDepth - 0.01f);
+    glVertex3f(x - halfW, y - halfH, zDepth - 0.01f);
+
+    // Right edge glow
+    glColor4f(color.r, color.g, color.b, color.a * 0.6f);
+    glVertex3f(x + halfW, y - halfH, zDepth - 0.01f);
+    glVertex3f(x + halfW, y + halfH, zDepth - 0.01f);
+    glColor4f(color.r, color.g, color.b, 0.0f);
+    glVertex3f(x + halfW + glowSize, y + halfH + glowSize, zDepth - 0.01f);
+    glVertex3f(x + halfW + glowSize, y - halfH - glowSize, zDepth - 0.01f);
+
     glEnd();
 
-    // Top-Right corner
+    // Draw corner glows using triangle fans (smoother corners)
+    // Top-left corner
     glBegin(GL_TRIANGLE_FAN);
-    glColor4f(color.r, color.g, color.b, color.a * 0.5f);
-    glVertex3f(x + width / 2, y + height / 2, zDepth - 0.01f);
-
+    glColor4f(color.r, color.g, color.b, color.a * 0.6f);
+    glVertex3f(x - halfW, y + halfH, zDepth - 0.01f);
     glColor4f(color.r, color.g, color.b, 0.0f);
-    for (int i = 0; i <= 16; i++) {
-        float angle = (static_cast<float>(i) / 16.0f) * 3.14159f / 2.0f;
-        float cx = x + width / 2.0f + glowSize * std::cosf(angle);
-        float cy = y + height / 2.0f + glowSize * std::sinf(angle);
-        glVertex3f(cx, cy, zDepth - 0.01f);
-    }
+    glVertex3f(x - halfW - glowSize, y + halfH, zDepth - 0.01f);
+    glVertex3f(x - halfW - glowSize * 0.7f, y + halfH + glowSize * 0.7f, zDepth - 0.01f);
+    glVertex3f(x - halfW, y + halfH + glowSize, zDepth - 0.01f);
     glEnd();
 
-    // Bottom-Left corner
+    // Top-right corner
     glBegin(GL_TRIANGLE_FAN);
-    glColor4f(color.r, color.g, color.b, color.a * 0.5f);
-    glVertex3f(x - width / 2, y - height / 2, zDepth - 0.01f);
-
+    glColor4f(color.r, color.g, color.b, color.a * 0.6f);
+    glVertex3f(x + halfW, y + halfH, zDepth - 0.01f);
     glColor4f(color.r, color.g, color.b, 0.0f);
-    for (int i = 0; i <= 16; i++) {
-        float angle = (static_cast<float>(i) / 16.0f) * 3.14159f / 2.0f;
-        float cx = x - width / 2.0f - glowSize * std::cosf(angle);
-        float cy = y - height / 2.0f - glowSize * std::sinf(angle);
-        glVertex3f(cx, cy, zDepth - 0.01f);
-    }
+    glVertex3f(x + halfW, y + halfH + glowSize, zDepth - 0.01f);
+    glVertex3f(x + halfW + glowSize * 0.7f, y + halfH + glowSize * 0.7f, zDepth - 0.01f);
+    glVertex3f(x + halfW + glowSize, y + halfH, zDepth - 0.01f);
     glEnd();
 
-    // Bottom-Right corner
+    // Bottom-left corner
     glBegin(GL_TRIANGLE_FAN);
-    glColor4f(color.r, color.g, color.b, color.a * 0.5f);
-    glVertex3f(x + width / 2, y - height / 2, zDepth - 0.01f);
-
+    glColor4f(color.r, color.g, color.b, color.a * 0.6f);
+    glVertex3f(x - halfW, y - halfH, zDepth - 0.01f);
     glColor4f(color.r, color.g, color.b, 0.0f);
-    for (int i = 0; i <= 16; i++) {
-        float angle = (static_cast<float>(i) / 16.0f) * 3.14159f / 2.0f;
-        float cx = x + width / 2.0f + glowSize * std::sinf(angle);
-        float cy = y - height / 2.0f - glowSize * std::cosf(angle);
-        glVertex3f(cx, cy, zDepth - 0.01f);
-    }
+    glVertex3f(x - halfW, y - halfH - glowSize, zDepth - 0.01f);
+    glVertex3f(x - halfW - glowSize * 0.7f, y - halfH - glowSize * 0.7f, zDepth - 0.01f);
+    glVertex3f(x - halfW - glowSize, y - halfH, zDepth - 0.01f);
+    glEnd();
+
+    // Bottom-right corner
+    glBegin(GL_TRIANGLE_FAN);
+    glColor4f(color.r, color.g, color.b, color.a * 0.6f);
+    glVertex3f(x + halfW, y - halfH, zDepth - 0.01f);
+    glColor4f(color.r, color.g, color.b, 0.0f);
+    glVertex3f(x + halfW + glowSize, y - halfH, zDepth - 0.01f);
+    glVertex3f(x + halfW + glowSize * 0.7f, y - halfH - glowSize * 0.7f, zDepth - 0.01f);
+    glVertex3f(x + halfW, y - halfH - glowSize, zDepth - 0.01f);
     glEnd();
 
     // Draw main rectangle
     glBegin(GL_QUADS);
     glColor4f(color.r, color.g, color.b, color.a);
-    glVertex3f(x - width / 2, y - height / 2, zDepth);
-    glVertex3f(x + width / 2, y - height / 2, zDepth);
-    glVertex3f(x + width / 2, y + height / 2, zDepth);
-    glVertex3f(x - width / 2, y + height / 2, zDepth);
+    glVertex3f(x - halfW, y - halfH, zDepth);
+    glVertex3f(x + halfW, y - halfH, zDepth);
+    glVertex3f(x + halfW, y + halfH, zDepth);
+    glVertex3f(x - halfW, y + halfH, zDepth);
     glEnd();
 }
