@@ -410,7 +410,10 @@ struct BossMove {
         : origin(origin), destination(destination), travelTime(travelTime),
           initialTime(initialTime), trajectory(std::move(trajectory)), portion(std::move(portion)) {
         directionVector = destination - origin;
-        normalVector = glm::normalize(glm::fvec2(-directionVector.y, directionVector.x));
+        if (glm::length(directionVector) < 1e-2)
+            normalVector = glm::fvec2(0, 0);
+        else
+            normalVector = glm::normalize(glm::fvec2(-directionVector.y, directionVector.x));
     }
 
     glm::fvec2 getCurrentPosition(int currentTime) {
@@ -841,6 +844,8 @@ using BulletVec = std::vector<EnemyBullet>;
 using BulletPattern = std::function<BulletVec(GameState &, int)>;
 using PatternEntry = std::pair<BulletPattern, int>; // {패턴함수, 시작시각(ms)}
 
+bool isBossHealthUnderHalf = false;
+
 float basePosFunc(int t, float speed) { return 0; }
 float sqrtPosFunc1(int t, float speed) {
     float deltaX = static_cast<float>(t) * speed;
@@ -859,13 +864,14 @@ BulletVec bossBulletPattern1(GameState &gameState, int currentTime) {
     gameState.bossObject.coolTimePeriod = 300;
     BulletVec bullets;
     static bool isFunc1 = false;
-    constexpr int BULLET_COUNT = 20;
-    bullets.reserve(BULLET_COUNT);
+    int bulletCount = isBossHealthUnderHalf ? 13 : 10;
+    bullets.reserve(bulletCount);
     constexpr float SPEED = 0.0003f;
     const glm::fvec2 CENTER = gameState.bossObject.currentPosition;
 
-    for (int i = 0; i < BULLET_COUNT; ++i) {
-        float angle = 2.0f * std::numbers::pi_v<float> * float(i) / BULLET_COUNT;
+    for (int i = 0; i < bulletCount; ++i) {
+        float angle = 2.0f * std::numbers::pi_v<float> * static_cast<float>(i) /
+                      static_cast<float>(bulletCount);
         glm::fvec2 dir(std::cos(angle), std::sin(angle));
         bullets.emplace_back(dir, CENTER, SPEED, currentTime,
                              isFunc1 ? sqrtPosFunc1 : sqrtPosFunc2);
@@ -876,20 +882,22 @@ BulletVec bossBulletPattern1(GameState &gameState, int currentTime) {
 BulletVec bossBulletPattern2(GameState &gameState, int currentTime) {
     gameState.bossObject.coolTimePeriod = 400;
     BulletVec bullets;
-    constexpr int BULLET_COUNT = 8;
+    int bulletCount = isBossHealthUnderHalf ? 8 : 6;
     constexpr float SPEED = 0.0005f;
     constexpr float SPREAD_DEG = 75.0f;
     constexpr float SPREAD_RAD = glm::radians(SPREAD_DEG);
 
-    bullets.reserve(BULLET_COUNT);
+    bullets.reserve(bulletCount);
 
     const glm::fvec2 CENTER = gameState.bossObject.currentPosition;
     glm::fvec2 toPlayer = gameState.playerObject.currentPosition - CENTER;
 
     const float BASE_ANGLE = std::atan2(toPlayer.y, toPlayer.x);
 
-    for (int i = 0; i < BULLET_COUNT; ++i) {
-        float t = (BULLET_COUNT == 1) ? 0.0f : (static_cast<float>(i) / (BULLET_COUNT - 1) - 0.5f);
+    for (int i = 0; i < bulletCount; ++i) {
+        float t = (bulletCount == 1)
+                      ? 0.0f
+                      : (static_cast<float>(i) / static_cast<float>(bulletCount - 1) - 0.5f);
         float angle = BASE_ANGLE + t * SPREAD_RAD;
 
         glm::fvec2 dir(std::cos(angle), std::sin(angle));
@@ -901,16 +909,15 @@ BulletVec bossBulletPattern2(GameState &gameState, int currentTime) {
 BulletVec bossBulletPattern3(GameState &gameState, int currentTime) {
     gameState.bossObject.coolTimePeriod = 200;
     BulletVec bullets;
-    static int startTime = currentTime;
-    constexpr int BULLET_COUNT = 5;
+    int bulletCount = isBossHealthUnderHalf ? 5 : 3;
     constexpr float SPEED = 0.001f;
-    bullets.reserve(BULLET_COUNT);
+    bullets.reserve(bulletCount);
 
-    float baseAngle = static_cast<float>(startTime - currentTime) / 1000.0f;
+    float baseAngle = static_cast<float>(currentTime) / 1000.0f;
     const glm::fvec2 CENTER = gameState.bossObject.currentPosition;
 
-    for (int i = 0; i < BULLET_COUNT; ++i) {
-        float t = static_cast<float>(i) / (BULLET_COUNT - 1) - 0.5f;
+    for (int i = 0; i < bulletCount; ++i) {
+        float t = static_cast<float>(i) / static_cast<float>(bulletCount - 1) - 0.5f;
         float angle = baseAngle + t;
 
         glm::fvec2 dir(std::cos(angle), std::sin(angle));
@@ -919,26 +926,96 @@ BulletVec bossBulletPattern3(GameState &gameState, int currentTime) {
 
     return bullets;
 }
+BulletVec bossBulletRandomPattern(GameState &gameState, int currentTime) {
+    static int randomValue = getRandomRange(0, 2);
+    static int nextPeriod = currentTime + 2000;
+    static bool isIdle = false;
 
-static const std::array<PatternEntry, 6> BOSS_PATTERN_LIST = {{
+    if (nextPeriod < currentTime) {
+        if (!isIdle) {
+            isIdle = true;
+            nextPeriod = currentTime + 300;
+            randomValue = -1;
+        } else {
+            isIdle = false;
+            randomValue = getRandomRange(0, 2);
+            nextPeriod = currentTime + 2000;
+        }
+    }
+
+    BulletVec result;
+
+    switch (randomValue) {
+    case 0:
+        result = bossBulletPattern1(gameState, currentTime);
+        break;
+    case 1:
+        result = bossBulletPattern2(gameState, currentTime);
+        break;
+    case 2:
+        result = bossBulletPattern3(gameState, currentTime);
+        break;
+    default:
+        result = bossEmptyPattern(gameState, currentTime);
+        break;
+    }
+
+    gameState.bossObject.coolTimePeriod = 200;
+    return result;
+}
+BulletVec bossTransitionBulletPattern(GameState &gameState, int currentTime) {
+    gameState.bossObject.coolTimePeriod = 300;
+    BulletVec bullets;
+    static bool isFunc1 = false;
+    int bulletCount = 20;
+    bullets.reserve(bulletCount);
+    constexpr float SPEED = 0.0003f;
+    const glm::fvec2 CENTER = gameState.bossObject.currentPosition;
+
+    for (int i = 0; i < bulletCount; ++i) {
+        float angle = 2.0f * std::numbers::pi_v<float> * static_cast<float>(i) /
+                      static_cast<float>(bulletCount);
+        glm::fvec2 dir(std::cos(angle), std::sin(angle));
+        bullets.emplace_back(dir, CENTER, SPEED, currentTime,
+                             isFunc1 ? sqrtPosFunc1 : sqrtPosFunc2);
+    }
+    isFunc1 = !isFunc1;
+    return bullets;
+}
+
+static const std::vector<PatternEntry> BOSS_PATTERN_LIST = {{
     {bossBulletPattern2, 0},
     {bossBulletPattern1, 1000},
     {bossBulletPattern3, 3000},
     {bossBulletPattern1, 6000},
     {bossBulletPattern2, 8000},
-    {bossEmptyPattern, 12000},
+    {bossBulletRandomPattern, 12000},
+}};
+static const std::vector<PatternEntry> BOSS_PATTERN_LIST_UNDER_HALF = {{
+    {bossTransitionBulletPattern, 0},
+    {bossEmptyPattern, 6000},
+    {bossBulletRandomPattern, 9000},
 }};
 static std::size_t bossPatternListCounter = 0;
 ///////////////////////////////////////////////////////////
+int bossUnderHalfTime = 0;
+int bossRushCoolTime = 0;
+bool isBossRushPattern = false;
 
 BulletPattern getCurrentBulletPattern(int currentTime) {
-    static int gameStartTime = currentTime;
     static BulletPattern current = bossEmptyPattern;
-    const int ELAPSED_TIME = currentTime - gameStartTime;
+    int elapsedTime = currentTime - bossUnderHalfTime;
 
-    while (bossPatternListCounter < BOSS_PATTERN_LIST.size() &&
-           ELAPSED_TIME >= BOSS_PATTERN_LIST[bossPatternListCounter].second) {
-        current = BOSS_PATTERN_LIST[bossPatternListCounter].first;
+    const std::vector<PatternEntry> &currentBossPatternList =
+        isBossHealthUnderHalf ? BOSS_PATTERN_LIST_UNDER_HALF : BOSS_PATTERN_LIST;
+
+    if (isBossHealthUnderHalf && isBossRushPattern) {
+        return bossEmptyPattern;
+    }
+
+    while (bossPatternListCounter < currentBossPatternList.size() &&
+           elapsedTime >= currentBossPatternList[bossPatternListCounter].second) {
+        current = currentBossPatternList[bossPatternListCounter].first;
         ++bossPatternListCounter;
     }
     return current;
@@ -1097,7 +1174,7 @@ void BossHealthBar::draw(glm::fvec2 cameraOffset, const GameState &gameState) {
     glPopMatrix();
 }
 
-GameState gameState(5, 500);
+GameState gameState(5, 20);
 
 void keyboardDown(unsigned char key, int /*x*/, int /*y*/) { keyStates[key] = true; }
 void keyboardUp(unsigned char key, int /*x*/, int /*y*/) { keyStates[key] = false; }
@@ -1187,24 +1264,80 @@ MoveFn bossMove2 = [](int currentTime) {
                     traj1, por1);
 };
 
-static std::array<MoveEntry, 2> bossMoveList = {{
+auto zeroTraj = [](float u) { return 0.0f; };
+
+MoveFn bossMove3 = [](int currentTime) {
+    return BossMove(gameState.bossObject.currentPosition, glm::fvec2(0.0f, 0.0f), 2000, currentTime,
+                    zeroTraj, por1);
+};
+
+MoveFn bossMove4 = [](int currentTime) {
+    return BossMove(gameState.bossObject.currentPosition, glm::fvec2(0.0f, 0.6f), 2000, currentTime,
+                    zeroTraj, por1);
+};
+
+auto rushPor = [](float t) {
+    if (t >= 0.689898)
+        return 1.0f;
+    else
+        return float(5 * t * (t - 0.4));
+};
+
+MoveFn bossRushMove = [](int currentTime) {
+    return BossMove(gameState.bossObject.currentPosition, gameState.playerObject.currentPosition,
+                    1500, currentTime, zeroTraj, rushPor);
+};
+
+MoveFn bossRandomMove = [](int currentTime) {
+    float randomX = dist(gen) * 1.7f - 0.85f;
+    float randomY = dist(gen) * 0.85f;
+
+    return BossMove(gameState.bossObject.currentPosition, glm::fvec2(randomX, randomY), 1000,
+                    currentTime, zeroTraj, por1);
+};
+
+static const std::vector<MoveEntry> BOSS_MOVE_LIST = {{
     {bossMove1, 2000},
     {bossMove2, 7000},
+}};
+static const std::vector<MoveEntry> BOSS_MOVE_LIST_UNDER_HALF = {{
+    {bossMove3, 0},
+    {bossMove4, 7000},
 }};
 static std::size_t bossMoveListCounter = 0;
 ///////////////////////////////////////////////////////////
 
 std::optional<BossMove> getCurrentMove(int currentTime) {
-    static int gameStartTime = currentTime;
-    const int ELAPSED_TIME = currentTime - gameStartTime;
+    int elapsedTime = currentTime - bossUnderHalfTime;
+    static int randomIteration = 0;
+    const std::vector<MoveEntry> &currentBossMoveList =
+        isBossHealthUnderHalf ? BOSS_MOVE_LIST_UNDER_HALF : BOSS_MOVE_LIST;
 
-    if (bossMoveListCounter >= bossMoveList.size()) {
+    if (isBossHealthUnderHalf && currentTime > bossRushCoolTime) {
+        if (!isBossRushPattern) {
+            isBossRushPattern = true;
+            bossRushCoolTime = currentTime + 5000;
+            return bossRushMove(currentTime);
+        } else {
+            isBossRushPattern = false;
+            bossRushCoolTime = currentTime + 12000;
+        }
+    }
+
+    if (isBossHealthUnderHalf && isBossRushPattern)
+        return std::nullopt;
+
+    if (bossMoveListCounter >= currentBossMoveList.size()) {
+        if (elapsedTime > 11000 + randomIteration * 5000) {
+            randomIteration += 1;
+            return bossRandomMove(currentTime);
+        }
         return std::nullopt;
     }
 
-    const auto &[makeMove, startAt] = bossMoveList[bossMoveListCounter];
+    const auto &[makeMove, startAt] = currentBossMoveList[bossMoveListCounter];
 
-    if (ELAPSED_TIME >= startAt) {
+    if (elapsedTime >= startAt) {
         BossMove move = makeMove(currentTime);
         ++bossMoveListCounter;
         return move;
@@ -1216,6 +1349,14 @@ std::optional<BossMove> getCurrentMove(int currentTime) {
 void timer(int) {
     int now = glutGet(GLUT_ELAPSED_TIME); // Get Time in milliseconds.
     static int lastMs = now;
+
+    if (gameState.bossHealth <= gameState.MAX_BOSS_HEALTH / 2 && !isBossHealthUnderHalf) {
+        isBossHealthUnderHalf = true;
+        bossUnderHalfTime = now;
+        bossRushCoolTime = now + 12000;
+        bossPatternListCounter = 0;
+        bossMoveListCounter = 0;
+    }
 
     auto bossMoveData = getCurrentMove(now);
     if (bossMoveData.has_value()) {
