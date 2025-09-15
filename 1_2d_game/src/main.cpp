@@ -8,14 +8,18 @@
 #include <optional>
 #include <utility>
 #include <vector>
-#include <utility>
 #include <array>
+#include <random>
 #include "collision.hpp"
 #include "utils.hpp"
 
 struct GameState;
 bool keyStates[256] = {false};
 struct BossMove;
+
+std::random_device rd;
+std::mt19937 gen(rd());
+std::uniform_real_distribution<float> dist(0.0f, 1.0f);
 
 /// @brief Interface for objects that can be drawn
 struct Drawable {
@@ -72,7 +76,57 @@ struct EnemyBullet : Updatable, Drawable, Collidable {
 
     bool update(int currentTime, GameState &gameState) override;
     void draw(glm::fvec2 cameraOffset, const GameState &gameState) override {
-        drawCircle(currentPosition - cameraOffset, 0.03f, 10, glm::fvec3(1.0f, 1.0f, 1.0f));
+        glm::fvec2 pos = currentPosition - cameraOffset;
+        float size = 0.03f;
+
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+
+        // Outer glow
+        glBegin(GL_TRIANGLE_FAN);
+        glColor4f(0.8f, 0.2f, 1.0f, 0.3f);
+        glVertex3f(pos.x, pos.y, -0.05f);
+        glColor4f(0.4f, 0.0f, 0.8f, 0.0f);
+        for (int i = 0; i <= 12; i++) {
+            float angle = static_cast<float>(i) * 2.0f * std::numbers::pi_v<float> / 12.0f;
+            float x = pos.x + size * 2.0f * std::cos(angle);
+            float y = pos.y + size * 2.0f * std::sin(angle);
+            glVertex3f(x, y, -0.05f);
+        }
+        glEnd();
+
+        // Main diamond shape
+        glBegin(GL_QUADS);
+        glColor4f(1.0f, 0.3f, 0.8f, 1.0f);
+        glVertex3f(pos.x, pos.y + size, 0.0f);
+        glVertex3f(pos.x + size * 0.7f, pos.y, 0.0f);
+        glVertex3f(pos.x, pos.y - size, 0.0f);
+        glVertex3f(pos.x - size * 0.7f, pos.y, 0.0f);
+        glEnd();
+
+        // Inner core
+        glBegin(GL_QUADS);
+        glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+        glVertex3f(pos.x, pos.y + size * 0.5f, 0.01f);
+        glVertex3f(pos.x + size * 0.35f, pos.y, 0.01f);
+        glVertex3f(pos.x, pos.y - size * 0.5f, 0.01f);
+        glVertex3f(pos.x - size * 0.35f, pos.y, 0.01f);
+        glEnd();
+
+        // Rotating effect
+        float rotation = static_cast<float>(glutGet(GLUT_ELAPSED_TIME)) * 0.005f;
+        glBegin(GL_LINES);
+        glLineWidth(1.5f);
+        glColor4f(0.6f, 0.1f, 1.0f, 0.7f);
+        for (int i = 0; i < 4; i++) {
+            float angle = rotation + static_cast<float>(i) * std::numbers::pi_v<float> / 2.0f;
+            glVertex3f(pos.x, pos.y, 0.02f);
+            glVertex3f(pos.x + size * 1.2f * std::cos(angle), pos.y + size * 1.2f * std::sin(angle),
+                       0.02f);
+        }
+        glEnd();
+
+        glDisable(GL_BLEND);
     }
     CollisionShape getShape() const override { return CollisionCircle(currentPosition, 0.03f); }
 };
@@ -90,11 +144,89 @@ struct PlayerBullet : Updatable, Drawable, Collidable {
 
     bool update(int currentTime, GameState &gameState) override;
     void draw(glm::fvec2 cameraOffset, const GameState &gameState) override {
-        drawRect(currentPosition - cameraOffset, 0.03f, glm::fvec3(1.0f, 0.0f, 1.0f));
+        glm::fvec2 pos = currentPosition - cameraOffset;
+        float width = 0.015f;
+        float height = 0.04f;
+        float zDepth = -0.1f;
+
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+
+        glBegin(GL_TRIANGLES);
+        glColor4f(1.0f, 0.9f, 0.0f, 1.0f);
+        glVertex3f(pos.x, pos.y + height, zDepth);
+        glColor4f(1.0f, 0.5f, 0.0f, 0.8f);
+        glVertex3f(pos.x - width, pos.y - height * 0.3f, zDepth);
+        glVertex3f(pos.x + width, pos.y - height * 0.3f, zDepth);
+        glEnd();
+
+        glBegin(GL_QUADS);
+        glColor4f(1.0f, 0.7f, 0.0f, 1.0f);
+        glVertex3f(pos.x - width * 0.6f, pos.y - height * 0.2f, zDepth);
+        glVertex3f(pos.x + width * 0.6f, pos.y - height * 0.2f, zDepth);
+        glColor4f(1.0f, 0.3f, 0.0f, 0.2f);
+        glVertex3f(pos.x + width * 0.4f, pos.y - height * 1.5f, zDepth);
+        glVertex3f(pos.x - width * 0.4f, pos.y - height * 1.5f, zDepth);
+        glEnd();
+
+        glBegin(GL_POINTS);
+        glPointSize(8.0f);
+        glColor4f(1.0f, 1.0f, 0.7f, 0.9f);
+        glVertex3f(pos.x, pos.y + height * 0.7f, zDepth);
+        glEnd();
+
+        glDisable(GL_BLEND);
     }
     CollisionShape getShape() const override {
         return CollisionRectangle(currentPosition - glm::fvec2(0.015f, 0.015f),
                                   currentPosition + glm::fvec2(0.015f, 0.015f));
+    }
+};
+
+struct PlayerFragment : Drawable, Updatable {
+    glm::fvec2 position;
+    glm::fvec2 velocity;
+    float rotation;
+    float rotationSpeed;
+    float size;
+    float alpha;
+    glm::fvec3 color;
+
+    PlayerFragment(glm::fvec2 pos, glm::fvec2 vel, float rot, float rotSpeed, float sz,
+                   glm::fvec3 col)
+        : position(pos), velocity(vel), rotation(rot), rotationSpeed(rotSpeed), size(sz),
+          alpha(1.0f), color(col) {}
+
+    bool update(int deltaTime, GameState &) override {
+        float dt = static_cast<float>(deltaTime) * 0.0005f;
+        position += velocity * dt;
+        rotation += rotationSpeed * dt;
+        velocity.y -= 0.4f * dt;
+        alpha -= dt * 0.2f;
+        size *= (1.0f - dt * 0.15f);
+        return alpha <= 0.0f || size <= 0.001f;
+    }
+
+    void draw(glm::fvec2 cameraOffset, const GameState &) override {
+        glm::fvec2 pos = position - cameraOffset;
+
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+
+        glPushMatrix();
+        glTranslatef(pos.x, pos.y, 0.0f);
+        glRotatef(rotation, 0.0f, 0.0f, 1.0f);
+
+        glBegin(GL_TRIANGLES);
+        glColor4f(color.r, color.g, color.b, alpha);
+        glVertex3f(0.0f, size, 0.0f);
+        glColor4f(color.r * 0.5f, color.g * 0.5f, color.b * 0.5f, alpha * 0.5f);
+        glVertex3f(-size * 0.866f, -size * 0.5f, 0.0f);
+        glVertex3f(size * 0.866f, -size * 0.5f, 0.0f);
+        glEnd();
+
+        glPopMatrix();
+        glDisable(GL_BLEND);
     }
 };
 
@@ -104,14 +236,95 @@ struct Player : Updatable, Drawable, Collidable {
     int coolTime = 0;
     bool isInvincible = false;
     int invincibilityEndTime = 0;
+    float tiltAngle = 0.0f;                             // Rotation angle for tilting
+    float targetTiltAngle = 0.0f;                       // Target angle for smooth transition
     static constexpr int INVINCIBILITY_DURATION = 1200; // 1.2 seconds of invincibility
+    bool isDying = false;
+    int deathStartTime = 0;
+    std::vector<PlayerFragment> fragments;
 
     Player(glm::fvec2 initialPosition) : currentPosition(initialPosition) {}
     ~Player() override {}
 
-    void tryAttack() { isBullet = true; }
+    void startDeathAnimation(int currentTime) {
+        if (isDying)
+            return;
+        isDying = true;
+        deathStartTime = currentTime;
+
+        // Create fragments
+        std::uniform_real_distribution<float> speedDist(0.4f, 1.5f);
+        std::uniform_real_distribution<float> angleDist(0.0f, 2.0f * std::numbers::pi_v<float>);
+        std::uniform_real_distribution<float> rotSpeedDist(-360.0f, 360.0f);
+        std::uniform_real_distribution<float> sizeDist(0.02f, 0.06f);
+
+        for (int i = 0; i < 15; ++i) {
+            float speed = speedDist(gen);
+            float angle = angleDist(gen);
+            glm::fvec2 vel(speed * std::cos(angle), speed * std::sin(angle));
+            float rotSpeed = rotSpeedDist(gen);
+            float size = sizeDist(gen);
+
+            glm::fvec3 color;
+            if (i % 3 == 0) {
+                color = glm::fvec3(1.0f, 1.0f, 0.0f); // Yellow
+            } else if (i % 3 == 1) {
+                color = glm::fvec3(1.0f, 0.6f, 0.0f); // Orange
+            } else {
+                color = glm::fvec3(1.0f, 0.8f, 0.2f); // Light orange
+            }
+
+            fragments.emplace_back(currentPosition, vel, 0.0f, rotSpeed, size, color);
+        }
+    }
+
+    void tryAttack() {
+        if (!isDying)
+            isBullet = true;
+    }
     bool update(int currentTime, GameState &gameState) override;
     void draw(glm::fvec2 cameraOffset, const GameState &gameState) override {
+        if (isDying) {
+            // Draw fragments
+            for (auto &fragment : fragments) {
+                fragment.draw(cameraOffset, gameState);
+            }
+
+            // Add explosion effect
+            int currentTime = glutGet(GLUT_ELAPSED_TIME);
+            float timeSinceDeath = static_cast<float>(currentTime - deathStartTime) * 0.001f;
+            if (timeSinceDeath < 1.2f) {
+                glEnable(GL_BLEND);
+                glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+
+                float explosionSize = 0.2f * (1.0f + timeSinceDeath * 3.0f);
+                float alpha = 1.0f - timeSinceDeath * 0.83f;
+
+                glm::fvec2 pos = currentPosition - cameraOffset;
+                glBegin(GL_TRIANGLE_FAN);
+                glColor4f(1.0f, 0.9f, 0.0f, alpha * 0.8f);
+                glVertex3f(pos.x, pos.y, 0.0f);
+                glColor4f(1.0f, 0.5f, 0.0f, 0.0f);
+                for (int i = 0; i <= 20; i++) {
+                    float angle = static_cast<float>(i) * 2.0f * std::numbers::pi_v<float> / 20.0f;
+                    float x = pos.x + explosionSize * std::cos(angle);
+                    float y = pos.y + explosionSize * std::sin(angle);
+                    glVertex3f(x, y, 0.0f);
+                }
+                glEnd();
+
+                glDisable(GL_BLEND);
+            }
+            return;
+        }
+
+        glPushMatrix();
+        // Apply rotation for rolling effect (Y-axis rotation)
+        glTranslatef(currentPosition.x - cameraOffset.x, currentPosition.y - cameraOffset.y, 0.0f);
+        glRotatef(tiltAngle, 0.0f, 1.0f, 0.0f);
+        glTranslatef(-(currentPosition.x - cameraOffset.x), -(currentPosition.y - cameraOffset.y),
+                     0.0f);
+
         // Semi-transparent rendering during invincibility
         if (isInvincible) {
             // Flashing effect during invincibility
@@ -120,13 +333,19 @@ struct Player : Updatable, Drawable, Collidable {
                 0.4f * std::abs(std::sin(static_cast<float>(glutGet(GLUT_ELAPSED_TIME)) * 0.01f));
             glEnable(GL_BLEND);
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-            drawTriangle(currentPosition - cameraOffset, 0.1f, glm::fvec4(1.0f, 1.0f, 0.0f, alpha));
+            drawSpaceship(currentPosition - cameraOffset, 0.14f,
+                          glm::fvec4(1.0f, 1.0f, 0.0f, alpha));
             glDisable(GL_BLEND);
         } else {
-            drawTriangle(currentPosition - cameraOffset, 0.1f, glm::fvec3(1.0f, 1.0f, 0.0f));
+            drawSpaceship(currentPosition - cameraOffset, 0.14f,
+                          glm::fvec4(1.0f, 1.0f, 0.0f, 1.0f));
         }
+        glPopMatrix();
     }
     void move(glm::fvec2 deltaPosition) {
+        if (isDying)
+            return; // No movement when dying
+
         currentPosition += deltaPosition;
 
         // Clamp
@@ -146,6 +365,10 @@ struct Player : Updatable, Drawable, Collidable {
         }
     }
     CollisionShape getShape() const override {
+        if (isDying) {
+            // No collision when dying
+            return CollisionCircle(glm::fvec2(-999.0f, -999.0f), 0.0f);
+        }
         return CollisionRectangle(currentPosition - glm::fvec2(0.015f, 0.015f + 0.025f),
                                   currentPosition + glm::fvec2(0.015f, 0.015f - 0.025f));
     }
@@ -209,21 +432,217 @@ static BossMove idleBossMove(glm::fvec2 position, int startTime = 0) {
     return BossMove(position, position, 0, startTime, trivialFunc, trivialFuncPor);
 }
 
+struct BossFragment : Drawable, Updatable {
+    glm::fvec2 position;
+    glm::fvec2 velocity;
+    float rotation;
+    float rotationSpeed;
+    float size;
+    float alpha;
+    glm::fvec3 color;
+
+    BossFragment(glm::fvec2 pos, glm::fvec2 vel, float rot, float rotSpeed, float sz,
+                 glm::fvec3 col)
+        : position(pos), velocity(vel), rotation(rot), rotationSpeed(rotSpeed), size(sz),
+          alpha(1.0f), color(col) {}
+
+    bool update(int deltaTime, GameState &) override {
+        float dt = static_cast<float>(deltaTime) * 0.0005f; // Slower animation
+        position += velocity * dt;
+        rotation += rotationSpeed * dt;
+        velocity.y -= 0.3f * dt;    // Slower gravity
+        alpha -= dt * 0.15f;        // Slower fade out
+        size *= (1.0f - dt * 0.1f); // Slower shrink
+        return alpha <= 0.0f || size <= 0.001f;
+    }
+
+    void draw(glm::fvec2 cameraOffset, const GameState &) override {
+        glm::fvec2 pos = position - cameraOffset;
+
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+
+        glPushMatrix();
+        glTranslatef(pos.x, pos.y, 0.0f);
+        glRotatef(rotation, 0.0f, 0.0f, 1.0f);
+
+        glBegin(GL_TRIANGLES);
+        glColor4f(color.r, color.g, color.b, alpha);
+        glVertex3f(0.0f, size, 0.0f);
+        glColor4f(color.r * 0.5f, color.g * 0.5f, color.b * 0.5f, alpha * 0.5f);
+        glVertex3f(-size * 0.866f, -size * 0.5f, 0.0f);
+        glVertex3f(size * 0.866f, -size * 0.5f, 0.0f);
+        glEnd();
+
+        glPopMatrix();
+        glDisable(GL_BLEND);
+    }
+};
+
 struct Boss : Updatable, Drawable, Collidable {
     glm::fvec2 currentPosition;
     BossMove currentMove;
     int coolTime = 0;
     int coolTimePeriod = 500;
+    bool isDying = false;
+    int deathStartTime = 0;
+    std::vector<BossFragment> fragments;
 
     Boss(glm::fvec2 initialPosition)
         : currentPosition(initialPosition), currentMove(idleBossMove(initialPosition)) {}
     ~Boss() override {}
 
+    void startDeathAnimation(int currentTime) {
+        if (isDying)
+            return;
+        isDying = true;
+        deathStartTime = currentTime;
+
+        // Create fragments
+        std::uniform_real_distribution<float> speedDist(0.3f, 1.2f); // Slower speed
+        std::uniform_real_distribution<float> angleDist(0.0f, 2.0f * std::numbers::pi_v<float>);
+        std::uniform_real_distribution<float> rotSpeedDist(-180.0f, 180.0f); // Slower rotation
+        std::uniform_real_distribution<float> sizeDist(0.03f, 0.1f);         // Bigger fragments
+
+        for (int i = 0; i < 20; ++i) {
+            float speed = speedDist(gen);
+            float angle = angleDist(gen);
+            glm::fvec2 vel(speed * std::cos(angle), speed * std::sin(angle));
+            float rotSpeed = rotSpeedDist(gen);
+            float size = sizeDist(gen);
+
+            glm::fvec3 color;
+            if (i % 3 == 0) {
+                color = glm::fvec3(1.0f, 0.2f, 0.8f); // Pink
+            } else if (i % 3 == 1) {
+                color = glm::fvec3(0.6f, 0.1f, 1.0f); // Purple
+            } else {
+                color = glm::fvec3(0.8f, 0.4f, 1.0f); // Light purple
+            }
+
+            fragments.emplace_back(currentPosition, vel, 0.0f, rotSpeed, size, color);
+        }
+    }
+
     bool update(int currentTime, GameState &gameState) override;
     void draw(glm::fvec2 cameraOffset, const GameState &gameState) override {
-        drawCircle(currentPosition - cameraOffset, 0.15f, 20, glm::fvec3(0.1f, 0.0f, 1.0f));
+        if (isDying) {
+            // Draw fragments
+            for (auto &fragment : fragments) {
+                fragment.draw(cameraOffset, gameState);
+            }
+
+            // Add explosion effect
+            int currentTime = glutGet(GLUT_ELAPSED_TIME);
+            float timeSinceDeath = static_cast<float>(currentTime - deathStartTime) * 0.001f;
+            if (timeSinceDeath < 1.5f) { // Longer explosion effect
+                glEnable(GL_BLEND);
+                glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+
+                float explosionSize = 0.3f * (1.0f + timeSinceDeath * 2.0f); // Slower expansion
+                float alpha = 1.0f - timeSinceDeath * 0.67f;                 // Slower fade
+
+                glm::fvec2 pos = currentPosition - cameraOffset;
+                glBegin(GL_TRIANGLE_FAN);
+                glColor4f(1.0f, 0.8f, 1.0f, alpha * 0.8f);
+                glVertex3f(pos.x, pos.y, 0.0f);
+                glColor4f(0.8f, 0.2f, 1.0f, 0.0f);
+                for (int i = 0; i <= 20; i++) {
+                    float angle = static_cast<float>(i) * 2.0f * std::numbers::pi_v<float> / 20.0f;
+                    float x = pos.x + explosionSize * std::cos(angle);
+                    float y = pos.y + explosionSize * std::sin(angle);
+                    glVertex3f(x, y, 0.0f);
+                }
+                glEnd();
+
+                glDisable(GL_BLEND);
+            }
+            return;
+        }
+        glm::fvec2 pos = currentPosition - cameraOffset;
+        float size = 0.15f;
+
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+        // Main body - octagon shape
+        glBegin(GL_TRIANGLE_FAN);
+        glColor4f(0.3f, 0.0f, 0.8f, 1.0f);
+        glVertex3f(pos.x, pos.y, 0.0f);
+        glColor4f(0.1f, 0.0f, 0.6f, 1.0f);
+        for (int i = 0; i <= 8; i++) {
+            float angle = static_cast<float>(i) * std::numbers::pi_v<float> / 4.0f;
+            float x = pos.x + size * std::cos(angle);
+            float y = pos.y + size * std::sin(angle);
+            glVertex3f(x, y, 0.0f);
+        }
+        glEnd();
+
+        // Core glow
+        glBegin(GL_TRIANGLE_FAN);
+        glColor4f(0.8f, 0.2f, 1.0f, 0.8f);
+        glVertex3f(pos.x, pos.y, 0.01f);
+        glColor4f(0.4f, 0.0f, 0.8f, 0.2f);
+        for (int i = 0; i <= 20; i++) {
+            float angle = static_cast<float>(i) * 2.0f * std::numbers::pi_v<float> / 20.0f;
+            float x = pos.x + size * 0.6f * std::cos(angle);
+            float y = pos.y + size * 0.6f * std::sin(angle);
+            glVertex3f(x, y, 0.01f);
+        }
+        glEnd();
+
+        // Rotating spikes
+        float rotation = static_cast<float>(glutGet(GLUT_ELAPSED_TIME)) * 0.001f;
+        glBegin(GL_TRIANGLES);
+        for (int i = 0; i < 6; i++) {
+            float angle = rotation + static_cast<float>(i) * std::numbers::pi_v<float> / 3.0f;
+
+            glColor4f(0.6f, 0.1f, 1.0f, 0.9f);
+            glVertex3f(pos.x, pos.y, 0.02f);
+
+            glColor4f(0.2f, 0.0f, 0.4f, 0.6f);
+            glVertex3f(pos.x + size * 1.3f * std::cos(angle), pos.y + size * 1.3f * std::sin(angle),
+                       0.02f);
+            glVertex3f(pos.x + size * 0.8f * std::cos(angle + 0.2f),
+                       pos.y + size * 0.8f * std::sin(angle + 0.2f), 0.02f);
+        }
+        glEnd();
+
+        // Eye or core detail
+        glBegin(GL_TRIANGLE_FAN);
+        glColor4f(1.0f, 0.0f, 0.5f, 1.0f);
+        glVertex3f(pos.x, pos.y, 0.03f);
+        glColor4f(0.3f, 0.0f, 0.2f, 1.0f);
+        for (int i = 0; i <= 10; i++) {
+            float angle = static_cast<float>(i) * 2.0f * std::numbers::pi_v<float> / 10.0f;
+            float x = pos.x + size * 0.3f * std::cos(angle);
+            float y = pos.y + size * 0.3f * std::sin(angle);
+            glVertex3f(x, y, 0.03f);
+        }
+        glEnd();
+
+        // Energy field effect
+        glLineWidth(2.0f);
+        glBegin(GL_LINE_LOOP);
+        glColor4f(0.4f, 0.2f, 1.0f, 0.5f);
+        for (int i = 0; i < 16; i++) {
+            float angle = static_cast<float>(i) * 2.0f * std::numbers::pi_v<float> / 16.0f;
+            float wobble = std::sin(rotation * 3.0f + angle * 2.0f) * 0.02f;
+            float x = pos.x + (size * 1.1f + wobble) * std::cos(angle);
+            float y = pos.y + (size * 1.1f + wobble) * std::sin(angle);
+            glVertex3f(x, y, 0.0f);
+        }
+        glEnd();
+
+        glDisable(GL_BLEND);
     }
-    CollisionShape getShape() const override { return CollisionCircle(currentPosition, 0.15f); }
+    CollisionShape getShape() const override {
+        if (isDying) {
+            // No collision when dying
+            return CollisionCircle(glm::fvec2(-999.0f, -999.0f), 0.0f);
+        }
+        return CollisionCircle(currentPosition, 0.15f);
+    }
 };
 
 struct PlayerHealthBar : Drawable {
@@ -244,6 +663,82 @@ struct BossHealthBar : Drawable {
     void draw(glm::fvec2 cameraOffset, const GameState &gameState) override;
 };
 
+struct Star : Drawable, Updatable {
+    glm::fvec2 position;
+    float speed;
+    float size;
+    float brightness;
+
+    Star(glm::fvec2 pos, float spd, float sz, float br)
+        : position(pos), speed(spd), size(sz), brightness(br) {}
+
+    bool update(int deltaTime, GameState & /*gameState*/) override {
+        position.y -= speed * static_cast<float>(deltaTime);
+        if (position.y < -1.1f) {
+            position.y = 1.1f;
+            position.x = -1.0f + dist(gen) * 2.0f;
+        }
+        return false;
+    }
+
+    void draw(glm::fvec2 cameraOffset, const GameState &gameState) override {
+        glColor4f(brightness, brightness, brightness, brightness * 0.8f);
+        glPointSize(size);
+        glBegin(GL_POINTS);
+        glVertex3f(position.x - cameraOffset.x, position.y - cameraOffset.y, -0.99f);
+        glEnd();
+    }
+};
+
+struct Background : Drawable, Updatable {
+    std::vector<Star> stars;
+    int lastUpdateTime;
+
+    Background() : lastUpdateTime(0) { initializeStars(); }
+    ~Background() override {}
+
+    void initializeStars() {
+        const int NUM_STARS = 60;
+        stars.reserve(NUM_STARS);
+        for (int i = 0; i < NUM_STARS; ++i) {
+            float x = -1.0f + dist(gen) * 2.0f;
+            float y = -1.0f + dist(gen) * 2.0f;
+            float speed = 0.0008f + dist(gen) * 0.001f;
+            float size = 1.0f + dist(gen) * 3.0f;
+            float brightness = 0.3f + dist(gen) * 0.7f;
+            stars.emplace_back(glm::fvec2(x, y), speed, size, brightness);
+        }
+    }
+
+    bool update(int currentTime, GameState &gameState) override {
+        if (lastUpdateTime == 0) {
+            lastUpdateTime = currentTime;
+            return false;
+        }
+
+        int deltaTime = currentTime - lastUpdateTime;
+        lastUpdateTime = currentTime;
+
+        for (auto &star : stars) {
+            star.update(deltaTime, gameState);
+        }
+        return false;
+    }
+
+    void draw(glm::fvec2 cameraOffset, const GameState &gameState) override {
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glEnable(GL_POINT_SMOOTH);
+
+        for (auto &star : stars) {
+            star.draw(cameraOffset, gameState);
+        }
+
+        glDisable(GL_POINT_SMOOTH);
+        glDisable(GL_BLEND);
+    }
+};
+
 struct GameState {
     GameState(int h, int bh)
         : MAX_PLAYER_HEALTH(h), MAX_BOSS_HEALTH(bh), playerHealth(h), bossHealth(bh),
@@ -261,15 +756,46 @@ struct GameState {
     Boss bossObject;
     BossHealthBar bossHealthBarObject;
     PlayerHealthBar heartsObject;
+    Background backgroundObject;
 
     std::vector<PlayerBullet> playerBulletObjects;
     std::vector<EnemyBullet> enemyBulletObjects;
 };
 
 bool Player::update(int currentTime, GameState &gameState) {
+    if (isDying) {
+        // Update fragments
+        int deltaTime = currentTime - deathStartTime;
+        std::erase_if(fragments, [deltaTime, &gameState](auto &fragment) {
+            return fragment.update(deltaTime, gameState);
+        });
+
+        // Exit game after 4 seconds
+        if ((currentTime - deathStartTime) > 4000) {
+            std::cout << "Game Over! Exiting...\n";
+            std::exit(0);
+        }
+
+        return false;
+    }
+
+    // Check if player should die
+    if (gameState.playerHealth <= 0 && !isDying) {
+        startDeathAnimation(currentTime);
+        startCameraShake(currentTime);
+        return false;
+    }
+
     // Check if invincibility period has ended
     if (isInvincible && currentTime >= invincibilityEndTime) {
         isInvincible = false;
+    }
+
+    float tiltSpeed = 0.35f;
+    if (std::abs(targetTiltAngle - tiltAngle) > 0.1f) {
+        tiltAngle += (targetTiltAngle - tiltAngle) * tiltSpeed;
+    } else {
+        tiltAngle = targetTiltAngle;
     }
 
     if (currentTime >= this->coolTime && this->isBullet) {
@@ -284,7 +810,9 @@ bool EnemyBullet::update(int currentTime, GameState &gameState) {
     int dt = currentTime - initialTime;
     currentPosition =
         initialPosition + float(dt) * initialDirection + posFunc(dt, speed) * normalDirection;
-    if (!gameState.playerObject.isInvincible && detectCollision(*this, gameState.playerObject)) {
+    // Don't damage player if boss is already dying
+    if (!gameState.bossObject.isDying && !gameState.playerObject.isInvincible &&
+        detectCollision(*this, gameState.playerObject)) {
         gameState.playerHealth -= 1;
         gameState.playerObject.takeDamage(currentTime);
         startCameraShake(currentTime);
@@ -298,7 +826,8 @@ bool EnemyBullet::update(int currentTime, GameState &gameState) {
 bool PlayerBullet::update(int currentTime, GameState &gameState) {
     currentPosition =
         initialPosition + glm::fvec2(0, speed * static_cast<float>(currentTime - initialTime));
-    if (detectCollision(*this, gameState.bossObject)) {
+    // Don't damage boss if player is already dying
+    if (!gameState.playerObject.isDying && detectCollision(*this, gameState.bossObject)) {
         gameState.bossHealth -= 1;
         if (gameState.bossHealth < 0)
             gameState.bossHealth = 0;
@@ -416,9 +945,35 @@ BulletPattern getCurrentBulletPattern(int currentTime) {
 }
 
 bool Boss::update(int currentTime, GameState &gameState) {
+    if (isDying) {
+        // Update fragments
+        int deltaTime = currentTime - deathStartTime;
+        std::erase_if(fragments, [deltaTime, &gameState](auto &fragment) {
+            return fragment.update(deltaTime, gameState);
+        });
+
+        // Exit game after 5 seconds
+        if ((currentTime - deathStartTime) > 5000) {
+            std::cout << "Boss defeated! Exiting game...\n";
+            std::exit(0);
+        }
+
+        // Boss is completely destroyed after 6 seconds (won't reach here due to exit)
+        return (currentTime - deathStartTime) > 5000;
+    }
+
+    // Check if boss should die
+    if (gameState.bossHealth <= 0 && !isDying) {
+        startDeathAnimation(currentTime);
+        startCameraShake(currentTime);
+        return false;
+    }
+
     this->currentPosition = this->currentMove.getCurrentPosition(currentTime);
 
-    if (!gameState.playerObject.isInvincible && detectCollision(*this, gameState.playerObject)) {
+    // Don't damage player if boss is already dying
+    if (!isDying && !gameState.playerObject.isInvincible &&
+        detectCollision(*this, gameState.playerObject)) {
         gameState.playerHealth -= 1;
         gameState.playerObject.takeDamage(currentTime);
         startCameraShake(currentTime);
@@ -510,21 +1065,32 @@ void BossHealthBar::draw(glm::fvec2 cameraOffset, const GameState &gameState) {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    // Draw background bar
+    // Draw background bar with purple tint
     glBegin(GL_QUADS);
-    glColor4f(0.2f, 0.2f, 0.2f, 0.7f);
+    glColor4f(0.15f, 0.05f, 0.2f, 0.8f);
     glVertex3f(-barWidth / 2, barY - barHeight / 2, zDepth);
     glVertex3f(barWidth / 2, barY - barHeight / 2, zDepth);
     glVertex3f(barWidth / 2, barY + barHeight / 2, zDepth);
     glVertex3f(-barWidth / 2, barY + barHeight / 2, zDepth);
     glEnd();
 
-    // Draw health bar with glow using the utility function
+    // Draw health bar with purple gradient
     float healthBarWidth = barWidth * healthPercentage;
     float healthBarX = -barWidth / 2 + healthBarWidth / 2;
 
-    drawRectWithGlow(healthBarX, barY, healthBarWidth, barHeight,
-                     glm::fvec4(0.5f, 0.8f, 1.0f, 1.0f), 0.04f, 1.0f);
+    glm::fvec4 healthColor;
+
+    if (healthPercentage > 0.5f) {
+        healthColor = glm::fvec4(0.6f, 0.2f, 1.0f, 1.0f); // Bright purple
+    } else if (healthPercentage > 0.25f) {
+        healthColor = glm::fvec4(0.8f, 0.3f, 0.8f, 1.0f); // Pink-purple
+    } else {
+        healthColor = glm::fvec4(1.0f, 0.2f, 0.6f, 1.0f); // Red-purple (critical)
+    }
+
+    if (gameState.bossHealth > 0) {
+        drawRectWithGlow(healthBarX, barY, healthBarWidth, barHeight, healthColor, 0.05f, 1.0f);
+    }
 
     glDisable(GL_BLEND);
 
@@ -543,6 +1109,8 @@ void display() {
     glLoadIdentity();
     glOrtho(-1.0, 1.0, -1.0, 1.0, -1.0, 1.0);
     glMatrixMode(GL_MODELVIEW);
+
+    gameState.backgroundObject.draw(gameState.cameraOffset, gameState);
 
     for (auto &object : gameState.enemyBulletObjects) {
         object.draw(gameState.cameraOffset, gameState);
@@ -571,15 +1139,29 @@ void keyInputUpdate(int dt) {
     if (keyStates['w']) {
         gameState.playerObject.move(glm::vec2(0.0f, playerSpeed));
     }
+
+    // Reset tilt angle when no left/right movement
+    bool movingHorizontal = false;
+
     if (keyStates['a']) {
         gameState.playerObject.move(glm::vec2(-playerSpeed, 0.0f));
+        gameState.playerObject.targetTiltAngle = 25.0f; // Roll left when moving left
+        movingHorizontal = true;
     }
     if (keyStates['s']) {
         gameState.playerObject.move(glm::vec2(0.0f, -playerSpeed));
     }
     if (keyStates['d']) {
         gameState.playerObject.move(glm::vec2(playerSpeed, 0.0f));
+        gameState.playerObject.targetTiltAngle = -25.0f; // Roll right when moving right
+        movingHorizontal = true;
     }
+
+    // Return to neutral position when not moving horizontally
+    if (!movingHorizontal) {
+        gameState.playerObject.targetTiltAngle = 0.0f;
+    }
+
     if (keyStates[' ']) {
         gameState.playerObject.tryAttack();
     }
@@ -654,16 +1236,25 @@ void timer(int) {
     std::erase_if(gameState.playerBulletObjects,
                   [&](auto &it) { return it.update(now, gameState); });
 
+    gameState.backgroundObject.update(now, gameState);
     gameState.playerObject.update(now, gameState);
     gameState.bossObject.update(now, gameState);
 
     glutTimerFunc(16, timer, 0);
 }
 
+void reshape(int width, int height) {
+    // Force window size to remain 800x800
+    if (width != 800 || height != 800) {
+        glutReshapeWindow(800, 800);
+    }
+    glViewport(0, 0, 800, 800);
+}
+
 int main(int argc, char **argv) {
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
-    glutInitWindowSize(600, 600);
+    glutInitWindowSize(800, 800);
     glutCreateWindow("CSED451 Assn 1");
 
     // Test GLM properly linked
@@ -680,6 +1271,7 @@ int main(int argc, char **argv) {
     glutKeyboardFunc(keyboardDown);
     glutKeyboardUpFunc(keyboardUp);
     glutDisplayFunc(display);
+    glutReshapeFunc(reshape);
     glutTimerFunc(0, timer, 0);
 
     glutMainLoop();
