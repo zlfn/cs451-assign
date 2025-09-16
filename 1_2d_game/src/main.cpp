@@ -76,29 +76,29 @@ struct EnemyBullet : Updatable, Drawable, Collidable {
 
     bool update(int currentTime, GameState &gameState) override;
     void draw(glm::fvec2 cameraOffset, const GameState &gameState) override {
-        const glm::fvec2 viewPos = currentPosition - cameraOffset;
+        const glm::fvec2 VIEW_POS = currentPosition - cameraOffset;
 
-        const float baseScale = 0.03f;
+        const float BASE_SCALE = 0.03f;
 
-        const float tMs = static_cast<float>(glutGet(GLUT_ELAPSED_TIME));
-        const float spokesRotationDeg = tMs * 0.005f * 180.0 / std::numbers::pi;
+        const float T_MS = static_cast<float>(glutGet(GLUT_ELAPSED_TIME));
+        const float SPOKES_ROTATION_DEG = T_MS * 0.005f * 180.0f / std::numbers::pi_v<float>;
 
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 
         glPushMatrix();
-        glTranslatef(viewPos.x, viewPos.y, 0.0f);
-        glScalef(baseScale, baseScale, 1.0f);
+        glTranslatef(VIEW_POS.x, VIEW_POS.y, 0.0f);
+        glScalef(BASE_SCALE, BASE_SCALE, 1.0f);
 
         glBegin(GL_TRIANGLE_FAN);
         glColor4f(0.8f, 0.2f, 1.0f, 0.3f);
         glVertex3f(0.0f, 0.0f, -0.05f);
         glColor4f(0.4f, 0.0f, 0.8f, 0.0f);
         const int N = 12;
-        const float outerR = 2.0f;
+        const float OUTER_R = 2.0f;
         for (int i = 0; i <= N; ++i) {
             float ang = (float)i * glm::two_pi<float>() / (float)N;
-            glVertex3f(outerR * std::cos(ang), outerR * std::sin(ang), -0.05f);
+            glVertex3f(OUTER_R * std::cos(ang), OUTER_R * std::sin(ang), -0.05f);
         }
         glEnd();
 
@@ -119,16 +119,16 @@ struct EnemyBullet : Updatable, Drawable, Collidable {
         glEnd();
 
         glPushMatrix();
-        glRotatef(spokesRotationDeg, 0.0f, 0.0f, 1.0f);
+        glRotatef(SPOKES_ROTATION_DEG, 0.0f, 0.0f, 1.0f);
 
         glLineWidth(1.5f);
         glBegin(GL_LINES);
         glColor4f(0.6f, 0.1f, 1.0f, 0.7f);
-        const float spokesR = 1.2f;
+        const float SPOKES_R = 1.2f;
         for (int i = 0; i < 4; ++i) {
             float ang = (float)i * glm::half_pi<float>();
             glVertex3f(0.0f, 0.0f, 0.02f);
-            glVertex3f(spokesR * std::cos(ang), spokesR * std::sin(ang), 0.02f);
+            glVertex3f(SPOKES_R * std::cos(ang), SPOKES_R * std::sin(ang), 0.02f);
         }
         glEnd();
 
@@ -153,42 +153,42 @@ struct PlayerBullet : Updatable, Drawable, Collidable {
 
     bool update(int currentTime, GameState &gameState) override;
     void draw(glm::fvec2 cameraOffset, const GameState &gameState) override {
-        const float width = 0.015f;
-        const float height = 0.04f;
-        const float zDepth = 0.0f;
+        const float WIDTH = 0.015f;
+        const float HEIGHT = 0.04f;
+        const float Z_DEPTH = 0.0f;
 
-        const glm::fvec2 worldPos = currentPosition;
-        const glm::fvec2 viewPos = worldPos - cameraOffset;
+        const glm::fvec2 WORLD_POS = currentPosition;
+        const glm::fvec2 VIEW_POS = WORLD_POS - cameraOffset;
 
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 
         glPushMatrix();
-        glTranslatef(viewPos.x, viewPos.y, 0.0f);
+        glTranslatef(VIEW_POS.x, VIEW_POS.y, 0.0f);
         glRotatef(0.0f, 0.0f, 0.0f, 1.0f);
-        glScalef(width, height, 1.0f);
+        glScalef(WIDTH, HEIGHT, 1.0f);
 
         glBegin(GL_TRIANGLES);
         glColor4f(1.0f, 0.9f, 0.0f, 1.0f);
-        glVertex3f(0.0f, 1.0f, zDepth);
+        glVertex3f(0.0f, 1.0f, Z_DEPTH);
         glColor4f(1.0f, 0.5f, 0.0f, 0.8f);
-        glVertex3f(-1.0f, -0.3f, zDepth);
-        glVertex3f(1.0f, -0.3f, zDepth);
+        glVertex3f(-1.0f, -0.3f, Z_DEPTH);
+        glVertex3f(1.0f, -0.3f, Z_DEPTH);
         glEnd();
 
         glBegin(GL_QUADS);
         glColor4f(1.0f, 0.7f, 0.0f, 1.0f);
-        glVertex3f(-0.6f, -0.2f, zDepth);
-        glVertex3f(0.6f, -0.2f, zDepth);
+        glVertex3f(-0.6f, -0.2f, Z_DEPTH);
+        glVertex3f(0.6f, -0.2f, Z_DEPTH);
         glColor4f(1.0f, 0.3f, 0.0f, 0.2f);
-        glVertex3f(0.4f, -1.5f, zDepth);
-        glVertex3f(-0.4f, -1.5f, zDepth);
+        glVertex3f(0.4f, -1.5f, Z_DEPTH);
+        glVertex3f(-0.4f, -1.5f, Z_DEPTH);
         glEnd();
 
         glPointSize(8.0f);
         glBegin(GL_POINTS);
         glColor4f(1.0f, 1.0f, 0.7f, 0.9f);
-        glVertex3f(0.0f, 0.7f, zDepth);
+        glVertex3f(0.0f, 0.7f, Z_DEPTH);
         glEnd();
 
         glPopMatrix();
@@ -226,17 +226,17 @@ struct PlayerFragment : Drawable, Updatable {
     }
 
     void draw(glm::fvec2 cameraOffset, const GameState &) override {
-        const glm::fvec2 viewPos = position - cameraOffset;
+        const glm::fvec2 VIEW_POS = position - cameraOffset;
 
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 
         glPushMatrix();
-        glTranslatef(viewPos.x, viewPos.y, 0.0f);
+        glTranslatef(VIEW_POS.x, VIEW_POS.y, 0.0f);
         glRotatef(rotation, 0.0f, 0.0f, 1.0f);
         glScalef(size, size, 1.0f);
 
-        const float H = std::sqrt(3) / 2;
+        const float H = std::sqrt(3.0f) / 2.0f;
 
         glBegin(GL_TRIANGLES);
         glColor4f(color.r, color.g, color.b, alpha);
@@ -325,12 +325,12 @@ struct Player : Updatable, Drawable, Collidable {
                 float alpha = 1.0f - timeSinceDeath * 0.83f;
 
                 // M = T(pos - camera) * S(explosionSize)
-                glm::mat4 M = glm::translate(glm::mat4(1.0f),
+                glm::mat4 m = glm::translate(glm::mat4(1.0f),
                                              glm::vec3(currentPosition - cameraOffset, 0.0f));
-                M = glm::scale(M, glm::vec3(explosionSize, explosionSize, 1.0f));
+                m = glm::scale(m, glm::vec3(explosionSize, explosionSize, 1.0f));
 
                 glPushMatrix();
-                glMultMatrixf(glm::value_ptr(M));
+                glMultMatrixf(glm::value_ptr(m));
 
                 glBegin(GL_TRIANGLE_FAN);
                 glColor4f(1.0f, 0.9f, 0.0f, alpha * 0.8f);
@@ -353,13 +353,13 @@ struct Player : Updatable, Drawable, Collidable {
         // 우주선: drawSpaceship을 원점/단위 스케일 기준으로 호출하고,
         // 모델 행렬로 위치/회전/스케일을 적용
         // M = T(current - camera) * R_y(tiltAngle) * S(0.14)
-        glm::mat4 M =
+        glm::mat4 m =
             glm::translate(glm::mat4(1.0f), glm::vec3(currentPosition - cameraOffset, 0.0f));
-        M = glm::rotate(M, glm::radians(tiltAngle), glm::vec3(0.0f, 1.0f, 0.0f));
-        M = glm::scale(M, glm::vec3(0.14f, 0.14f, 0.14f));
+        m = glm::rotate(m, glm::radians(tiltAngle), glm::vec3(0.0f, 1.0f, 0.0f));
+        m = glm::scale(m, glm::vec3(0.14f, 0.14f, 0.14f));
 
         glPushMatrix();
-        glMultMatrixf(glm::value_ptr(M));
+        glMultMatrixf(glm::value_ptr(m));
 
         if (isInvincible) {
             float alpha =
@@ -494,15 +494,15 @@ struct BossFragment : Drawable, Updatable {
     }
 
     void draw(glm::fvec2 cameraOffset, const GameState &) override {
-        const glm::fvec2 viewPos = position - cameraOffset;
+        const glm::fvec2 VIEW_POS = position - cameraOffset;
 
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE); // 기존 가산 블렌딩 유지
 
         glPushMatrix();
-        glTranslatef(viewPos.x, viewPos.y, 0.0f); // 위치
-        glRotatef(rotation, 0.0f, 0.0f, 1.0f);    // 회전
-        glScalef(size, size, 1.0f);               // 크기 (행렬로 처리)
+        glTranslatef(VIEW_POS.x, VIEW_POS.y, 0.0f); // 위치
+        glRotatef(rotation, 0.0f, 0.0f, 1.0f);      // 회전
+        glScalef(size, size, 1.0f);                 // 크기 (행렬로 처리)
 
         // 원점 기준 단위 정삼각형: (0,1), (-√3/2,-1/2), (√3/2,-1/2)
         constexpr float H = 0.8660254f; // √3/2
@@ -608,9 +608,9 @@ struct Boss : Updatable, Drawable, Collidable {
 
     // 메인 드로우 ------------------------------------------------------
     void draw(glm::fvec2 cameraOffset, const GameState &gameState) override {
-        const glm::fvec2 viewPos = currentPosition - cameraOffset;
-        const float size = 0.15f; // 전체 스케일(월드 단위)
-        const float t = static_cast<float>(glutGet(GLUT_ELAPSED_TIME)) * 0.001f;
+        const glm::fvec2 VIEW_POS = currentPosition - cameraOffset;
+        const float SIZE = 0.15f; // 전체 스케일(월드 단위)
+        const float T = static_cast<float>(glutGet(GLUT_ELAPSED_TIME)) * 0.001f;
 
         if (isDying) {
             // 파편
@@ -619,21 +619,21 @@ struct Boss : Updatable, Drawable, Collidable {
             }
 
             // 폭발(행렬 기반)
-            const int nowMs = glutGet(GLUT_ELAPSED_TIME);
-            const float dt = static_cast<float>(nowMs - deathStartTime) * 0.001f;
-            if (dt < 1.5f) {
+            const int NOW_MS = glutGet(GLUT_ELAPSED_TIME);
+            const float DT = static_cast<float>(NOW_MS - deathStartTime) * 0.001f;
+            if (DT < 1.5f) {
                 glEnable(GL_BLEND);
                 glBlendFunc(GL_SRC_ALPHA, GL_ONE); // 가산 혼합 유지
 
-                const float explosionSize = 0.3f * (1.0f + dt * 2.0f); // 느리게 팽창
-                const float a = 1.0f - dt * 0.67f;                     // 느리게 페이드
+                const float EXPLOSION_SIZE = 0.3f * (1.0f + DT * 2.0f); // 느리게 팽창
+                const float A = 1.0f - DT * 0.67f;                      // 느리게 페이드
 
                 glPushMatrix();
-                glTranslatef(viewPos.x, viewPos.y, 0.f);
-                glScalef(explosionSize, explosionSize, 1.f);
+                glTranslatef(VIEW_POS.x, VIEW_POS.y, 0.f);
+                glScalef(EXPLOSION_SIZE, EXPLOSION_SIZE, 1.f);
                 drawUnitCircleFan(
                     /*seg=*/20, /*z=*/0.0f,
-                    /*center*/ glm::vec4(1.0f, 0.8f, 1.0f, a * 0.8f),
+                    /*center*/ glm::vec4(1.0f, 0.8f, 1.0f, A * 0.8f),
                     /*edge  */ glm::vec4(0.8f, 0.2f, 1.0f, 0.0f));
                 glPopMatrix();
 
@@ -647,9 +647,9 @@ struct Boss : Updatable, Drawable, Collidable {
 
         // ===== 모델 행렬: 위치 → (필요시 회전) → 스케일 =====
         glPushMatrix();
-        glTranslatef(viewPos.x, viewPos.y, 0.f);
+        glTranslatef(VIEW_POS.x, VIEW_POS.y, 0.f);
         // 필요하다면 전체 회전이 있으면 여기서 glRotatef(angle, 0,0,1) 추가
-        glScalef(size, size, 1.f);
+        glScalef(SIZE, SIZE, 1.f);
 
         // 1) 본체(정팔각형)
         drawUnitOctagonFan(
@@ -668,10 +668,10 @@ struct Boss : Updatable, Drawable, Collidable {
 
         // 3) 회전 스파이크 (6개) — 자식 행렬로 회전만 적용
         glPushMatrix();
-        glRotatef(t * 57.2957795f, 0.f, 0.f, 1.f); // rad→deg
+        glRotatef(T * 57.2957795f, 0.f, 0.f, 1.f); // rad→deg
         for (int i = 0; i < 6; ++i) {
             glPushMatrix();
-            glRotatef((360.f / 6.f) * i, 0.f, 0.f, 1.f);
+            glRotatef((360.f / 6.f) * static_cast<float>(i), 0.f, 0.f, 1.f);
             drawUnitSpikeTri(
                 /*rOuter=*/1.3f, /*rInner=*/0.8f, /*z=*/0.02f,
                 /*innerRGBA*/ glm::vec4(0.6f, 0.1f, 1.0f, 0.9f),
@@ -691,16 +691,16 @@ struct Boss : Updatable, Drawable, Collidable {
 
         // 5) 에너지 필드 (선 루프, 반지름 1.1 + 요동)
         {
-            const int seg = 16;
+            const int SEG = 16;
             // 원래 코드의 wobble(절대 0.02)을 유지하려면 유닛 공간에서는 0.02/size
-            const float wobbleUnit = 0.02f / size;
+            const float WOBBLE_UNIT = 0.02f / SIZE;
 
             glLineWidth(2.0f); // glBegin 밖에서 설정
             glBegin(GL_LINE_LOOP);
             glColor4f(0.4f, 0.2f, 1.0f, 0.5f);
-            for (int i = 0; i < seg; ++i) {
-                float ang = (float)i * 2.f * std::numbers::pi_v<float> / (float)seg;
-                float wobble = std::sin(t * 3.0f + ang * 2.0f) * wobbleUnit;
+            for (int i = 0; i < SEG; ++i) {
+                float ang = (float)i * 2.f * std::numbers::pi_v<float> / (float)SEG;
+                float wobble = std::sin(T * 3.0f + ang * 2.0f) * WOBBLE_UNIT;
                 float r = 1.1f + wobble; // 유닛 반지름
                 glVertex3f(r * std::cos(ang), r * std::sin(ang), 0.0f);
             }
@@ -756,7 +756,7 @@ struct Star : Drawable, Updatable {
     }
 
     void draw(glm::fvec2 cameraOffset, const GameState &) override {
-        const glm::fvec2 viewPos = position - cameraOffset;
+        const glm::fvec2 VIEW_POS = position - cameraOffset;
 
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE);
@@ -765,7 +765,7 @@ struct Star : Drawable, Updatable {
         glPointSize(size);
 
         glPushMatrix();
-        glTranslatef(viewPos.x, viewPos.y, -0.99f);
+        glTranslatef(VIEW_POS.x, VIEW_POS.y, -0.99f);
 
         glBegin(GL_POINTS);
         glVertex3f(0.0f, 0.0f, 0.0f);
