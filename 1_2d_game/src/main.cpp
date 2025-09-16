@@ -750,14 +750,13 @@ struct GameState {
         : MAX_PLAYER_HEALTH(h), MAX_BOSS_HEALTH(bh), playerHealth(h), bossHealth(bh),
           cameraOffset(0.0f, 0.0f), playerObject(glm::fvec2(0.0f, -0.8f)),
           bossObject(glm::fvec2(0.0f, 0.6f)), bossHealthBarObject(glm::fvec2(0.0f, 0.0f)),
-          heartsObject(glm::fvec2(0.0f, 0.0f)), gameStartTime(0) {}
+          heartsObject(glm::fvec2(0.0f, 0.0f)) {}
 
     int MAX_PLAYER_HEALTH;
     const int MAX_BOSS_HEALTH;
     int playerHealth;
     int bossHealth;
     glm::fvec2 cameraOffset;
-    int gameStartTime;
     bool konamiUsed = false;
 
     Player playerObject;
@@ -771,8 +770,7 @@ struct GameState {
 };
 
 void showVictoryScreen(const GameState &gameState) {
-    int currentTime = glutGet(GLUT_ELAPSED_TIME);
-    int elapsedTime = currentTime - gameState.gameStartTime;
+    int elapsedTime = glutGet(GLUT_ELAPSED_TIME);
     int seconds = elapsedTime / 1000;
     int minutes = seconds / 60;
     seconds = seconds % 60;
@@ -1509,11 +1507,6 @@ std::optional<BossMove> getCurrentMove(int currentTime) {
 void timer(int) {
     int now = glutGet(GLUT_ELAPSED_TIME); // Get Time in milliseconds.
     static int lastMs = now;
-
-    // Initialize game start time on first timer call
-    if (gameState.gameStartTime == 0) {
-        gameState.gameStartTime = now;
-    }
 
     if (gameState.bossHealth <= gameState.MAX_BOSS_HEALTH / 2 && !isBossHealthUnderHalf) {
         isBossHealthUnderHalf = true;
