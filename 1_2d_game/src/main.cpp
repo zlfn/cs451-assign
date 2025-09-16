@@ -76,55 +76,64 @@ struct EnemyBullet : Updatable, Drawable, Collidable {
 
     bool update(int currentTime, GameState &gameState) override;
     void draw(glm::fvec2 cameraOffset, const GameState &gameState) override {
-        glm::fvec2 pos = currentPosition - cameraOffset;
-        float size = 0.03f;
+        const glm::fvec2 viewPos = currentPosition - cameraOffset;
+
+        const float baseScale = 0.03f;
+
+        const float tMs = static_cast<float>(glutGet(GLUT_ELAPSED_TIME));
+        const float spokesRotationDeg = tMs * 0.005f * 180.0 / std::numbers::pi;
 
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 
-        // Outer glow
+        glPushMatrix();
+        glTranslatef(viewPos.x, viewPos.y, 0.0f);
+        glScalef(baseScale, baseScale, 1.0f);
+
         glBegin(GL_TRIANGLE_FAN);
         glColor4f(0.8f, 0.2f, 1.0f, 0.3f);
-        glVertex3f(pos.x, pos.y, -0.05f);
+        glVertex3f(0.0f, 0.0f, -0.05f);
         glColor4f(0.4f, 0.0f, 0.8f, 0.0f);
-        for (int i = 0; i <= 12; i++) {
-            float angle = static_cast<float>(i) * 2.0f * std::numbers::pi_v<float> / 12.0f;
-            float x = pos.x + size * 2.0f * std::cos(angle);
-            float y = pos.y + size * 2.0f * std::sin(angle);
-            glVertex3f(x, y, -0.05f);
+        const int N = 12;
+        const float outerR = 2.0f;
+        for (int i = 0; i <= N; ++i) {
+            float ang = (float)i * glm::two_pi<float>() / (float)N;
+            glVertex3f(outerR * std::cos(ang), outerR * std::sin(ang), -0.05f);
         }
         glEnd();
 
-        // Main diamond shape
         glBegin(GL_QUADS);
         glColor4f(1.0f, 0.3f, 0.8f, 1.0f);
-        glVertex3f(pos.x, pos.y + size, 0.0f);
-        glVertex3f(pos.x + size * 0.7f, pos.y, 0.0f);
-        glVertex3f(pos.x, pos.y - size, 0.0f);
-        glVertex3f(pos.x - size * 0.7f, pos.y, 0.0f);
+        glVertex3f(0.0f, 1.0f, 0.0f);
+        glVertex3f(0.7f, 0.0f, 0.0f);
+        glVertex3f(0.0f, -1.0f, 0.0f);
+        glVertex3f(-0.7f, 0.0f, 0.0f);
         glEnd();
 
-        // Inner core
         glBegin(GL_QUADS);
         glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
-        glVertex3f(pos.x, pos.y + size * 0.5f, 0.01f);
-        glVertex3f(pos.x + size * 0.35f, pos.y, 0.01f);
-        glVertex3f(pos.x, pos.y - size * 0.5f, 0.01f);
-        glVertex3f(pos.x - size * 0.35f, pos.y, 0.01f);
+        glVertex3f(0.0f, 0.5f, 0.01f);
+        glVertex3f(0.35f, 0.0f, 0.01f);
+        glVertex3f(0.0f, -0.5f, 0.01f);
+        glVertex3f(-0.35f, 0.0f, 0.01f);
         glEnd();
 
-        // Rotating effect
-        float rotation = static_cast<float>(glutGet(GLUT_ELAPSED_TIME)) * 0.005f;
-        glBegin(GL_LINES);
+        glPushMatrix();
+        glRotatef(spokesRotationDeg, 0.0f, 0.0f, 1.0f);
+
         glLineWidth(1.5f);
+        glBegin(GL_LINES);
         glColor4f(0.6f, 0.1f, 1.0f, 0.7f);
-        for (int i = 0; i < 4; i++) {
-            float angle = rotation + static_cast<float>(i) * std::numbers::pi_v<float> / 2.0f;
-            glVertex3f(pos.x, pos.y, 0.02f);
-            glVertex3f(pos.x + size * 1.2f * std::cos(angle), pos.y + size * 1.2f * std::sin(angle),
-                       0.02f);
+        const float spokesR = 1.2f;
+        for (int i = 0; i < 4; ++i) {
+            float ang = (float)i * glm::half_pi<float>();
+            glVertex3f(0.0f, 0.0f, 0.02f);
+            glVertex3f(spokesR * std::cos(ang), spokesR * std::sin(ang), 0.02f);
         }
         glEnd();
+
+        glPopMatrix();
+        glPopMatrix();
 
         glDisable(GL_BLEND);
     }
@@ -144,36 +153,45 @@ struct PlayerBullet : Updatable, Drawable, Collidable {
 
     bool update(int currentTime, GameState &gameState) override;
     void draw(glm::fvec2 cameraOffset, const GameState &gameState) override {
-        glm::fvec2 pos = currentPosition - cameraOffset;
-        float width = 0.015f;
-        float height = 0.04f;
-        float zDepth = 0.0f;
+        const float width = 0.015f;
+        const float height = 0.04f;
+        const float zDepth = 0.0f;
+
+        const glm::fvec2 worldPos = currentPosition;
+        const glm::fvec2 viewPos = worldPos - cameraOffset;
 
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 
+        glPushMatrix();
+        glTranslatef(viewPos.x, viewPos.y, 0.0f);
+        glRotatef(0.0f, 0.0f, 0.0f, 1.0f);
+        glScalef(width, height, 1.0f);
+
         glBegin(GL_TRIANGLES);
         glColor4f(1.0f, 0.9f, 0.0f, 1.0f);
-        glVertex3f(pos.x, pos.y + height, zDepth);
+        glVertex3f(0.0f, 1.0f, zDepth);
         glColor4f(1.0f, 0.5f, 0.0f, 0.8f);
-        glVertex3f(pos.x - width, pos.y - height * 0.3f, zDepth);
-        glVertex3f(pos.x + width, pos.y - height * 0.3f, zDepth);
+        glVertex3f(-1.0f, -0.3f, zDepth);
+        glVertex3f(1.0f, -0.3f, zDepth);
         glEnd();
 
         glBegin(GL_QUADS);
         glColor4f(1.0f, 0.7f, 0.0f, 1.0f);
-        glVertex3f(pos.x - width * 0.6f, pos.y - height * 0.2f, zDepth);
-        glVertex3f(pos.x + width * 0.6f, pos.y - height * 0.2f, zDepth);
+        glVertex3f(-0.6f, -0.2f, zDepth);
+        glVertex3f(0.6f, -0.2f, zDepth);
         glColor4f(1.0f, 0.3f, 0.0f, 0.2f);
-        glVertex3f(pos.x + width * 0.4f, pos.y - height * 1.5f, zDepth);
-        glVertex3f(pos.x - width * 0.4f, pos.y - height * 1.5f, zDepth);
+        glVertex3f(0.4f, -1.5f, zDepth);
+        glVertex3f(-0.4f, -1.5f, zDepth);
         glEnd();
 
-        glBegin(GL_POINTS);
         glPointSize(8.0f);
+        glBegin(GL_POINTS);
         glColor4f(1.0f, 1.0f, 0.7f, 0.9f);
-        glVertex3f(pos.x, pos.y + height * 0.7f, zDepth);
+        glVertex3f(0.0f, 0.7f, zDepth);
         glEnd();
+
+        glPopMatrix();
 
         glDisable(GL_BLEND);
     }
@@ -208,21 +226,25 @@ struct PlayerFragment : Drawable, Updatable {
     }
 
     void draw(glm::fvec2 cameraOffset, const GameState &) override {
-        glm::fvec2 pos = position - cameraOffset;
+        const glm::fvec2 viewPos = position - cameraOffset;
 
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 
         glPushMatrix();
-        glTranslatef(pos.x, pos.y, 0.0f);
+        glTranslatef(viewPos.x, viewPos.y, 0.0f);
         glRotatef(rotation, 0.0f, 0.0f, 1.0f);
+        glScalef(size, size, 1.0f);
+
+        const float H = std::sqrt(3) / 2;
 
         glBegin(GL_TRIANGLES);
         glColor4f(color.r, color.g, color.b, alpha);
-        glVertex3f(0.0f, size, 0.0f);
+        glVertex3f(0.0f, 1.0f, 0.0f);
+
         glColor4f(color.r * 0.5f, color.g * 0.5f, color.b * 0.5f, alpha * 0.5f);
-        glVertex3f(-size * 0.866f, -size * 0.5f, 0.0f);
-        glVertex3f(size * 0.866f, -size * 0.5f, 0.0f);
+        glVertex3f(-H, -0.5f, 0.0f);
+        glVertex3f(H, -0.5f, 0.0f);
         glEnd();
 
         glPopMatrix();
@@ -286,14 +308,15 @@ struct Player : Updatable, Drawable, Collidable {
     bool update(int currentTime, GameState &gameState) override;
     void draw(glm::fvec2 cameraOffset, const GameState &gameState) override {
         if (isDying) {
-            // Draw fragments
+            // 파편은 그대로(파편 내부에서 동일한 방식으로 모델행렬 쓰는 게 이상적)
             for (auto &fragment : fragments) {
                 fragment.draw(cameraOffset, gameState);
             }
 
-            // Add explosion effect
+            // 폭발 효과: 원점 단위 원을 그리고 모델 행렬로 위치/스케일 적용
             int currentTime = glutGet(GLUT_ELAPSED_TIME);
             float timeSinceDeath = static_cast<float>(currentTime - deathStartTime) * 0.001f;
+
             if (timeSinceDeath < 1.2f) {
                 glEnable(GL_BLEND);
                 glBlendFunc(GL_SRC_ALPHA, GL_ONE);
@@ -301,46 +324,56 @@ struct Player : Updatable, Drawable, Collidable {
                 float explosionSize = 0.2f * (1.0f + timeSinceDeath * 3.0f);
                 float alpha = 1.0f - timeSinceDeath * 0.83f;
 
-                glm::fvec2 pos = currentPosition - cameraOffset;
+                // M = T(pos - camera) * S(explosionSize)
+                glm::mat4 M = glm::translate(glm::mat4(1.0f),
+                                             glm::vec3(currentPosition - cameraOffset, 0.0f));
+                M = glm::scale(M, glm::vec3(explosionSize, explosionSize, 1.0f));
+
+                glPushMatrix();
+                glMultMatrixf(glm::value_ptr(M));
+
                 glBegin(GL_TRIANGLE_FAN);
                 glColor4f(1.0f, 0.9f, 0.0f, alpha * 0.8f);
-                glVertex3f(pos.x, pos.y, 0.0f);
+                glVertex3f(0.0f, 0.0f, 0.0f); // 중심(로컬 원점)
+
                 glColor4f(1.0f, 0.5f, 0.0f, 0.0f);
-                for (int i = 0; i <= 20; i++) {
+                for (int i = 0; i <= 20; ++i) {
                     float angle = static_cast<float>(i) * 2.0f * std::numbers::pi_v<float> / 20.0f;
-                    float x = pos.x + explosionSize * std::cos(angle);
-                    float y = pos.y + explosionSize * std::sin(angle);
-                    glVertex3f(x, y, 0.0f);
+                    // 로컬 단위 원 좌표, 변환은 모델 행렬이 담당
+                    glVertex3f(std::cos(angle), std::sin(angle), 0.0f);
                 }
                 glEnd();
 
+                glPopMatrix();
                 glDisable(GL_BLEND);
             }
             return;
         }
 
-        glPushMatrix();
-        // Apply rotation for rolling effect (Y-axis rotation)
-        glTranslatef(currentPosition.x - cameraOffset.x, currentPosition.y - cameraOffset.y, 0.0f);
-        glRotatef(tiltAngle, 0.0f, 1.0f, 0.0f);
-        glTranslatef(-(currentPosition.x - cameraOffset.x), -(currentPosition.y - cameraOffset.y),
-                     0.0f);
+        // 우주선: drawSpaceship을 원점/단위 스케일 기준으로 호출하고,
+        // 모델 행렬로 위치/회전/스케일을 적용
+        // M = T(current - camera) * R_y(tiltAngle) * S(0.14)
+        glm::mat4 M =
+            glm::translate(glm::mat4(1.0f), glm::vec3(currentPosition - cameraOffset, 0.0f));
+        M = glm::rotate(M, glm::radians(tiltAngle), glm::vec3(0.0f, 1.0f, 0.0f));
+        M = glm::scale(M, glm::vec3(0.14f, 0.14f, 0.14f));
 
-        // Semi-transparent rendering during invincibility
+        glPushMatrix();
+        glMultMatrixf(glm::value_ptr(M));
+
         if (isInvincible) {
-            // Flashing effect during invincibility
             float alpha =
                 0.3f +
                 0.4f * std::abs(std::sin(static_cast<float>(glutGet(GLUT_ELAPSED_TIME)) * 0.01f));
             glEnable(GL_BLEND);
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-            drawSpaceship(currentPosition - cameraOffset, 0.14f,
-                          glm::fvec4(1.0f, 1.0f, 0.0f, alpha));
+            // 로컬 기준으로 그리기 (원점, 단위 스케일)
+            drawSpaceship(glm::fvec2(0.0f, 0.0f), 1.0f, glm::fvec4(1.0f, 1.0f, 0.0f, alpha));
             glDisable(GL_BLEND);
         } else {
-            drawSpaceship(currentPosition - cameraOffset, 0.14f,
-                          glm::fvec4(1.0f, 1.0f, 0.0f, 1.0f));
+            drawSpaceship(glm::fvec2(0.0f, 0.0f), 1.0f, glm::fvec4(1.0f, 1.0f, 0.0f, 1.0f));
         }
+
         glPopMatrix();
     }
     void move(glm::fvec2 deltaPosition) {
@@ -461,21 +494,26 @@ struct BossFragment : Drawable, Updatable {
     }
 
     void draw(glm::fvec2 cameraOffset, const GameState &) override {
-        glm::fvec2 pos = position - cameraOffset;
+        const glm::fvec2 viewPos = position - cameraOffset;
 
         glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE); // 기존 가산 블렌딩 유지
 
         glPushMatrix();
-        glTranslatef(pos.x, pos.y, 0.0f);
-        glRotatef(rotation, 0.0f, 0.0f, 1.0f);
+        glTranslatef(viewPos.x, viewPos.y, 0.0f); // 위치
+        glRotatef(rotation, 0.0f, 0.0f, 1.0f);    // 회전
+        glScalef(size, size, 1.0f);               // 크기 (행렬로 처리)
+
+        // 원점 기준 단위 정삼각형: (0,1), (-√3/2,-1/2), (√3/2,-1/2)
+        constexpr float H = 0.8660254f; // √3/2
 
         glBegin(GL_TRIANGLES);
         glColor4f(color.r, color.g, color.b, alpha);
-        glVertex3f(0.0f, size, 0.0f);
+        glVertex3f(0.0f, 1.0f, 0.0f);
+
         glColor4f(color.r * 0.5f, color.g * 0.5f, color.b * 0.5f, alpha * 0.5f);
-        glVertex3f(-size * 0.866f, -size * 0.5f, 0.0f);
-        glVertex3f(size * 0.866f, -size * 0.5f, 0.0f);
+        glVertex3f(-H, -0.5f, 0.0f);
+        glVertex3f(H, -0.5f, 0.0f);
         glEnd();
 
         glPopMatrix();
@@ -529,115 +567,147 @@ struct Boss : Updatable, Drawable, Collidable {
     }
 
     bool update(int currentTime, GameState &gameState) override;
+    static void drawUnitCircleFan(int seg, float z, const glm::vec4 &centerRGBA,
+                                  const glm::vec4 &edgeRGBA) {
+        glBegin(GL_TRIANGLE_FAN);
+        glColor4f(centerRGBA.r, centerRGBA.g, centerRGBA.b, centerRGBA.a);
+        glVertex3f(0.f, 0.f, z);
+        glColor4f(edgeRGBA.r, edgeRGBA.g, edgeRGBA.b, edgeRGBA.a);
+        for (int i = 0; i <= seg; ++i) {
+            float ang = (float)i * 2.f * std::numbers::pi_v<float> / (float)seg;
+            glVertex3f(std::cos(ang), std::sin(ang), z);
+        }
+        glEnd();
+    }
+
+    // 반지름=1 정팔각형 팬 (중심 포함)
+    static void drawUnitOctagonFan(float z, const glm::vec4 &centerRGBA,
+                                   const glm::vec4 &edgeRGBA) {
+        glBegin(GL_TRIANGLE_FAN);
+        glColor4f(centerRGBA.r, centerRGBA.g, centerRGBA.b, centerRGBA.a);
+        glVertex3f(0.f, 0.f, z);
+        glColor4f(edgeRGBA.r, edgeRGBA.g, edgeRGBA.b, edgeRGBA.a);
+        for (int i = 0; i <= 8; ++i) {
+            float ang = (float)i * std::numbers::pi_v<float> / 4.f;
+            glVertex3f(std::cos(ang), std::sin(ang), z);
+        }
+        glEnd();
+    }
+
+    // 스파이크 1개 (원점에서 시작, 외곽·내곽 반지름을 유닛으로 받음)
+    static void drawUnitSpikeTri(float rOuter, float rInner, float z, const glm::vec4 &innerRGBA,
+                                 const glm::vec4 &tipRGBA) {
+        glBegin(GL_TRIANGLES);
+        glColor4f(innerRGBA.r, innerRGBA.g, innerRGBA.b, innerRGBA.a);
+        glVertex3f(0.f, 0.f, z);
+        glColor4f(tipRGBA.r, tipRGBA.g, tipRGBA.b, tipRGBA.a);
+        glVertex3f(rOuter, 0.f, z);
+        glVertex3f(rInner * std::cos(0.2f), rInner * std::sin(0.2f), z);
+        glEnd();
+    }
+
+    // 메인 드로우 ------------------------------------------------------
     void draw(glm::fvec2 cameraOffset, const GameState &gameState) override {
+        const glm::fvec2 viewPos = currentPosition - cameraOffset;
+        const float size = 0.15f; // 전체 스케일(월드 단위)
+        const float t = static_cast<float>(glutGet(GLUT_ELAPSED_TIME)) * 0.001f;
+
         if (isDying) {
-            // Draw fragments
+            // 파편
             for (auto &fragment : fragments) {
                 fragment.draw(cameraOffset, gameState);
             }
 
-            // Add explosion effect
-            int currentTime = glutGet(GLUT_ELAPSED_TIME);
-            float timeSinceDeath = static_cast<float>(currentTime - deathStartTime) * 0.001f;
-            if (timeSinceDeath < 1.5f) { // Longer explosion effect
+            // 폭발(행렬 기반)
+            const int nowMs = glutGet(GLUT_ELAPSED_TIME);
+            const float dt = static_cast<float>(nowMs - deathStartTime) * 0.001f;
+            if (dt < 1.5f) {
                 glEnable(GL_BLEND);
-                glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+                glBlendFunc(GL_SRC_ALPHA, GL_ONE); // 가산 혼합 유지
 
-                float explosionSize = 0.3f * (1.0f + timeSinceDeath * 2.0f); // Slower expansion
-                float alpha = 1.0f - timeSinceDeath * 0.67f;                 // Slower fade
+                const float explosionSize = 0.3f * (1.0f + dt * 2.0f); // 느리게 팽창
+                const float a = 1.0f - dt * 0.67f;                     // 느리게 페이드
 
-                glm::fvec2 pos = currentPosition - cameraOffset;
-                glBegin(GL_TRIANGLE_FAN);
-                glColor4f(1.0f, 0.8f, 1.0f, alpha * 0.8f);
-                glVertex3f(pos.x, pos.y, 0.0f);
-                glColor4f(0.8f, 0.2f, 1.0f, 0.0f);
-                for (int i = 0; i <= 20; i++) {
-                    float angle = static_cast<float>(i) * 2.0f * std::numbers::pi_v<float> / 20.0f;
-                    float x = pos.x + explosionSize * std::cos(angle);
-                    float y = pos.y + explosionSize * std::sin(angle);
-                    glVertex3f(x, y, 0.0f);
-                }
-                glEnd();
+                glPushMatrix();
+                glTranslatef(viewPos.x, viewPos.y, 0.f);
+                glScalef(explosionSize, explosionSize, 1.f);
+                drawUnitCircleFan(
+                    /*seg=*/20, /*z=*/0.0f,
+                    /*center*/ glm::vec4(1.0f, 0.8f, 1.0f, a * 0.8f),
+                    /*edge  */ glm::vec4(0.8f, 0.2f, 1.0f, 0.0f));
+                glPopMatrix();
 
                 glDisable(GL_BLEND);
             }
             return;
         }
-        glm::fvec2 pos = currentPosition - cameraOffset;
-        float size = 0.15f;
 
         glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); // 본체는 일반 알파 블렌딩
 
-        // Main body - octagon shape
-        glBegin(GL_TRIANGLE_FAN);
-        glColor4f(0.3f, 0.0f, 0.8f, 1.0f);
-        glVertex3f(pos.x, pos.y, 0.0f);
-        glColor4f(0.1f, 0.0f, 0.6f, 1.0f);
-        for (int i = 0; i <= 8; i++) {
-            float angle = static_cast<float>(i) * std::numbers::pi_v<float> / 4.0f;
-            float x = pos.x + size * std::cos(angle);
-            float y = pos.y + size * std::sin(angle);
-            glVertex3f(x, y, 0.0f);
+        // ===== 모델 행렬: 위치 → (필요시 회전) → 스케일 =====
+        glPushMatrix();
+        glTranslatef(viewPos.x, viewPos.y, 0.f);
+        // 필요하다면 전체 회전이 있으면 여기서 glRotatef(angle, 0,0,1) 추가
+        glScalef(size, size, 1.f);
+
+        // 1) 본체(정팔각형)
+        drawUnitOctagonFan(
+            /*z=*/0.0f,
+            /*center*/ glm::vec4(0.3f, 0.0f, 0.8f, 1.0f),
+            /*edge  */ glm::vec4(0.1f, 0.0f, 0.6f, 1.0f));
+
+        // 2) 코어 글로우 (반지름 0.6)
+        glPushMatrix();
+        glScalef(0.6f, 0.6f, 1.f);
+        drawUnitCircleFan(
+            /*seg=*/20, /*z=*/0.01f,
+            /*center*/ glm::vec4(0.8f, 0.2f, 1.0f, 0.8f),
+            /*edge  */ glm::vec4(0.4f, 0.0f, 0.8f, 0.2f));
+        glPopMatrix();
+
+        // 3) 회전 스파이크 (6개) — 자식 행렬로 회전만 적용
+        glPushMatrix();
+        glRotatef(t * 57.2957795f, 0.f, 0.f, 1.f); // rad→deg
+        for (int i = 0; i < 6; ++i) {
+            glPushMatrix();
+            glRotatef((360.f / 6.f) * i, 0.f, 0.f, 1.f);
+            drawUnitSpikeTri(
+                /*rOuter=*/1.3f, /*rInner=*/0.8f, /*z=*/0.02f,
+                /*innerRGBA*/ glm::vec4(0.6f, 0.1f, 1.0f, 0.9f),
+                /*tipRGBA  */ glm::vec4(0.2f, 0.0f, 0.4f, 0.6f));
+            glPopMatrix();
         }
-        glEnd();
+        glPopMatrix();
 
-        // Core glow
-        glBegin(GL_TRIANGLE_FAN);
-        glColor4f(0.8f, 0.2f, 1.0f, 0.8f);
-        glVertex3f(pos.x, pos.y, 0.01f);
-        glColor4f(0.4f, 0.0f, 0.8f, 0.2f);
-        for (int i = 0; i <= 20; i++) {
-            float angle = static_cast<float>(i) * 2.0f * std::numbers::pi_v<float> / 20.0f;
-            float x = pos.x + size * 0.6f * std::cos(angle);
-            float y = pos.y + size * 0.6f * std::sin(angle);
-            glVertex3f(x, y, 0.01f);
+        // 4) 아이/코어 디테일 (반지름 0.3)
+        glPushMatrix();
+        glScalef(0.3f, 0.3f, 1.f);
+        drawUnitCircleFan(
+            /*seg=*/10, /*z=*/0.03f,
+            /*center*/ glm::vec4(1.0f, 0.0f, 0.5f, 1.0f),
+            /*edge  */ glm::vec4(0.3f, 0.0f, 0.2f, 1.0f));
+        glPopMatrix();
+
+        // 5) 에너지 필드 (선 루프, 반지름 1.1 + 요동)
+        {
+            const int seg = 16;
+            // 원래 코드의 wobble(절대 0.02)을 유지하려면 유닛 공간에서는 0.02/size
+            const float wobbleUnit = 0.02f / size;
+
+            glLineWidth(2.0f); // glBegin 밖에서 설정
+            glBegin(GL_LINE_LOOP);
+            glColor4f(0.4f, 0.2f, 1.0f, 0.5f);
+            for (int i = 0; i < seg; ++i) {
+                float ang = (float)i * 2.f * std::numbers::pi_v<float> / (float)seg;
+                float wobble = std::sin(t * 3.0f + ang * 2.0f) * wobbleUnit;
+                float r = 1.1f + wobble; // 유닛 반지름
+                glVertex3f(r * std::cos(ang), r * std::sin(ang), 0.0f);
+            }
+            glEnd();
         }
-        glEnd();
 
-        // Rotating spikes
-        float rotation = static_cast<float>(glutGet(GLUT_ELAPSED_TIME)) * 0.001f;
-        glBegin(GL_TRIANGLES);
-        for (int i = 0; i < 6; i++) {
-            float angle = rotation + static_cast<float>(i) * std::numbers::pi_v<float> / 3.0f;
-
-            glColor4f(0.6f, 0.1f, 1.0f, 0.9f);
-            glVertex3f(pos.x, pos.y, 0.02f);
-
-            glColor4f(0.2f, 0.0f, 0.4f, 0.6f);
-            glVertex3f(pos.x + size * 1.3f * std::cos(angle), pos.y + size * 1.3f * std::sin(angle),
-                       0.02f);
-            glVertex3f(pos.x + size * 0.8f * std::cos(angle + 0.2f),
-                       pos.y + size * 0.8f * std::sin(angle + 0.2f), 0.02f);
-        }
-        glEnd();
-
-        // Eye or core detail
-        glBegin(GL_TRIANGLE_FAN);
-        glColor4f(1.0f, 0.0f, 0.5f, 1.0f);
-        glVertex3f(pos.x, pos.y, 0.03f);
-        glColor4f(0.3f, 0.0f, 0.2f, 1.0f);
-        for (int i = 0; i <= 10; i++) {
-            float angle = static_cast<float>(i) * 2.0f * std::numbers::pi_v<float> / 10.0f;
-            float x = pos.x + size * 0.3f * std::cos(angle);
-            float y = pos.y + size * 0.3f * std::sin(angle);
-            glVertex3f(x, y, 0.03f);
-        }
-        glEnd();
-
-        // Energy field effect
-        glLineWidth(2.0f);
-        glBegin(GL_LINE_LOOP);
-        glColor4f(0.4f, 0.2f, 1.0f, 0.5f);
-        for (int i = 0; i < 16; i++) {
-            float angle = static_cast<float>(i) * 2.0f * std::numbers::pi_v<float> / 16.0f;
-            float wobble = std::sin(rotation * 3.0f + angle * 2.0f) * 0.02f;
-            float x = pos.x + (size * 1.1f + wobble) * std::cos(angle);
-            float y = pos.y + (size * 1.1f + wobble) * std::sin(angle);
-            glVertex3f(x, y, 0.0f);
-        }
-        glEnd();
-
+        glPopMatrix(); // 모델 행렬 끝
         glDisable(GL_BLEND);
     }
     CollisionShape getShape() const override {
@@ -685,12 +755,24 @@ struct Star : Drawable, Updatable {
         return false;
     }
 
-    void draw(glm::fvec2 cameraOffset, const GameState &gameState) override {
+    void draw(glm::fvec2 cameraOffset, const GameState &) override {
+        const glm::fvec2 viewPos = position - cameraOffset;
+
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+
         glColor4f(brightness, brightness, brightness, brightness * 0.8f);
         glPointSize(size);
+
+        glPushMatrix();
+        glTranslatef(viewPos.x, viewPos.y, -0.99f);
+
         glBegin(GL_POINTS);
-        glVertex3f(position.x - cameraOffset.x, position.y - cameraOffset.y, -0.99f);
+        glVertex3f(0.0f, 0.0f, 0.0f);
         glEnd();
+
+        glPopMatrix();
+        glDisable(GL_BLEND);
     }
 };
 
