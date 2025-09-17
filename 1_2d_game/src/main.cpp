@@ -10,12 +10,14 @@
 #include <vector>
 #include <array>
 #include <random>
+#include <iomanip>
 #include "collision.hpp"
 #include "utils.hpp"
 
 struct GameState;
 bool keyStates[256] = {false};
 struct BossMove;
+void showVictoryScreen(const GameState &gameState);
 
 std::random_device rd;
 std::mt19937 gen(rd());
@@ -837,6 +839,7 @@ struct GameState {
     int playerHealth;
     int bossHealth;
     glm::fvec2 cameraOffset;
+    bool konamiUsed = false;
 
     Player playerObject;
     Boss bossObject;
@@ -847,6 +850,66 @@ struct GameState {
     std::vector<PlayerBullet> playerBulletObjects;
     std::vector<EnemyBullet> enemyBulletObjects;
 };
+
+void showVictoryScreen(const GameState &gameState) {
+    int elapsedTime = glutGet(GLUT_ELAPSED_TIME);
+    int seconds = elapsedTime / 1000;
+    int minutes = seconds / 60;
+    seconds = seconds % 60;
+
+    std::cout << "\n\n";
+    std::cout << "\033[1;36m"
+              << "============================================================================\n";
+    std::cout << "\033[1;33m"
+              << "                                                                             \n";
+    std::cout << "\033[1;33m"
+              << "       ██╗   ██╗██╗ ██████╗████████╗ ██████╗ ██████╗ ██╗   ██╗██╗            \n";
+    std::cout << "\033[1;33m"
+              << "       ██║   ██║██║██╔════╝╚══██╔══╝██╔═══██╗██╔══██╗╚██╗ ██╔╝██║            \n";
+    std::cout << "\033[1;33m"
+              << "       ██║   ██║██║██║        ██║   ██║   ██║██████╔╝ ╚████╔╝ ██║            \n";
+    std::cout << "\033[1;33m"
+              << "       ╚██╗ ██╔╝██║██║        ██║   ██║   ██║██╔══██╗  ╚██╔╝  ╚═╝            \n";
+    std::cout << "\033[1;33m"
+              << "        ╚████╔╝ ██║╚██████╗   ██║   ╚██████╔╝██║  ██║   ██║   ██╗            \n";
+    std::cout << "\033[1;33m"
+              << "         ╚═══╝  ╚═╝ ╚═════╝   ╚═╝    ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚═╝            \n";
+    std::cout << "\033[1;33m"
+              << "                                                                             \n";
+    if (gameState.konamiUsed) {
+        std::cout
+            << "\033[1;35m"
+            << "                             ↑↑↓↓←→←→BA                                    \n";
+    } else {
+        std::cout << "\033[1;35m"
+                  << "                          ⟡ BOSS DEFEATED ⟡                              \n";
+    }
+    std::cout << "\033[1;36m"
+              << "============================================================================\n\n";
+
+    std::cout << "\033[1;32m" << "                        ╔════════════════════╗\n";
+    std::cout << "\033[1;32m" << "                        ║   GAME STATISTICS  ║\n";
+    std::cout << "\033[1;32m" << "                        ╚════════════════════╝\n\n";
+
+    std::cout << "\033[1;37m" << "                    ⏱  Clear Time: " << "\033[1;33m";
+    std::cout << std::setfill('0') << std::setw(2) << minutes << ":" << std::setfill('0')
+              << std::setw(2) << seconds << "\033[0m\n\n";
+
+    std::cout << "\033[1;37m" << "                    ❤  Lives Remaining: " << "\033[1;31m";
+    for (int i = 0; i < gameState.playerHealth; i++) {
+        std::cout << "♥";
+    }
+    std::cout << " (" << gameState.playerHealth << "/" << gameState.MAX_PLAYER_HEALTH
+              << ")\033[0m\n\n";
+
+    std::cout << "\033[1;36m"
+              << "============================================================================\n";
+    std::cout << "\033[1;35m"
+              << "                      Thank you for playing!                              \n";
+    std::cout << "\033[1;36m"
+              << "============================================================================\n";
+    std::cout << "\033[0m\n\n";
+}
 
 struct CommandExecutor : Updatable {
     std::vector<char> commandSequence;
@@ -1184,9 +1247,9 @@ bool Boss::update(int currentTime, GameState &gameState) {
             return fragment.update(deltaTime, gameState);
         });
 
-        // Exit game after 5 seconds
-        if ((currentTime - deathStartTime) > 5000) {
-            std::cout << "Boss defeated! Exiting game...\n";
+        // Show victory screen after 3 seconds
+        if ((currentTime - deathStartTime) > 3000) {
+            showVictoryScreen(gameState);
             std::exit(0);
         }
 
@@ -1221,8 +1284,6 @@ bool Boss::update(int currentTime, GameState &gameState) {
     gameState.enemyBulletObjects.insert(gameState.enemyBulletObjects.end(), newBullets.begin(),
                                         newBullets.end());
 
-    std::cout << currentTime << ", " << gameState.bossHealth << ", "
-              << gameState.enemyBulletObjects.size() << '\n';
     return false;
 }
 
@@ -1335,9 +1396,13 @@ GameState gameState(5, 1000);
 // This command is widely known in gaming culture for granting special
 CommandExecutor commandExecutor({'w', 'w', 's', 's', 'a', 'd', 'a', 'd', 'b', 'a'},
                                 [](GameState &gameState) {
+                                    // Prevent activation if player is dying
+                                    if (gameState.playerObject.isDying)
+                                        return;
                                     // Activate Konami command effects
                                     gameState.MAX_PLAYER_HEALTH = 10;
                                     gameState.playerHealth = 10;
+                                    gameState.konamiUsed = true;
 
                                     // Grant 5 seconds of invincibility
                                     int currentTime = glutGet(GLUT_ELAPSED_TIME);
@@ -1348,7 +1413,7 @@ CommandExecutor commandExecutor({'w', 'w', 's', 's', 'a', 'd', 'a', 'd', 'b', 'a
                                     // Upgrade to 5 bullets
                                     gameState.playerObject.bulletCount = 5;
 
-                                    std::cout << "Konami Command Activated! Power up!" << '\n';
+                                    std::cout << "↑↑↓↓←→←→BA" << '\n';
                                 });
 
 void keyboardDown(unsigned char key, int /*x*/, int /*y*/) { keyStates[key] = true; }
