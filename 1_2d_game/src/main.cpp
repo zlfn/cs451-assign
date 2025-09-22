@@ -8,7 +8,6 @@
 #include <optional>
 #include <utility>
 #include <vector>
-#include <array>
 #include <random>
 #include <iomanip>
 #include "collision.hpp"
@@ -59,12 +58,68 @@ glm::fvec2 cameraShake(int currentTime) {
     return glm::fvec2(offset, 0.0);
 }
 
+struct TrailParticle : Drawable, Updatable {
+    glm::fvec2 position;
+    glm::fvec2 velocity;
+    float size;
+    float alpha;
+    glm::fvec3 color;
+    int birthTime;
+
+    TrailParticle(glm::fvec2 pos, glm::fvec2 vel, float sz, glm::fvec3 col, int currentTime)
+        : position(pos), velocity(vel), size(sz), alpha(0.8f), color(col), birthTime(currentTime) {}
+
+    bool update(int currentTime, GameState &) override {
+        int deltaTime = currentTime - birthTime;
+        float dt = static_cast<float>(deltaTime) * 0.001f;
+
+        // Slower drift and fade
+        position += velocity * dt * 0.3f;
+        alpha -= dt * 0.5f;
+        size *= (1.0f - dt * 0.2f);
+
+        return alpha <= 0.0f || size <= 0.001f || deltaTime > 2000; // Last up to 2 seconds
+    }
+
+    void draw(glm::fvec2 cameraOffset, const GameState &) override {
+        const glm::fvec2 VIEW_POS = position - cameraOffset;
+
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+
+        glPushMatrix();
+        glTranslatef(VIEW_POS.x, VIEW_POS.y, -0.1f);
+        glScalef(size, size, 1.0f);
+
+        // Draw a glowing circle with brighter center
+        glBegin(GL_TRIANGLE_FAN);
+        // Much brighter center (almost white)
+        glColor4f(glm::min(color.r * 1.5f, 1.0f), glm::min(color.g * 1.5f, 1.0f),
+                  glm::min(color.b * 1.5f, 1.0f), alpha * 1.2f);
+        glVertex3f(0.0f, 0.0f, 0.0f);
+        // Fade to darker edges
+        glColor4f(color.r * 0.3f, color.g * 0.3f, color.b * 0.3f, 0.0f);
+        const int N = 8;
+        for (int i = 0; i <= N; ++i) {
+            float angle =
+                static_cast<float>(i) * 2.0f * std::numbers::pi_v<float> / static_cast<float>(N);
+            glVertex3f(std::cos(angle), std::sin(angle), 0.0f);
+        }
+        glEnd();
+
+        glPopMatrix();
+        glDisable(GL_BLEND);
+    }
+};
+
 struct EnemyBullet : Updatable, Drawable, Collidable {
     glm::fvec2 initialDirection;
     glm::fvec2 normalDirection;
     glm::fvec2 initialPosition;
     glm::fvec2 currentPosition;
+    glm::fvec2 previousPosition;
     int initialTime;
+    int lastTrailTime;
     float speed;
     std::function<float(int, float)> posFunc;
 
@@ -73,7 +128,8 @@ struct EnemyBullet : Updatable, Drawable, Collidable {
         : initialDirection(glm::normalize(initialDirection) * speed),
           normalDirection(glm::normalize(glm::fvec2(-initialDirection.y, initialDirection.x))),
           initialPosition(initialPosition), currentPosition(initialPosition),
-          initialTime(initialTime), speed(speed), posFunc(std::move(posFunc)) {}
+          previousPosition(initialPosition), initialTime(initialTime), lastTrailTime(initialTime),
+          speed(speed), posFunc(std::move(posFunc)) {}
     ~EnemyBullet() override {}
 
     bool update(int currentTime, GameState &gameState) override;
@@ -849,6 +905,7 @@ struct GameState {
 
     std::vector<PlayerBullet> playerBulletObjects;
     std::vector<EnemyBullet> enemyBulletObjects;
+    std::vector<TrailParticle> trailParticles;
 };
 
 void showVictoryScreen(const GameState &gameState) {
@@ -1028,9 +1085,33 @@ bool Player::update(int currentTime, GameState &gameState) {
 }
 
 bool EnemyBullet::update(int currentTime, GameState &gameState) {
+    previousPosition = currentPosition;
     int dt = currentTime - initialTime;
     currentPosition =
         initialPosition + float(dt) * initialDirection + posFunc(dt, speed) * normalDirection;
+
+    // Create trail particles
+    if (currentTime - lastTrailTime > 15) { // Create particles every 15ms (more frequent)
+        lastTrailTime = currentTime;
+
+        // Create 2 particles per update for denser trail
+        for (int i = 0; i < 2; ++i) {
+            // Add more spread to the trail
+            std::uniform_real_distribution<float> offsetDist(-0.015f, 0.015f);
+            std::uniform_real_distribution<float> velDist(-0.025f, 0.025f);
+
+            glm::fvec2 trailPos = currentPosition + glm::fvec2(offsetDist(gen), offsetDist(gen));
+            glm::fvec2 trailVel(velDist(gen), velDist(gen));
+            float trailSize = 0.025f + offsetDist(gen) * 0.3f; // Bigger particles
+
+            // Slightly dimmed purple/pink trail color for better contrast
+            glm::fvec3 trailColor(0.6f, 0.25f, 0.8f);
+
+            gameState.trailParticles.emplace_back(trailPos, trailVel, trailSize, trailColor,
+                                                  currentTime);
+        }
+    }
+
     // Don't damage player if boss is already dying
     if (!gameState.bossObject.isDying && !gameState.playerObject.isInvincible &&
         detectCollision(*this, gameState.playerObject)) {
@@ -1082,7 +1163,7 @@ BulletVec bossBulletPattern1(GameState &gameState, int currentTime) {
     gameState.bossObject.coolTimePeriod = 300;
     BulletVec bullets;
     static bool isFunc1 = false;
-    int bulletCount = isBossHealthUnderHalf ? 13 : 10;
+    int bulletCount = isBossHealthUnderHalf ? 13 : 11;
     bullets.reserve(bulletCount);
     constexpr float SPEED = 0.0003f;
     const glm::fvec2 CENTER = gameState.bossObject.currentPosition;
@@ -1100,7 +1181,7 @@ BulletVec bossBulletPattern1(GameState &gameState, int currentTime) {
 BulletVec bossBulletPattern2(GameState &gameState, int currentTime) {
     gameState.bossObject.coolTimePeriod = 400;
     BulletVec bullets;
-    int bulletCount = isBossHealthUnderHalf ? 8 : 6;
+    int bulletCount = isBossHealthUnderHalf ? 9 : 7;
     constexpr float SPEED = 0.0005f;
     constexpr float SPREAD_DEG = 75.0f;
     constexpr float SPREAD_RAD = glm::radians(SPREAD_DEG);
@@ -1429,6 +1510,11 @@ void display() {
 
     gameState.backgroundObject.draw(gameState.cameraOffset, gameState);
 
+    // Draw trail particles before bullets for better visual effect
+    for (auto &particle : gameState.trailParticles) {
+        particle.draw(gameState.cameraOffset, gameState);
+    }
+
     for (auto &object : gameState.enemyBulletObjects) {
         object.draw(gameState.cameraOffset, gameState);
     }
@@ -1617,6 +1703,8 @@ void timer(int) {
 
     std::erase_if(gameState.playerBulletObjects,
                   [&](auto &it) { return it.update(now, gameState); });
+
+    std::erase_if(gameState.trailParticles, [&](auto &it) { return it.update(now, gameState); });
 
     gameState.backgroundObject.update(now, gameState);
     gameState.playerObject.update(now, gameState);
