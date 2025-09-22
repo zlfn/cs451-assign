@@ -11,7 +11,7 @@ macOS
 - CMake
 - XQuartz
 
-- FreeGLUT
+- GLUT (or FreeGLUT)
 - GLEW
 ```
 
@@ -41,4 +41,4 @@ cmake ..
 make
 ```
 * Note1: You may need to install FreeGLUT and GLEW using Homebrew
-* Note2: FreeGLUT with XQuartz explicitly supports **Immediate Mode** via a macOS legacy OpenGL context.
+* Note2: FreeGLUT-only API is not available in macOS default GLUT.
