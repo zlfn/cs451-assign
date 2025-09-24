@@ -9,9 +9,8 @@ Windows
 macOS
 - Clang
 - CMake
-- XQuartz
 
-- FreeGLUT
+- FreeGLUT (or GLUT)
 - GLEW
 ```
 
@@ -40,5 +39,5 @@ cd build
 cmake ..
 make
 ```
-* Note1: You may need to install FreeGLUT and GLEW using Homebrew
-* Note2: FreeGLUT with XQuartz explicitly supports **Immediate Mode** via a macOS legacy OpenGL context.
+* Note1: You may need to install GLEW using Homebrew
+* Note2: macOS legacy GLUT explicitly supports **Immediate Mode** via a macOS legacy OpenGL context.

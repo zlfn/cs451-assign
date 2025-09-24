@@ -26,6 +26,7 @@ std::uniform_real_distribution<float> dist(0.0f, 1.0f);
 struct Drawable {
     /// @brief Draw the object with a given camera camera_offset
     /// @param camera_offset The camera offset to apply
+    /// @param gameState The current game state
     virtual void draw(glm::vec2 camera_offset, const GameState &gameState) = 0;
     virtual ~Drawable() = default;
 };
@@ -33,7 +34,8 @@ struct Drawable {
 /// @brief Interface for objects that can be updated
 struct Updatable {
     /// @brief Update the object's state. Return true if the object should be removed.
-    /// @param deltaTime Time elapsed since the last update in milliseconds
+    /// @param currentTime The current time in milliseconds
+    /// @param gameState The current game state
     /// @return true if the object should be removed
     virtual bool update(int currentTime, GameState &gameState) = 0;
     virtual ~Updatable() = default;
@@ -542,12 +544,12 @@ struct BossFragment : Drawable, Updatable {
           alpha(1.0f), color(col) {}
 
     bool update(int deltaTime, GameState &) override {
-        float dt = static_cast<float>(deltaTime) * 0.0005f; // Slower animation
+        float dt = static_cast<float>(deltaTime) * 0.0005f;
         position += velocity * dt;
         rotation += rotationSpeed * dt;
-        velocity.y -= 0.3f * dt;    // Slower gravity
-        alpha -= dt * 0.15f;        // Slower fade out
-        size *= (1.0f - dt * 0.1f); // Slower shrink
+        velocity.y -= 0.3f * dt;
+        alpha -= dt * 0.15f;
+        size *= (1.0f - dt * 0.1f);
         return alpha <= 0.0f || size <= 0.001f;
     }
 
@@ -599,10 +601,10 @@ struct Boss : Updatable, Drawable, Collidable {
         deathStartTime = currentTime;
 
         // Create fragments
-        std::uniform_real_distribution<float> speedDist(0.3f, 1.2f); // Slower speed
+        std::uniform_real_distribution<float> speedDist(0.3f, 1.2f);
         std::uniform_real_distribution<float> angleDist(0.0f, 2.0f * std::numbers::pi_v<float>);
-        std::uniform_real_distribution<float> rotSpeedDist(-180.0f, 180.0f); // Slower rotation
-        std::uniform_real_distribution<float> sizeDist(0.03f, 0.1f);         // Bigger fragments
+        std::uniform_real_distribution<float> rotSpeedDist(-180.0f, 180.0f);
+        std::uniform_real_distribution<float> sizeDist(0.03f, 0.1f);
 
         for (int i = 0; i < 20; ++i) {
             float speed = speedDist(gen);
@@ -683,8 +685,8 @@ struct Boss : Updatable, Drawable, Collidable {
                 glEnable(GL_BLEND);
                 glBlendFunc(GL_SRC_ALPHA, GL_ONE); // 가산 혼합 유지
 
-                const float EXPLOSION_SIZE = 0.3f * (1.0f + DT * 2.0f); // 느리게 팽창
-                const float A = 1.0f - DT * 0.67f;                      // 느리게 페이드
+                const float EXPLOSION_SIZE = 0.3f * (1.0f + DT * 2.0f); // 팽창
+                const float A = 1.0f - DT * 0.67f;                      // 페이드
 
                 glPushMatrix();
                 glTranslatef(VIEW_POS.x, VIEW_POS.y, 0.f);
@@ -1091,20 +1093,19 @@ bool EnemyBullet::update(int currentTime, GameState &gameState) {
         initialPosition + float(dt) * initialDirection + posFunc(dt, speed) * normalDirection;
 
     // Create trail particles
-    if (currentTime - lastTrailTime > 15) { // Create particles every 15ms (more frequent)
+    if (currentTime - lastTrailTime > 15) { // Create particles every 15ms
         lastTrailTime = currentTime;
 
         // Create 2 particles per update for denser trail
         for (int i = 0; i < 2; ++i) {
-            // Add more spread to the trail
             std::uniform_real_distribution<float> offsetDist(-0.015f, 0.015f);
             std::uniform_real_distribution<float> velDist(-0.025f, 0.025f);
 
             glm::fvec2 trailPos = currentPosition + glm::fvec2(offsetDist(gen), offsetDist(gen));
             glm::fvec2 trailVel(velDist(gen), velDist(gen));
-            float trailSize = 0.025f + offsetDist(gen) * 0.3f; // Bigger particles
+            float trailSize = 0.025f + offsetDist(gen) * 0.3f;
 
-            // Slightly dimmed purple/pink trail color for better contrast
+            // Slightly dimmed purple/pink trail color
             glm::fvec3 trailColor(0.6f, 0.25f, 0.8f);
 
             gameState.trailParticles.emplace_back(trailPos, trailVel, trailSize, trailColor,
