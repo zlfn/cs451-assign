@@ -1574,6 +1574,7 @@ void timer(int) {
     gameState.playerObject.update(now, gameState);
     gameState.bossObject1.update(now, gameState);
     gameState.bossObject2.update(now, gameState);
+  
     commandExecutor.update(now, gameState);
 
     glutTimerFunc(16, timer, 0);
