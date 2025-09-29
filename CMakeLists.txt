@@ -102,3 +102,4 @@ endfunction()
 
 add_subdirectory(0_setup)
 add_subdirectory(1_2d_game)
+add_subdirectory(2_2d_animation)
