@@ -582,12 +582,12 @@ struct BossFragment : Drawable, Updatable {
 struct BossArm : Drawable {
     float shoulderAngle = 0.0f;
     float elbowAngle = 0.0f;
-    float upperArmLength = 1.2f;  // 더 긴 날개
+    float upperArmLength = 1.2f; // 더 긴 날개
     float lowerArmLength = 0.9f;
-    float armWidth = 0.12f;       // 더 두꺼운 날개
+    float armWidth = 0.12f; // 더 두꺼운 날개
     glm::vec3 armColor = glm::vec3(0.7f, 0.2f, 0.9f);
     bool isLeftArm;
-    float animationCycle = 8.0f;  // 훨씬 느린 주기 (8초)
+    float animationCycle = 8.0f; // 훨씬 느린 주기 (8초)
 
     BossArm(bool isLeft) : isLeftArm(isLeft) {}
 
@@ -607,15 +607,15 @@ struct BossArm : Drawable {
 
         // 연속적인 날개 펼침 (끊김 없는 부드러운 곡선)
         float wingSpread = (mainWave * 0.5f + 0.5f) * 60.0f + 10.0f; // 10~70도 사이
-        float wingFold = (offsetWave * 0.3f + 0.7f) * 30.0f; // 21~30도 사이
+        float wingFold = (offsetWave * 0.3f + 0.7f) * 30.0f;         // 21~30도 사이
 
         shoulderAngle = armSign * wingSpread + breathingWave * 3.0f;
         elbowAngle = -wingFold + breathingWave * 5.0f;
     }
 
     void draw(glm::fvec2 cameraOffset, const GameState &gameState) override {
-        float T = static_cast<float>(glutGet(GLUT_ELAPSED_TIME)) * 0.001f;
-        update(T);
+        float t = static_cast<float>(glutGet(GLUT_ELAPSED_TIME)) * 0.001f;
+        update(t);
 
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -632,12 +632,12 @@ struct BossArm : Drawable {
         // 상완 - 단순한 사각형
         glBegin(GL_QUADS);
         glColor4f(armColor.r * 1.2f, armColor.g * 1.2f, armColor.b * 1.2f, 1.0f);
-        glVertex3f(-armWidth/2, 0.0f, 0.0f);
-        glVertex3f(armWidth/2, 0.0f, 0.0f);
+        glVertex3f(-armWidth / 2, 0.0f, 0.0f);
+        glVertex3f(armWidth / 2, 0.0f, 0.0f);
 
         glColor4f(armColor.r * 0.7f, armColor.g * 0.7f, armColor.b * 0.7f, 1.0f);
-        glVertex3f(armWidth/2, -upperArmLength, 0.0f);
-        glVertex3f(-armWidth/2, -upperArmLength, 0.0f);
+        glVertex3f(armWidth / 2, -upperArmLength, 0.0f);
+        glVertex3f(-armWidth / 2, -upperArmLength, 0.0f);
         glEnd();
 
         // 어깨 관절 (원)
@@ -661,12 +661,12 @@ struct BossArm : Drawable {
         // 하완 - 단순한 사각형
         glBegin(GL_QUADS);
         glColor4f(armColor.r * 1.1f, armColor.g * 1.1f, armColor.b * 1.1f, 1.0f);
-        glVertex3f(-armWidth/2, 0.0f, 0.0f);
-        glVertex3f(armWidth/2, 0.0f, 0.0f);
+        glVertex3f(-armWidth / 2, 0.0f, 0.0f);
+        glVertex3f(armWidth / 2, 0.0f, 0.0f);
 
         glColor4f(armColor.r * 0.6f, armColor.g * 0.6f, armColor.b * 0.6f, 1.0f);
-        glVertex3f(armWidth/2, -lowerArmLength, 0.0f);
-        glVertex3f(-armWidth/2, -lowerArmLength, 0.0f);
+        glVertex3f(armWidth / 2, -lowerArmLength, 0.0f);
+        glVertex3f(-armWidth / 2, -lowerArmLength, 0.0f);
         glEnd();
 
         // 팔꿈치 관절 (원)
@@ -1501,7 +1501,6 @@ void BossHealthBar::draw(glm::fvec2 cameraOffset, const GameState &gameState) {
 
     glPopMatrix();
 }
-
 
 GameState gameState(5, 1000);
 
