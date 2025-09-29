@@ -579,6 +579,130 @@ struct BossFragment : Drawable, Updatable {
     }
 };
 
+struct BossArm : Drawable {
+    float shoulderAngle = 0.0f;
+    float elbowAngle = 0.0f;
+    float upperArmLength = 1.2f;  // 더 긴 날개
+    float lowerArmLength = 0.9f;
+    float armWidth = 0.12f;       // 더 두꺼운 날개
+    glm::vec3 armColor = glm::vec3(0.7f, 0.2f, 0.9f);
+    bool isLeftArm;
+    float animationCycle = 8.0f;  // 훨씬 느린 주기 (8초)
+
+    BossArm(bool isLeft) : isLeftArm(isLeft) {}
+
+    void update(float time) {
+        float cycleTime = fmod(time, animationCycle);
+        float progress = cycleTime / animationCycle;
+
+        // 부드러운 연속적인 움직임을 위한 사인 함수
+        float mainWave = std::sin(progress * 2.0f * std::numbers::pi_v<float>);
+        float breathingWave = std::sin(progress * 4.0f * std::numbers::pi_v<float>) * 0.3f;
+
+        // 약간의 위상차로 자연스러운 비대칭
+        float phaseOffset = isLeftArm ? 0.0f : 0.15f;
+        float offsetWave = std::sin((progress + phaseOffset) * 2.0f * std::numbers::pi_v<float>);
+
+        float armSign = isLeftArm ? -1.0f : 1.0f;
+
+        // 연속적인 날개 펼침 (끊김 없는 부드러운 곡선)
+        float wingSpread = (mainWave * 0.5f + 0.5f) * 60.0f + 10.0f; // 10~70도 사이
+        float wingFold = (offsetWave * 0.3f + 0.7f) * 30.0f; // 21~30도 사이
+
+        shoulderAngle = armSign * wingSpread + breathingWave * 3.0f;
+        elbowAngle = -wingFold + breathingWave * 5.0f;
+    }
+
+    void draw(glm::fvec2 cameraOffset, const GameState &gameState) override {
+        float T = static_cast<float>(glutGet(GLUT_ELAPSED_TIME)) * 0.001f;
+        update(T);
+
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+        // 어깨 위치 (좌우 2개 팔)
+        float shoulderX = isLeftArm ? -1.0f : 1.0f;
+        float shoulderY = 0.1f;
+
+        // 상완 그리기 (어깨에서 시작)
+        glPushMatrix();
+        glTranslatef(shoulderX, shoulderY, 0.01f);
+        glRotatef(shoulderAngle, 0.0f, 0.0f, 1.0f);
+
+        // 상완 - 단순한 사각형
+        glBegin(GL_QUADS);
+        glColor4f(armColor.r * 1.2f, armColor.g * 1.2f, armColor.b * 1.2f, 1.0f);
+        glVertex3f(-armWidth/2, 0.0f, 0.0f);
+        glVertex3f(armWidth/2, 0.0f, 0.0f);
+
+        glColor4f(armColor.r * 0.7f, armColor.g * 0.7f, armColor.b * 0.7f, 1.0f);
+        glVertex3f(armWidth/2, -upperArmLength, 0.0f);
+        glVertex3f(-armWidth/2, -upperArmLength, 0.0f);
+        glEnd();
+
+        // 어깨 관절 (원)
+        glPushMatrix();
+        glScalef(armWidth * 1.5f, armWidth * 1.5f, 1.0f);
+        glBegin(GL_TRIANGLE_FAN);
+        glColor4f(armColor.r * 1.2f, armColor.g * 1.2f, armColor.b * 1.2f, 1.0f);
+        glVertex3f(0.0f, 0.0f, 0.01f);
+        glColor4f(armColor.r * 0.8f, armColor.g * 0.8f, armColor.b * 0.8f, 0.8f);
+        for (int i = 0; i <= 12; ++i) {
+            float angle = static_cast<float>(i) * 2.0f * std::numbers::pi_v<float> / 12.0f;
+            glVertex3f(std::cos(angle), std::sin(angle), 0.01f);
+        }
+        glEnd();
+        glPopMatrix();
+
+        // 하완 그리기 (팔꿈치에서 시작)
+        glTranslatef(0.0f, -upperArmLength, 0.0f);
+        glRotatef(elbowAngle, 0.0f, 0.0f, 1.0f);
+
+        // 하완 - 단순한 사각형
+        glBegin(GL_QUADS);
+        glColor4f(armColor.r * 1.1f, armColor.g * 1.1f, armColor.b * 1.1f, 1.0f);
+        glVertex3f(-armWidth/2, 0.0f, 0.0f);
+        glVertex3f(armWidth/2, 0.0f, 0.0f);
+
+        glColor4f(armColor.r * 0.6f, armColor.g * 0.6f, armColor.b * 0.6f, 1.0f);
+        glVertex3f(armWidth/2, -lowerArmLength, 0.0f);
+        glVertex3f(-armWidth/2, -lowerArmLength, 0.0f);
+        glEnd();
+
+        // 팔꿈치 관절 (원)
+        glPushMatrix();
+        glScalef(armWidth * 1.3f, armWidth * 1.3f, 1.0f);
+        glBegin(GL_TRIANGLE_FAN);
+        glColor4f(armColor.r * 1.1f, armColor.g * 1.1f, armColor.b * 1.1f, 1.0f);
+        glVertex3f(0.0f, 0.0f, 0.01f);
+        glColor4f(armColor.r * 0.7f, armColor.g * 0.7f, armColor.b * 0.7f, 0.8f);
+        for (int i = 0; i <= 10; ++i) {
+            float angle = static_cast<float>(i) * 2.0f * std::numbers::pi_v<float> / 10.0f;
+            glVertex3f(std::cos(angle), std::sin(angle), 0.01f);
+        }
+        glEnd();
+        glPopMatrix();
+
+        // 손 (작은 원)
+        glTranslatef(0.0f, -lowerArmLength, 0.0f);
+        glPushMatrix();
+        glScalef(armWidth * 1.5f, armWidth * 1.5f, 1.0f);
+        glBegin(GL_TRIANGLE_FAN);
+        glColor4f(armColor.r * 1.2f, armColor.g * 1.2f, armColor.b * 1.2f, 1.0f);
+        glVertex3f(0.0f, 0.0f, 0.01f);
+        glColor4f(armColor.r * 0.8f, armColor.g * 0.8f, armColor.b * 0.8f, 1.0f);
+        for (int i = 0; i <= 8; ++i) {
+            float angle = static_cast<float>(i) * 2.0f * std::numbers::pi_v<float> / 8.0f;
+            glVertex3f(std::cos(angle), std::sin(angle), 0.01f);
+        }
+        glEnd();
+        glPopMatrix();
+
+        glPopMatrix();
+        glDisable(GL_BLEND);
+    }
+};
+
 struct Boss : Updatable, Drawable, Collidable {
     glm::fvec2 currentPosition;
     BossMove currentMove;
@@ -587,6 +711,8 @@ struct Boss : Updatable, Drawable, Collidable {
     bool isDying = false;
     int deathStartTime = 0;
     std::vector<BossFragment> fragments;
+    BossArm leftArm{true};
+    BossArm rightArm{false};
 
     Boss(glm::fvec2 initialPosition)
         : currentPosition(initialPosition), currentMove(idleBossMove(initialPosition)) {}
@@ -764,6 +890,10 @@ struct Boss : Updatable, Drawable, Collidable {
             }
             glEnd();
         }
+
+        // 6) 좌우 팔들 (보스 좌표계에서 그리기 - 보스 matrix stack 내부에서)
+        leftArm.draw(cameraOffset, gameState);
+        rightArm.draw(cameraOffset, gameState);
 
         glPopMatrix(); // 모델 행렬 끝
         glDisable(GL_BLEND);
@@ -1371,6 +1501,7 @@ void BossHealthBar::draw(glm::fvec2 cameraOffset, const GameState &gameState) {
 
     glPopMatrix();
 }
+
 
 GameState gameState(5, 1000);
 
