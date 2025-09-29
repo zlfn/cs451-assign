@@ -29,7 +29,8 @@ export {
     struct CollisionRectangle {
         glm::vec2 topLeft;
         glm::vec2 bottomRight;
-        CollisionRectangle(const glm::vec2 &tl, const glm::vec2 &br) : topLeft(tl), bottomRight(br) {}
+        CollisionRectangle(const glm::vec2 &tl, const glm::vec2 &br)
+            : topLeft(tl), bottomRight(br) {}
 
         bool intersects(const CollisionCircle &circle) const { return circle.intersects(*this); }
         bool intersects(const CollisionRectangle &other) const {
@@ -37,7 +38,6 @@ export {
                      topLeft.y > other.bottomRight.y || bottomRight.y < other.topLeft.y);
         }
     };
-
 
     /// @brief Interface for objects that can be collided with
     struct Collidable {
@@ -50,18 +50,18 @@ export {
     /// @brief Concept for shapes that implement the Shape Interface
     /// @tparam T Type to check
     template <typename T>
-    concept ShapeConcept = requires(const T &a, const CollisionCircle &c, const CollisionRectangle &r) {
-        { a.intersects(c) } -> std::same_as<bool>;
-        { a.intersects(r) } -> std::same_as<bool>;
-    };
+    concept ShapeConcept =
+        requires(const T &a, const CollisionCircle &c, const CollisionRectangle &r) {
+            { a.intersects(c) } -> std::same_as<bool>;
+            { a.intersects(r) } -> std::same_as<bool>;
+        };
 
     /// @brief Shape-to-shape collision detect
     /// @tparam A Type of the first shape
     /// @tparam B Type of the second shape
     /// @param a The first shape
     /// @param b The second shape
-    template <ShapeConcept A, ShapeConcept B>
-    bool detectCollision(const A &a, const B &b) {
+    template <ShapeConcept A, ShapeConcept B> bool detectCollision(const A &a, const B &b) {
         return a.intersects(b);
     }
 
@@ -77,8 +77,7 @@ export {
     /// @param a The first collidable objects
     /// @param b The second collidable objects
     /// @return true if the objects collide
-    template <CollidableObject A, CollidableObject B>
-    bool detectCollision(const A &a, const B &b) {
+    template <CollidableObject A, CollidableObject B> bool detectCollision(const A &a, const B &b) {
         const CollisionShape SHAPE_A = a.getShape();
         const CollisionShape SHAPE_B = b.getShape();
 

@@ -146,8 +146,8 @@ export {
         glDisable(GL_BLEND);
     }
 
-    void drawRectWithGlow(float x, float y, float width, float height, glm::fvec4 color, float glowSize,
-                          float zDepth) {
+    void drawRectWithGlow(float x, float y, float width, float height, glm::fvec4 color,
+                          float glowSize, float zDepth) {
         float halfW = width / 2.0f;
         float halfH = height / 2.0f;
 
