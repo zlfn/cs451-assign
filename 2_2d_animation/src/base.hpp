@@ -108,6 +108,24 @@ struct PlayerFragment : Drawable, Updatable {
     bool update(int deltaTime, GameState &) override;
     void draw(const GameState &) override;
 };
+
+struct EnergyOrb : Drawable, Updatable {
+    glm::fvec2 offset;         // 플레이어 중심으로부터의 오프셋
+    float angle;               // 현재 회전 각도
+    float orbitRadius;         // 궤도 반지름
+    float size;                // 구체 크기
+    int birthTime;             // 생성 시간
+    glm::fvec2 playerPosition; // 플레이어 위치 저장
+
+    EnergyOrb();
+    EnergyOrb(float startAngle, float radius, float sz, int currentTime);
+
+    void updatePosition();
+    void setPlayerPosition(const glm::fvec2 &pos);
+    bool update(int currentTime, GameState &) override;
+    void draw(const GameState &) override;
+};
+
 struct Player : Updatable, Drawable, Collidable {
     glm::fvec2 currentPosition;
     bool isBullet = false;
@@ -120,10 +138,12 @@ struct Player : Updatable, Drawable, Collidable {
     bool isDying = false;
     int deathStartTime = 0;
     std::vector<PlayerFragment> fragments;
-    int bulletCount = 3; // Number of bullets to fire at once
+    int bulletCount = 3;               // Number of bullets to fire at once
+    std::vector<EnergyOrb> energyOrbs; // 에너지 구체들
 
     Player(glm::fvec2 initialPosition);
 
+    void updateEnergyOrbs(int currentHealth, int currentTime);
     void startDeathAnimation(int currentTime);
     void tryAttack();
     bool update(int currentTime, GameState &gameState) override;

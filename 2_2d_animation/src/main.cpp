@@ -170,6 +170,10 @@ void timer(int) {
     std::erase_if(gameState.trailParticles, [&](auto &it) { return it.update(now, gameState); });
 
     gameState.backgroundObject.update(now, gameState);
+
+    // 플레이어의 에너지 구체를 현재 체력에 맞게 업데이트
+    gameState.playerObject.updateEnergyOrbs(gameState.playerHealth, now);
+
     gameState.playerObject.update(now, gameState);
     gameState.bossObject1.update(now, gameState);
     gameState.bossObject2.update(now, gameState);
