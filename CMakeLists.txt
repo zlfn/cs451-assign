@@ -2,10 +2,23 @@
     Special Thanks to: sohnryang
     This CmakeLists.txt based on https://github.com/sohnryang/csed451
 ]]
-cmake_minimum_required(VERSION 3.19)
+cmake_minimum_required(VERSION 3.28)
+
+# Platform-specific defaults - must be set before project()
+if(APPLE)
+  # Force Clang compilers on macOS for C++20 modules support
+  set(CMAKE_C_COMPILER "/opt/homebrew/bin/clang" CACHE STRING "C compiler" FORCE)
+  set(CMAKE_CXX_COMPILER "/opt/homebrew/bin/clang++" CACHE STRING "C++ compiler" FORCE)
+endif()
+
 project(CSED451)
 
+# Always export compile commands
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_SCAN_FOR_MODULES ON)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 set(WIN_X64_MSVC_BIN_DIR "${CMAKE_SOURCE_DIR}/win-x64-msvc/bin")
 
@@ -102,3 +115,4 @@ endfunction()
 
 add_subdirectory(0_setup)
 add_subdirectory(1_2d_game)
+add_subdirectory(2_2d_animation)
