@@ -887,7 +887,8 @@ struct GameState {
     GameState(int h, int bh)
         : MAX_PLAYER_HEALTH(h), MAX_BOSS_HEALTH(bh), playerHealth(h), bossHealth(bh),
           cameraOffset(0.0f, 0.0f), playerObject(glm::fvec2(0.0f, -0.8f)),
-          bossObject(glm::fvec2(0.0f, 0.6f)), bossHealthBarObject(glm::fvec2(0.0f, 0.0f)),
+          bossObject1(glm::fvec2(0.5f, 0.6f)), bossObject2(glm::fvec2(-0.5f, 0.6f)),
+          bossHealthBarObject(glm::fvec2(0.0f, 0.0f)),
           heartsObject(glm::fvec2(0.0f, 0.0f)) {}
 
     int MAX_PLAYER_HEALTH;
@@ -898,7 +899,8 @@ struct GameState {
     bool konamiUsed = false;
 
     Player playerObject;
-    Boss bossObject;
+    Boss bossObject1;
+    Boss bossObject2;
     BossHealthBar bossHealthBarObject;
     PlayerHealthBar heartsObject;
     Background backgroundObject;
@@ -1113,7 +1115,7 @@ bool EnemyBullet::update(int currentTime, GameState &gameState) {
     }
 
     // Don't damage player if boss is already dying
-    if (!gameState.bossObject.isDying && !gameState.playerObject.isInvincible &&
+    if (!gameState.bossObject1.isDying && !gameState.playerObject.isInvincible &&
         detectCollision(*this, gameState.playerObject)) {
         gameState.playerHealth -= 1;
         gameState.playerObject.takeDamage(currentTime);
@@ -1129,7 +1131,8 @@ bool PlayerBullet::update(int currentTime, GameState &gameState) {
     currentPosition =
         initialPosition + glm::fvec2(0, speed * static_cast<float>(currentTime - initialTime));
     // Don't damage boss if player is already dying
-    if (!gameState.playerObject.isDying && detectCollision(*this, gameState.bossObject)) {
+    if (!gameState.playerObject.isDying && (detectCollision(*this, gameState.bossObject1) ||
+                                            detectCollision(*this, gameState.bossObject2))) {
         gameState.bossHealth -= 1;
         if (gameState.bossHealth < 0)
             gameState.bossHealth = 0;
@@ -1140,10 +1143,8 @@ bool PlayerBullet::update(int currentTime, GameState &gameState) {
 
 //////////////////////// 커스텀 함수 ////////////////////////
 using BulletVec = std::vector<EnemyBullet>;
-using BulletPattern = std::function<BulletVec(GameState &, int)>;
+using BulletPattern = std::function<BulletVec(GameState &, int, int)>;
 using PatternEntry = std::pair<BulletPattern, int>; // {패턴함수, 시작시각(ms)}
-
-bool isBossHealthUnderHalf = false;
 
 float basePosFunc(int t, float speed) { return 0; }
 float sqrtPosFunc1(int t, float speed) {
@@ -1155,121 +1156,33 @@ float sqrtPosFunc2(int t, float speed) {
     return -std::sqrt(3.0f * deltaX);
 }
 
-BulletVec bossEmptyPattern(GameState &gameState, int /*currentTime*/) {
-    gameState.bossObject.coolTimePeriod = 500;
-    return {};
-}
-BulletVec bossBulletPattern1(GameState &gameState, int currentTime) {
-    gameState.bossObject.coolTimePeriod = 300;
-    BulletVec bullets;
-    static bool isFunc1 = false;
-    int bulletCount = isBossHealthUnderHalf ? 13 : 11;
-    bullets.reserve(bulletCount);
-    constexpr float SPEED = 0.0003f;
-    const glm::fvec2 CENTER = gameState.bossObject.currentPosition;
-
-    for (int i = 0; i < bulletCount; ++i) {
-        float angle = 2.0f * std::numbers::pi_v<float> * static_cast<float>(i) /
-                      static_cast<float>(bulletCount);
-        glm::fvec2 dir(std::cos(angle), std::sin(angle));
-        bullets.emplace_back(dir, CENTER, SPEED, currentTime,
-                             isFunc1 ? sqrtPosFunc1 : sqrtPosFunc2);
-    }
-    isFunc1 = !isFunc1;
-    return bullets;
-}
-BulletVec bossBulletPattern2(GameState &gameState, int currentTime) {
-    gameState.bossObject.coolTimePeriod = 400;
-    BulletVec bullets;
-    int bulletCount = isBossHealthUnderHalf ? 9 : 7;
-    constexpr float SPEED = 0.0005f;
-    constexpr float SPREAD_DEG = 75.0f;
-    constexpr float SPREAD_RAD = glm::radians(SPREAD_DEG);
-
-    bullets.reserve(bulletCount);
-
-    const glm::fvec2 CENTER = gameState.bossObject.currentPosition;
-    glm::fvec2 toPlayer = gameState.playerObject.currentPosition - CENTER;
-
-    const float BASE_ANGLE = std::atan2(toPlayer.y, toPlayer.x);
-
-    for (int i = 0; i < bulletCount; ++i) {
-        float t = (bulletCount == 1)
-                      ? 0.0f
-                      : (static_cast<float>(i) / static_cast<float>(bulletCount - 1) - 0.5f);
-        float angle = BASE_ANGLE + t * SPREAD_RAD;
-
-        glm::fvec2 dir(std::cos(angle), std::sin(angle));
-        bullets.emplace_back(dir, CENTER, SPEED, currentTime, basePosFunc);
-    }
-
-    return bullets;
-}
-BulletVec bossBulletPattern3(GameState &gameState, int currentTime) {
-    gameState.bossObject.coolTimePeriod = 200;
-    BulletVec bullets;
-    int bulletCount = isBossHealthUnderHalf ? 5 : 3;
-    constexpr float SPEED = 0.001f;
-    bullets.reserve(bulletCount);
-
-    float baseAngle = static_cast<float>(currentTime) / 1000.0f;
-    const glm::fvec2 CENTER = gameState.bossObject.currentPosition;
-
-    for (int i = 0; i < bulletCount; ++i) {
-        float t = static_cast<float>(i) / static_cast<float>(bulletCount - 1) - 0.5f;
-        float angle = baseAngle + t;
-
-        glm::fvec2 dir(std::cos(angle), std::sin(angle));
-        bullets.emplace_back(dir, CENTER, SPEED, currentTime, basePosFunc);
-    }
-
-    return bullets;
-}
-BulletVec bossBulletRandomPattern(GameState &gameState, int currentTime) {
-    static int randomValue = getRandomRange(0, 2);
-    static int nextPeriod = currentTime + 2000;
-    static bool isIdle = false;
-
-    if (nextPeriod < currentTime) {
-        if (!isIdle) {
-            isIdle = true;
-            nextPeriod = currentTime + 300;
-            randomValue = -1;
-        } else {
-            isIdle = false;
-            randomValue = getRandomRange(0, 2);
-            nextPeriod = currentTime + 2000;
-        }
-    }
-
-    BulletVec result;
-
-    switch (randomValue) {
-    case 0:
-        result = bossBulletPattern1(gameState, currentTime);
-        break;
+BulletVec bossEmptyPattern(GameState &gameState, int /*currentTime*/, int bossNum) {
+    switch (bossNum) {
     case 1:
-        result = bossBulletPattern2(gameState, currentTime);
+        gameState.bossObject1.coolTimePeriod = 300;
         break;
     case 2:
-        result = bossBulletPattern3(gameState, currentTime);
-        break;
-    default:
-        result = bossEmptyPattern(gameState, currentTime);
+        gameState.bossObject2.coolTimePeriod = 300;
         break;
     }
-
-    gameState.bossObject.coolTimePeriod = 200;
-    return result;
+    return {};
 }
-BulletVec bossTransitionBulletPattern(GameState &gameState, int currentTime) {
-    gameState.bossObject.coolTimePeriod = 300;
+BulletVec bossBulletPattern1(GameState &gameState, int currentTime, int bossNum) {
+    switch (bossNum) {
+    case 1:
+        gameState.bossObject1.coolTimePeriod = 300;
+        break;
+    case 2:
+        gameState.bossObject2.coolTimePeriod = 300;
+        break;
+    }
     BulletVec bullets;
     static bool isFunc1 = false;
-    int bulletCount = 20;
+    int bulletCount = 13;
     bullets.reserve(bulletCount);
     constexpr float SPEED = 0.0003f;
-    const glm::fvec2 CENTER = gameState.bossObject.currentPosition;
+    const glm::fvec2 CENTER = (bossNum == 1) ? gameState.bossObject1.currentPosition
+                                             : gameState.bossObject2.currentPosition;
 
     for (int i = 0; i < bulletCount; ++i) {
         float angle = 2.0f * std::numbers::pi_v<float> * static_cast<float>(i) /
@@ -1283,37 +1196,19 @@ BulletVec bossTransitionBulletPattern(GameState &gameState, int currentTime) {
 }
 
 static const std::vector<PatternEntry> BOSS_PATTERN_LIST = {{
-    {bossBulletPattern2, 0},
-    {bossBulletPattern1, 1000},
-    {bossBulletPattern3, 3000},
-    {bossBulletPattern1, 6000},
-    {bossBulletPattern2, 8000},
-    {bossBulletRandomPattern, 12000},
-}};
-static const std::vector<PatternEntry> BOSS_PATTERN_LIST_UNDER_HALF = {{
-    {bossTransitionBulletPattern, 0},
-    {bossEmptyPattern, 6000},
-    {bossBulletRandomPattern, 9000},
+    {bossEmptyPattern, 0},
+    {bossBulletPattern1, 3000},
 }};
 static std::size_t bossPatternListCounter = 0;
 ///////////////////////////////////////////////////////////
-int bossUnderHalfTime = 0;
-int bossRushCoolTime = 0;
-bool isBossRushPattern = false;
 
 BulletPattern getCurrentBulletPattern(int currentTime) {
     static BulletPattern current = bossEmptyPattern;
-    int elapsedTime = currentTime - bossUnderHalfTime;
 
-    const std::vector<PatternEntry> &currentBossPatternList =
-        isBossHealthUnderHalf ? BOSS_PATTERN_LIST_UNDER_HALF : BOSS_PATTERN_LIST;
-
-    if (isBossHealthUnderHalf && isBossRushPattern) {
-        return bossEmptyPattern;
-    }
+    const std::vector<PatternEntry> &currentBossPatternList = BOSS_PATTERN_LIST;
 
     while (bossPatternListCounter < currentBossPatternList.size() &&
-           elapsedTime >= currentBossPatternList[bossPatternListCounter].second) {
+           currentTime >= currentBossPatternList[bossPatternListCounter].second) {
         current = currentBossPatternList[bossPatternListCounter].first;
         ++bossPatternListCounter;
     }
@@ -1361,9 +1256,12 @@ bool Boss::update(int currentTime, GameState &gameState) {
         return false;
     this->coolTime = currentTime + this->coolTimePeriod;
 
-    auto newBullets = getCurrentBulletPattern(currentTime)(gameState, currentTime);
-    gameState.enemyBulletObjects.insert(gameState.enemyBulletObjects.end(), newBullets.begin(),
-                                        newBullets.end());
+    auto newBullets1 = getCurrentBulletPattern(currentTime)(gameState, currentTime, 1);
+    auto newBullets2 = getCurrentBulletPattern(currentTime)(gameState, currentTime, 2);
+    gameState.enemyBulletObjects.insert(gameState.enemyBulletObjects.end(), newBullets1.begin(),
+                                        newBullets1.end());
+    gameState.enemyBulletObjects.insert(gameState.enemyBulletObjects.end(), newBullets2.begin(),
+                                        newBullets2.end());
 
     return false;
 }
@@ -1522,7 +1420,8 @@ void display() {
         object.draw(gameState.cameraOffset, gameState);
     }
     gameState.playerObject.draw(gameState.cameraOffset, gameState);
-    gameState.bossObject.draw(gameState.cameraOffset, gameState);
+    gameState.bossObject1.draw(gameState.cameraOffset, gameState);
+    gameState.bossObject2.draw(gameState.cameraOffset, gameState);
 
     gameState.bossHealthBarObject.draw(gameState.cameraOffset, gameState);
     gameState.heartsObject.draw(gameState.cameraOffset, gameState);
@@ -1574,96 +1473,66 @@ void keyInputUpdate(int dt) {
 using MoveFn = std::function<BossMove(int)>;
 using MoveEntry = std::pair<MoveFn, int>;
 
-auto traj1 = [](float u) { return u * (1.0f - u); }; // y=x(1-x) 궤적. 무조건 f(0)=f(1)=0이어야 함.
+auto traj1 = [](float u) { return u * (1.0f - u); };
 auto por1 = [](float t) {
     return float(3 * t * t - 2 * t * t * t);
-}; // ease-in & ease-out 예시. por 함수는 무조건 f(0)=0, f(1)=1이어야 됨.
-// now + 2000 (2초 뒤에 시작), 3000 (3초 동안), traj을 por 순서로 따라간다. 이때, 시작
-// 지점은 origin, 도착지점은 dest이다.
-MoveFn bossMove1 = [](int currentTime) {
-    return BossMove(gameState.bossObject.currentPosition, glm::fvec2(0.0f, 0.0f), 3000, currentTime,
+};
+MoveFn boss1Move1 = [](int currentTime) {
+    return BossMove(gameState.bossObject1.currentPosition, glm::fvec2(0.0f, 0.0f), 3000, currentTime,
                     traj1, por1);
 };
 
-MoveFn bossMove2 = [](int currentTime) {
-    return BossMove(gameState.bossObject.currentPosition, glm::fvec2(0.0f, 0.6f), 3000, currentTime,
+MoveFn boss2Move1 = [](int currentTime) {
+    return BossMove(gameState.bossObject2.currentPosition, glm::fvec2(0.0f, 0.6f), 3000, currentTime,
                     traj1, por1);
 };
 
 auto zeroTraj = [](float u) { return 0.0f; };
 
-MoveFn bossMove3 = [](int currentTime) {
-    return BossMove(gameState.bossObject.currentPosition, glm::fvec2(0.0f, 0.0f), 2000, currentTime,
-                    zeroTraj, por1);
-};
-
-MoveFn bossMove4 = [](int currentTime) {
-    return BossMove(gameState.bossObject.currentPosition, glm::fvec2(0.0f, 0.6f), 2000, currentTime,
-                    zeroTraj, por1);
-};
-
-auto rushPor = [](float t) {
-    if (t >= 0.689898)
-        return 1.0f;
-    else
-        return float(5 * t * (t - 0.4));
-};
-
-MoveFn bossRushMove = [](int currentTime) {
-    return BossMove(gameState.bossObject.currentPosition, gameState.playerObject.currentPosition,
-                    1500, currentTime, zeroTraj, rushPor);
-};
-
-MoveFn bossRandomMove = [](int currentTime) {
+MoveFn boss1RandomMove = [](int currentTime) {
     float randomX = dist(gen) * 1.7f - 0.85f;
     float randomY = dist(gen) * 0.85f;
 
-    return BossMove(gameState.bossObject.currentPosition, glm::fvec2(randomX, randomY), 1000,
+    return BossMove(gameState.bossObject1.currentPosition, glm::fvec2(randomX, randomY), 1000,
+                    currentTime, zeroTraj, por1);
+};
+MoveFn boss2RandomMove = [](int currentTime) {
+    float randomX = dist(gen) * 1.7f - 0.85f;
+    float randomY = dist(gen) * 0.85f;
+
+    return BossMove(gameState.bossObject2.currentPosition, glm::fvec2(randomX, randomY), 1000,
                     currentTime, zeroTraj, por1);
 };
 
-static const std::vector<MoveEntry> BOSS_MOVE_LIST = {{
-    {bossMove1, 2000},
-    {bossMove2, 7000},
+static const std::vector<MoveEntry> BOSS_MOVE_LIST1 = {{
+    {boss1Move1, 2000},
 }};
-static const std::vector<MoveEntry> BOSS_MOVE_LIST_UNDER_HALF = {{
-    {bossMove3, 0},
-    {bossMove4, 7000},
+static const std::vector<MoveEntry> BOSS_MOVE_LIST2 = {{
+    {boss2Move1, 2000},
 }};
-static std::size_t bossMoveListCounter = 0;
+static std::size_t boss1MoveListCounter = 0;
+static std::size_t boss2MoveListCounter = 0;
 ///////////////////////////////////////////////////////////
 
-int randomIteration = 0;
-std::optional<BossMove> getCurrentMove(int currentTime) {
-    int elapsedTime = currentTime - bossUnderHalfTime;
+int random1Iteration = 0;
+int random2Iteration = 0;
+std::optional<BossMove> getCurrentMove(int currentTime, int bossNum) {
+    std::size_t &bossMoveListCounter = (bossNum == 1) ? boss1MoveListCounter : boss2MoveListCounter;
+    int &randomIteration = (bossNum == 1) ? random1Iteration : random2Iteration;
     const std::vector<MoveEntry> &currentBossMoveList =
-        isBossHealthUnderHalf ? BOSS_MOVE_LIST_UNDER_HALF : BOSS_MOVE_LIST;
-
-    if (isBossHealthUnderHalf && currentTime > bossRushCoolTime) {
-        if (!isBossRushPattern) {
-            isBossRushPattern = true;
-            bossRushCoolTime = currentTime + 5000;
-            return bossRushMove(currentTime);
-        } else {
-            isBossRushPattern = false;
-            bossRushCoolTime = currentTime + 12000;
-        }
-    }
-
-    if (isBossHealthUnderHalf && isBossRushPattern)
-        return std::nullopt;
+            (bossNum == 1) ? BOSS_MOVE_LIST1 : BOSS_MOVE_LIST2;
 
     if (bossMoveListCounter >= currentBossMoveList.size()) {
-        if (elapsedTime > 11000 + randomIteration * 5000) {
+        if (currentTime > 11000 + randomIteration * 5000) {
             randomIteration += 1;
-            return bossRandomMove(currentTime);
+            return (bossNum == 1) ? boss1RandomMove(currentTime) : boss2RandomMove(currentTime);
         }
         return std::nullopt;
     }
 
     const auto &[makeMove, startAt] = currentBossMoveList[bossMoveListCounter];
 
-    if (elapsedTime >= startAt) {
+    if (currentTime >= startAt) {
         BossMove move = makeMove(currentTime);
         ++bossMoveListCounter;
         return move;
@@ -1676,18 +1545,13 @@ void timer(int) {
     int now = glutGet(GLUT_ELAPSED_TIME); // Get Time in milliseconds.
     static int lastMs = now;
 
-    if (gameState.bossHealth <= gameState.MAX_BOSS_HEALTH / 2 && !isBossHealthUnderHalf) {
-        isBossHealthUnderHalf = true;
-        bossUnderHalfTime = now;
-        bossRushCoolTime = now + 12000;
-        bossPatternListCounter = 0;
-        bossMoveListCounter = 0;
-        randomIteration = 0;
+    auto bossMoveData1 = getCurrentMove(now, 1);
+    auto bossMoveData2 = getCurrentMove(now, 2);
+    if (bossMoveData1.has_value()) {
+        gameState.bossObject1.currentMove = bossMoveData1.value();
     }
-
-    auto bossMoveData = getCurrentMove(now);
-    if (bossMoveData.has_value()) {
-        gameState.bossObject.currentMove = bossMoveData.value();
+    if (bossMoveData2.has_value()) {
+        gameState.bossObject2.currentMove = bossMoveData2.value();
     }
     if (isCameraShake) {
         gameState.cameraOffset = cameraShake(now);
@@ -1708,7 +1572,8 @@ void timer(int) {
 
     gameState.backgroundObject.update(now, gameState);
     gameState.playerObject.update(now, gameState);
-    gameState.bossObject.update(now, gameState);
+    gameState.bossObject1.update(now, gameState);
+    gameState.bossObject2.update(now, gameState);
     commandExecutor.update(now, gameState);
 
     glutTimerFunc(16, timer, 0);
