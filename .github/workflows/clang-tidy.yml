@@ -28,7 +28,7 @@ jobs:
           ${{ runner.os }}-cmake-
     
     - name: Configure CMake
-      run: cmake -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+      run: cmake -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -GNinja
     
     - name: Run clang-tidy
       run: |

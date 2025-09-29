@@ -7,8 +7,8 @@ cmake_minimum_required(VERSION 3.28)
 # Platform-specific defaults - must be set before project()
 if(APPLE)
   # Force Clang compilers on macOS for C++20 modules support
-  set(CMAKE_C_COMPILER "/opt/homebrew/bin/clang" CACHE STRING "C compiler" FORCE)
-  set(CMAKE_CXX_COMPILER "/opt/homebrew/bin/clang++" CACHE STRING "C++ compiler" FORCE)
+  set(CMAKE_C_COMPILER "clang" CACHE STRING "C compiler" FORCE)
+  set(CMAKE_CXX_COMPILER "clang++" CACHE STRING "C++ compiler" FORCE)
 endif()
 
 project(CSED451)
