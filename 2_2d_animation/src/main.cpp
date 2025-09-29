@@ -888,8 +888,7 @@ struct GameState {
         : MAX_PLAYER_HEALTH(h), MAX_BOSS_HEALTH(bh), playerHealth(h), bossHealth(bh),
           cameraOffset(0.0f, 0.0f), playerObject(glm::fvec2(0.0f, -0.8f)),
           bossObject1(glm::fvec2(0.5f, 0.6f)), bossObject2(glm::fvec2(-0.5f, 0.6f)),
-          bossHealthBarObject(glm::fvec2(0.0f, 0.0f)),
-          heartsObject(glm::fvec2(0.0f, 0.0f)) {}
+          bossHealthBarObject(glm::fvec2(0.0f, 0.0f)), heartsObject(glm::fvec2(0.0f, 0.0f)) {}
 
     int MAX_PLAYER_HEALTH;
     const int MAX_BOSS_HEALTH;
@@ -1164,6 +1163,8 @@ BulletVec bossEmptyPattern(GameState &gameState, int /*currentTime*/, int bossNu
     case 2:
         gameState.bossObject2.coolTimePeriod = 300;
         break;
+    default:
+        break;
     }
     return {};
 }
@@ -1174,6 +1175,8 @@ BulletVec bossBulletPattern1(GameState &gameState, int currentTime, int bossNum)
         break;
     case 2:
         gameState.bossObject2.coolTimePeriod = 300;
+        break;
+    default:
         break;
     }
     BulletVec bullets;
@@ -1474,17 +1477,15 @@ using MoveFn = std::function<BossMove(int)>;
 using MoveEntry = std::pair<MoveFn, int>;
 
 auto traj1 = [](float u) { return u * (1.0f - u); };
-auto por1 = [](float t) {
-    return float(3 * t * t - 2 * t * t * t);
-};
+auto por1 = [](float t) { return float(3 * t * t - 2 * t * t * t); };
 MoveFn boss1Move1 = [](int currentTime) {
-    return BossMove(gameState.bossObject1.currentPosition, glm::fvec2(0.0f, 0.0f), 3000, currentTime,
-                    traj1, por1);
+    return BossMove(gameState.bossObject1.currentPosition, glm::fvec2(0.0f, 0.0f), 3000,
+                    currentTime, traj1, por1);
 };
 
 MoveFn boss2Move1 = [](int currentTime) {
-    return BossMove(gameState.bossObject2.currentPosition, glm::fvec2(0.0f, 0.6f), 3000, currentTime,
-                    traj1, por1);
+    return BossMove(gameState.bossObject2.currentPosition, glm::fvec2(0.0f, 0.6f), 3000,
+                    currentTime, traj1, por1);
 };
 
 auto zeroTraj = [](float u) { return 0.0f; };
@@ -1520,7 +1521,7 @@ std::optional<BossMove> getCurrentMove(int currentTime, int bossNum) {
     std::size_t &bossMoveListCounter = (bossNum == 1) ? boss1MoveListCounter : boss2MoveListCounter;
     int &randomIteration = (bossNum == 1) ? random1Iteration : random2Iteration;
     const std::vector<MoveEntry> &currentBossMoveList =
-            (bossNum == 1) ? BOSS_MOVE_LIST1 : BOSS_MOVE_LIST2;
+        (bossNum == 1) ? BOSS_MOVE_LIST1 : BOSS_MOVE_LIST2;
 
     if (bossMoveListCounter >= currentBossMoveList.size()) {
         if (currentTime > 11000 + randomIteration * 5000) {
@@ -1574,7 +1575,7 @@ void timer(int) {
     gameState.playerObject.update(now, gameState);
     gameState.bossObject1.update(now, gameState);
     gameState.bossObject2.update(now, gameState);
-  
+
     commandExecutor.update(now, gameState);
 
     glutTimerFunc(16, timer, 0);
