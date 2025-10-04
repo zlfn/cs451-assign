@@ -18,9 +18,21 @@
 #include "utils.hpp"
 
 struct GameState;
+struct EnemyBullet;
+struct BossMove;
+
+using BulletVec = std::vector<EnemyBullet>;
+using BulletPattern = std::function<BulletVec(GameState&, int, int)>;
+using PatternEntry = std::pair<BulletPattern, int>; // {패턴함수, 시작시각(ms)}
+
+using MoveFn = std::function<BossMove(int, GameState&)>;
+using MoveEntry = std::pair<MoveFn, int>;
+
+std::optional<BossMove> getCurrentMove(int currentTime, GameState &gameState, int bossNum);
 
 extern bool keyStates[256];
 void startCameraShake(int currentTime);
+BulletPattern getCurrentBulletPattern(int currentTime);
 
 /// @brief Interface for objects that can be drawn
 struct Drawable {

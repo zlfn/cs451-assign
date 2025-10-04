@@ -144,6 +144,56 @@ Boss::Boss(glm::fvec2 initialPosition, int id)
     : currentPosition(initialPosition), currentMove(idleBossMove(initialPosition, 0)),
       leftArm(true, id), rightArm(false, id) {}
 
+bool Boss::update(int currentTime, GameState &gameState) {
+    if (isDying) {
+        // Update fragments
+        int deltaTime = currentTime - deathStartTime;
+        std::erase_if(fragments, [deltaTime, &gameState](auto &fragment) {
+            return fragment.update(deltaTime, gameState);
+        });
+
+        // Show victory screen after 3 seconds
+        if ((currentTime - deathStartTime) > 3000) {
+            showVictoryScreen(gameState);
+            std::exit(0);
+        }
+
+        // Boss is completely destroyed after 6 seconds (won't reach here due to exit)
+        return (currentTime - deathStartTime) > 5000;
+    }
+
+    // Check if boss should die
+    if (gameState.bossHealth <= 0 && !isDying) {
+        startDeathAnimation(currentTime);
+        startCameraShake(currentTime);
+        return false;
+    }
+
+    this->currentPosition = this->currentMove.getCurrentPosition(currentTime);
+
+    // Don't damage player if boss is already dying
+    if (!isDying && !gameState.playerObject.isInvincible &&
+        detectCollision(*this, gameState.playerObject)) {
+        gameState.playerHealth -= 1;
+        gameState.playerObject.takeDamage(currentTime);
+        startCameraShake(currentTime);
+        if (gameState.playerHealth < 0)
+            gameState.playerHealth = 0;
+    }
+
+    if (this->coolTime > currentTime)
+        return false;
+    this->coolTime = currentTime + this->coolTimePeriod;
+
+    auto newBullets1 = getCurrentBulletPattern(currentTime)(gameState, currentTime, 1);
+    auto newBullets2 = getCurrentBulletPattern(currentTime)(gameState, currentTime, 2);
+    gameState.enemyBulletObjects.insert(gameState.enemyBulletObjects.end(), newBullets1.begin(),
+                                        newBullets1.end());
+    gameState.enemyBulletObjects.insert(gameState.enemyBulletObjects.end(), newBullets2.begin(),
+                                        newBullets2.end());
+
+    return false;
+}
 void Boss::startDeathAnimation(int currentTime) {
     if (isDying)
         return;
