@@ -62,8 +62,8 @@ void showVictoryScreen(const GameState &gameState) {
 }
 
 int getRandomRange(int a, int b) { // a, b 포함
-    static std::uniform_int_distribution<int> dist_int(a, b);
-    return dist(gen);
+    static std::uniform_int_distribution<int> distInt(a, b);
+    return static_cast<int>(dist(gen));
 }
 
 void drawSpaceship(glm::fvec2 center, float size, glm::fvec4 color) {

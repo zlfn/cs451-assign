@@ -22,10 +22,10 @@ struct EnemyBullet;
 struct BossMove;
 
 using BulletVec = std::vector<EnemyBullet>;
-using BulletPattern = std::function<BulletVec(GameState&, int, int)>;
+using BulletPattern = std::function<BulletVec(GameState &, int, int)>;
 using PatternEntry = std::pair<BulletPattern, int>; // {패턴함수, 시작시각(ms)}
 
-using MoveFn = std::function<BossMove(int, GameState&)>;
+using MoveFn = std::function<BossMove(int, GameState &)>;
 using MoveEntry = std::pair<MoveFn, int>;
 
 std::optional<BossMove> getCurrentMove(int currentTime, GameState &gameState, int bossNum);
@@ -206,7 +206,7 @@ struct Boss : Updatable, Drawable, Collidable {
     BossArm rightArm{false, 1};
 
     Boss(glm::fvec2 initialPosition, int id = 1);
-    
+
     void startDeathAnimation(int currentTime);
     bool update(int currentTime, GameState &gameState) override;
     static void drawUnitCircleFan(int seg, float z, const glm::vec4 &centerRGBA,
@@ -248,7 +248,7 @@ struct Background : Drawable, Updatable {
     int lastUpdateTime;
 
     Background();
-    
+
     void initializeStars();
     bool update(int currentTime, GameState &gameState) override;
     void draw(glm::fvec2 cameraOffset, const GameState &gameState) override;

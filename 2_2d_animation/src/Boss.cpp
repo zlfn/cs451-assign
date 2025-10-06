@@ -227,7 +227,7 @@ void Boss::startDeathAnimation(int currentTime) {
 }
 
 void Boss::drawUnitCircleFan(int seg, float z, const glm::vec4 &centerRGBA,
-                                    const glm::vec4 &edgeRGBA) {
+                             const glm::vec4 &edgeRGBA) {
     glBegin(GL_TRIANGLE_FAN);
     glColor4f(centerRGBA.r, centerRGBA.g, centerRGBA.b, centerRGBA.a);
     glVertex3f(0.f, 0.f, z);
@@ -240,8 +240,7 @@ void Boss::drawUnitCircleFan(int seg, float z, const glm::vec4 &centerRGBA,
 }
 
 // 반지름 1인 정팔각형 팬 (중심 포함)
-void Boss::drawUnitOctagonFan(float z, const glm::vec4 &centerRGBA,
-                                     const glm::vec4 &edgeRGBA) {
+void Boss::drawUnitOctagonFan(float z, const glm::vec4 &centerRGBA, const glm::vec4 &edgeRGBA) {
     glBegin(GL_TRIANGLE_FAN);
     glColor4f(centerRGBA.r, centerRGBA.g, centerRGBA.b, centerRGBA.a);
     glVertex3f(0.f, 0.f, z);
@@ -255,7 +254,7 @@ void Boss::drawUnitOctagonFan(float z, const glm::vec4 &centerRGBA,
 
 // 스파이크 1개 (원점에서 시작, 외내곽 반지름을 유닛으로 받음)
 void Boss::drawUnitSpikeTri(float rOuter, float rInner, float z, const glm::vec4 &innerRGBA,
-                                   const glm::vec4 &tipRGBA) {
+                            const glm::vec4 &tipRGBA) {
     glBegin(GL_TRIANGLES);
     glColor4f(innerRGBA.r, innerRGBA.g, innerRGBA.b, innerRGBA.a);
     glVertex3f(0.f, 0.f, z);
