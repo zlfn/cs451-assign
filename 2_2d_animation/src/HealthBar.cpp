@@ -1,7 +1,7 @@
 #include "base.hpp"
 
 PlayerHealthBar::PlayerHealthBar(glm::fvec2 drawPosition) : drawPosition(drawPosition) {}
-void PlayerHealthBar::draw(glm::fvec2 cameraOffset, const GameState &gameState) {
+void PlayerHealthBar::draw(const GameState &gameState) {
     glPushMatrix();
     glLoadIdentity();
 
@@ -56,7 +56,7 @@ void PlayerHealthBar::draw(glm::fvec2 cameraOffset, const GameState &gameState) 
 }
 
 BossHealthBar::BossHealthBar(glm::fvec2 drawPosition) : drawPosition(drawPosition) {}
-void BossHealthBar::draw(glm::fvec2 cameraOffset, const GameState &gameState) {
+void BossHealthBar::draw(const GameState &gameState) {
     float healthPercentage =
         static_cast<float>(gameState.bossHealth) / static_cast<float>(gameState.MAX_BOSS_HEALTH);
     healthPercentage = glm::clamp(healthPercentage, 0.0f, 1.0f);

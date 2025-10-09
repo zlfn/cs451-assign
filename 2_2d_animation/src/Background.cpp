@@ -12,9 +12,7 @@ bool Star::update(int deltaTime, GameState & /*gameState*/) {
     return false;
 }
 
-void Star::draw(glm::fvec2 cameraOffset, const GameState &) {
-    const glm::fvec2 VIEW_POS = position - cameraOffset;
-
+void Star::draw(const GameState &) {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 
@@ -22,7 +20,7 @@ void Star::draw(glm::fvec2 cameraOffset, const GameState &) {
     glPointSize(size);
 
     glPushMatrix();
-    glTranslatef(VIEW_POS.x, VIEW_POS.y, -0.99f);
+    glTranslatef(position.x, position.y, -0.99f);
 
     glBegin(GL_POINTS);
     glVertex3f(0.0f, 0.0f, 0.0f);
@@ -62,13 +60,13 @@ bool Background::update(int currentTime, GameState &gameState) {
     return false;
 }
 
-void Background::draw(glm::fvec2 cameraOffset, const GameState &gameState) {
+void Background::draw(const GameState &gameState) {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glEnable(GL_POINT_SMOOTH);
 
     for (auto &star : stars) {
-        star.draw(cameraOffset, gameState);
+        star.draw(gameState);
     }
 
     glDisable(GL_POINT_SMOOTH);

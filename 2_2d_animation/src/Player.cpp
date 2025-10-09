@@ -16,14 +16,12 @@ bool PlayerFragment::update(int deltaTime, GameState &) {
     return alpha <= 0.0f || size <= 0.001f;
 }
 
-void PlayerFragment::draw(glm::fvec2 cameraOffset, const GameState &) {
-    const glm::fvec2 VIEW_POS = position - cameraOffset;
-
+void PlayerFragment::draw(const GameState &) {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 
     glPushMatrix();
-    glTranslatef(VIEW_POS.x, VIEW_POS.y, 0.0f);
+    glTranslatef(position.x, position.y, 0.0f);
     glRotatef(rotation, 0.0f, 0.0f, 1.0f);
     glScalef(size, size, 1.0f);
 
@@ -142,11 +140,11 @@ void Player::tryAttack() {
     if (!isDying)
         isBullet = true;
 }
-void Player::draw(glm::fvec2 cameraOffset, const GameState &gameState) {
+void Player::draw(const GameState &gameState) {
     if (isDying) {
         // 파편은 그대로(파편 내부에서 동일한 방식으로 모델행렬 쓰는 게 이상적)
         for (auto &fragment : fragments) {
-            fragment.draw(cameraOffset, gameState);
+            fragment.draw(gameState);
         }
 
         // 폭발 효과: 원점 단위 원을 그리고 모델 행렬로 위치/스케일 적용
@@ -162,7 +160,7 @@ void Player::draw(glm::fvec2 cameraOffset, const GameState &gameState) {
 
             // M = T(pos - camera) * S(explosionSize)
             glm::mat4 m =
-                glm::translate(glm::mat4(1.0f), glm::vec3(currentPosition - cameraOffset, 0.0f));
+                glm::translate(glm::mat4(1.0f), glm::vec3(currentPosition, 0.0f));
             m = glm::scale(m, glm::vec3(explosionSize, explosionSize, 1.0f));
 
             glPushMatrix();
@@ -189,7 +187,7 @@ void Player::draw(glm::fvec2 cameraOffset, const GameState &gameState) {
     // 우주선: drawSpaceship을 원점/단위 스케일 기준으로 호출하고,
     // 모델 행렬로 위치/회전/스케일을 적용
     // M = T(current - camera) * R_y(tiltAngle) * S(0.14)
-    glm::mat4 m = glm::translate(glm::mat4(1.0f), glm::vec3(currentPosition - cameraOffset, 0.0f));
+    glm::mat4 m = glm::translate(glm::mat4(1.0f), glm::vec3(currentPosition, 0.0f));
     m = glm::rotate(m, glm::radians(tiltAngle), glm::vec3(0.0f, 1.0f, 0.0f));
     m = glm::scale(m, glm::vec3(0.14f, 0.14f, 0.14f));
 

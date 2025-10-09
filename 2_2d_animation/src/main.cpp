@@ -68,27 +68,33 @@ void display() {
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
     glOrtho(-1.0, 1.0, -1.0, 1.0, -1.0, 1.0);
+    glPushMatrix();
+    glTranslatef(-gameState.cameraOffset.x, -gameState.cameraOffset.y, 0.0f);
     glMatrixMode(GL_MODELVIEW);
 
-    gameState.backgroundObject.draw(gameState.cameraOffset, gameState);
+    gameState.backgroundObject.draw(gameState);
 
     // Draw trail particles before bullets for better visual effect
     for (auto &particle : gameState.trailParticles) {
-        particle.draw(gameState.cameraOffset, gameState);
+        particle.draw(gameState);
     }
 
     for (auto &object : gameState.enemyBulletObjects) {
-        object.draw(gameState.cameraOffset, gameState);
+        object.draw(gameState);
     }
     for (auto &object : gameState.playerBulletObjects) {
-        object.draw(gameState.cameraOffset, gameState);
+        object.draw(gameState);
     }
-    gameState.playerObject.draw(gameState.cameraOffset, gameState);
-    gameState.bossObject1.draw(gameState.cameraOffset, gameState);
-    gameState.bossObject2.draw(gameState.cameraOffset, gameState);
+    gameState.playerObject.draw(gameState);
+    gameState.bossObject1.draw(gameState);
+    gameState.bossObject2.draw(gameState);
 
-    gameState.bossHealthBarObject.draw(gameState.cameraOffset, gameState);
-    gameState.heartsObject.draw(gameState.cameraOffset, gameState);
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+    glMatrixMode(GL_MODELVIEW);
+
+    gameState.bossHealthBarObject.draw(gameState);
+    gameState.heartsObject.draw(gameState);
 
     glutSwapBuffers();
     glutPostRedisplay();

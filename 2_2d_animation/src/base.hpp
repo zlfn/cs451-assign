@@ -38,7 +38,7 @@ BulletPattern getCurrentBulletPattern(int currentTime);
 struct Drawable {
     /// @brief Draw the object with a given camera camera_offset
     /// @param camera_offset The camera offset to apply
-    virtual void draw(glm::vec2 camera_offset, const GameState &gameState) = 0;
+    virtual void draw(const GameState &gameState) = 0;
     virtual ~Drawable() = default;
 };
 
@@ -62,7 +62,7 @@ struct TrailParticle : Drawable, Updatable {
 
     TrailParticle(glm::fvec2 pos, glm::fvec2 vel, float sz, glm::fvec3 col, int currentTime);
     bool update(int currentTime, GameState &) override;
-    void draw(glm::fvec2 cameraOffset, const GameState &) override;
+    void draw(const GameState &) override;
 };
 struct EnemyBullet : Updatable, Drawable, Collidable {
     glm::fvec2 initialDirection;
@@ -79,7 +79,7 @@ struct EnemyBullet : Updatable, Drawable, Collidable {
                 int initialTime, std::function<float(int, float)> posFunc);
 
     bool update(int currentTime, GameState &gameState) override;
-    void draw(glm::fvec2 cameraOffset, const GameState &gameState) override;
+    void draw(const GameState &gameState) override;
     CollisionShape getShape() const override;
 };
 struct PlayerBullet : Updatable, Drawable, Collidable {
@@ -91,7 +91,7 @@ struct PlayerBullet : Updatable, Drawable, Collidable {
     PlayerBullet(glm::fvec2 initialPosition, float speed, int initialTime);
 
     bool update(int currentTime, GameState &gameState) override;
-    void draw(glm::fvec2 cameraOffset, const GameState &gameState) override;
+    void draw(const GameState &gameState) override;
     CollisionShape getShape() const override;
 };
 struct PlayerFragment : Drawable, Updatable {
@@ -107,7 +107,7 @@ struct PlayerFragment : Drawable, Updatable {
                    glm::fvec3 col);
 
     bool update(int deltaTime, GameState &) override;
-    void draw(glm::fvec2 cameraOffset, const GameState &) override;
+    void draw(const GameState &) override;
 };
 struct Player : Updatable, Drawable, Collidable {
     glm::fvec2 currentPosition;
@@ -128,7 +128,7 @@ struct Player : Updatable, Drawable, Collidable {
     void startDeathAnimation(int currentTime);
     void tryAttack();
     bool update(int currentTime, GameState &gameState) override;
-    void draw(glm::fvec2 cameraOffset, const GameState &gameState) override;
+    void draw(const GameState &gameState) override;
     void move(glm::fvec2 deltaPosition);
     void takeDamage(int currentTime);
     CollisionShape getShape() const override;
@@ -170,7 +170,7 @@ struct BossFragment : Drawable, Updatable {
     BossFragment(glm::fvec2 pos, glm::fvec2 vel, float rot, float rotSpeed, float sz,
                  glm::fvec3 col);
     bool update(int deltaTime, GameState &) override;
-    void draw(glm::fvec2 cameraOffset, const GameState &) override;
+    void draw(const GameState &) override;
 };
 struct BossArm : Drawable {
     // 4개 관절 각도
@@ -192,7 +192,7 @@ struct BossArm : Drawable {
     void update(float time);
     void drawSegment(float length, float width, float brightness);
     void drawJoint(float size);
-    void draw(glm::fvec2 cameraOffset, const GameState &gameState) override;
+    void draw(const GameState &gameState) override;
 };
 struct Boss : Updatable, Drawable, Collidable {
     glm::fvec2 currentPosition;
@@ -214,7 +214,7 @@ struct Boss : Updatable, Drawable, Collidable {
     static void drawUnitOctagonFan(float z, const glm::vec4 &centerRGBA, const glm::vec4 &edgeRGBA);
     static void drawUnitSpikeTri(float rOuter, float rInner, float z, const glm::vec4 &innerRGBA,
                                  const glm::vec4 &tipRGBA);
-    void draw(glm::fvec2 cameraOffset, const GameState &gameState) override;
+    void draw(const GameState &gameState) override;
     CollisionShape getShape() const override;
 };
 
@@ -223,14 +223,14 @@ struct PlayerHealthBar : Drawable {
 
     PlayerHealthBar(glm::fvec2 drawPosition);
 
-    void draw(glm::fvec2 cameraOffset, const GameState &gameState) override;
+    void draw(const GameState &gameState) override;
 };
 struct BossHealthBar : Drawable {
     glm::fvec2 drawPosition;
 
     BossHealthBar(glm::fvec2 drawPosition);
 
-    void draw(glm::fvec2 cameraOffset, const GameState &gameState) override;
+    void draw(const GameState &gameState) override;
 };
 
 struct Star : Drawable, Updatable {
@@ -241,7 +241,7 @@ struct Star : Drawable, Updatable {
 
     Star(glm::fvec2 pos, float spd, float sz, float br);
     bool update(int deltaTime, GameState & /*gameState*/) override;
-    void draw(glm::fvec2 cameraOffset, const GameState &) override;
+    void draw(const GameState &) override;
 };
 struct Background : Drawable, Updatable {
     std::vector<Star> stars;
@@ -251,7 +251,7 @@ struct Background : Drawable, Updatable {
 
     void initializeStars();
     bool update(int currentTime, GameState &gameState) override;
-    void draw(glm::fvec2 cameraOffset, const GameState &gameState) override;
+    void draw(const GameState &gameState) override;
 };
 
 struct GameState {

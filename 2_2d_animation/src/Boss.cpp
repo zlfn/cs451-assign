@@ -15,14 +15,12 @@ bool BossFragment::update(int deltaTime, GameState &) {
     return alpha <= 0.0f || size <= 0.001f;
 }
 
-void BossFragment::draw(glm::fvec2 cameraOffset, const GameState &) {
-    const glm::fvec2 VIEW_POS = position - cameraOffset;
-
+void BossFragment::draw(const GameState &) {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE); // 기존 가산 블렌딩 유지
 
     glPushMatrix();
-    glTranslatef(VIEW_POS.x, VIEW_POS.y, 0.0f); // 위치
+    glTranslatef(position.x, position.y, 0.0f); // 위치
     glRotatef(rotation, 0.0f, 0.0f, 1.0f);      // 회전
     glScalef(size, size, 1.0f);                 // 크기 (행렬로 처리)
 
@@ -115,7 +113,7 @@ void BossArm::drawJoint(float size) {
     glPopMatrix();
 }
 
-void BossArm::draw(glm::fvec2 cameraOffset, const GameState &gameState) {
+void BossArm::draw(const GameState &gameState) {
     float t = static_cast<float>(glutGet(GLUT_ELAPSED_TIME)) * 0.001f;
     update(t);
 
@@ -265,15 +263,14 @@ void Boss::drawUnitSpikeTri(float rOuter, float rInner, float z, const glm::vec4
 }
 
 // 메인 드로우
-void Boss::draw(glm::fvec2 cameraOffset, const GameState &gameState) {
-    const glm::fvec2 VIEW_POS = currentPosition - cameraOffset;
+void Boss::draw(const GameState &gameState) {
     const float SIZE = 0.15f; // 전체 스케일(월드 단위)
     const float T = static_cast<float>(glutGet(GLUT_ELAPSED_TIME)) * 0.001f;
 
     if (isDying) {
         // 파편
         for (auto &fragment : fragments) {
-            fragment.draw(cameraOffset, gameState);
+            fragment.draw(gameState);
         }
 
         // 폭발
@@ -287,7 +284,7 @@ void Boss::draw(glm::fvec2 cameraOffset, const GameState &gameState) {
             const float A = 1.0f - DT * 0.67f;                      // 느리게 페이드
 
             glPushMatrix();
-            glTranslatef(VIEW_POS.x, VIEW_POS.y, 0.f);
+            glTranslatef(currentPosition.x, currentPosition.y, 0.f);
             glScalef(EXPLOSION_SIZE, EXPLOSION_SIZE, 1.f);
             drawUnitCircleFan(
                 /*seg=*/20, /*z=*/0.0f,
@@ -305,7 +302,7 @@ void Boss::draw(glm::fvec2 cameraOffset, const GameState &gameState) {
 
     // 모델 행렬
     glPushMatrix();
-    glTranslatef(VIEW_POS.x, VIEW_POS.y, 0.f);
+    glTranslatef(currentPosition.x, currentPosition.y, 0.f);
     // glRotatef(angle, 0,0,1)
     glScalef(SIZE, SIZE, 1.f);
 
@@ -358,8 +355,8 @@ void Boss::draw(glm::fvec2 cameraOffset, const GameState &gameState) {
     }
 
     // 좌우 팔
-    leftArm.draw(cameraOffset, gameState);
-    rightArm.draw(cameraOffset, gameState);
+    leftArm.draw(gameState);
+    rightArm.draw(gameState);
 
     glPopMatrix(); // 모델 행렬 끝
     glDisable(GL_BLEND);
