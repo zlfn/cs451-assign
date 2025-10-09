@@ -7,11 +7,12 @@ std::uniform_real_distribution<float> dist(0.0f, 1.0f);
 
 GameState::GameState(int h, int bh)
     : MAX_PLAYER_HEALTH(h), MAX_BOSS_HEALTH(bh), playerHealth(h), bossHealth(bh),
-      cameraOffset(0.0f, 0.0f), playerObject(glm::fvec2(0.0f, -0.8f)),
+      cameraBaseOffset(0.0f, 0.0f), cameraShakeOffset(0.0f, 0.0f),
+      playerObject(glm::fvec2(0.0f, -0.8f)),
       bossObject1(glm::fvec2(0.5f, 0.6f), 1), bossObject2(glm::fvec2(-0.5f, 0.6f), 2),
       bossHealthBarObject(glm::fvec2(0.0f, 0.0f)), heartsObject(glm::fvec2(0.0f, 0.0f)) {}
 
-float playerSpeedBase = 0.0005f; // f/ms
+float playerSpeedBase = 0.00065f; // f/ms
 bool isCameraShake = false;
 int cameraShakeStartTime = 0;
 bool keyStates[256] = {false};
@@ -65,11 +66,13 @@ void keyboardUp(unsigned char key, int /*x*/, int /*y*/) { keyStates[key] = fals
 void display() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+    glm::fvec2 &cbo = gameState.cameraBaseOffset;
+
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    glOrtho(-1.0, 1.0, -1.0, 1.0, -1.0, 1.0);
+    glOrtho(-1.0 + cbo.x, 1.0 + cbo.x, -1.0 + cbo.y, 1.0 + cbo.y, -1.0, 1.0);
     glPushMatrix();
-    glTranslatef(-gameState.cameraOffset.x, -gameState.cameraOffset.y, 0.0f);
+    glTranslatef(-gameState.cameraShakeOffset.x, -gameState.cameraShakeOffset.y, 0.0f);
     glMatrixMode(GL_MODELVIEW);
 
     gameState.backgroundObject.draw(gameState);
@@ -150,7 +153,7 @@ void timer(int) {
         gameState.bossObject2.currentMove = bossMoveData2.value();
     }
     if (isCameraShake) {
-        gameState.cameraOffset = cameraShake(now);
+        gameState.cameraShakeOffset = cameraShake(now);
     }
 
     int dt = now - lastMs;

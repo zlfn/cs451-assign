@@ -51,7 +51,6 @@ struct Updatable {
     virtual ~Updatable() = default;
 };
 
-struct BossMove;
 struct TrailParticle : Drawable, Updatable {
     glm::fvec2 position;
     glm::fvec2 velocity;
@@ -197,6 +196,7 @@ struct BossArm : Drawable {
 struct Boss : Updatable, Drawable, Collidable {
     glm::fvec2 currentPosition;
     BossMove currentMove;
+    int bossId;
     int coolTime = 0;
     int coolTimePeriod = 500;
     bool isDying = false;
@@ -261,7 +261,8 @@ struct GameState {
     const int MAX_BOSS_HEALTH;
     int playerHealth;
     int bossHealth;
-    glm::fvec2 cameraOffset;
+    glm::fvec2 cameraShakeOffset;
+    glm::fvec2 cameraBaseOffset;
     bool konamiUsed = false;
 
     Player playerObject;

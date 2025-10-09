@@ -46,7 +46,7 @@ bool EnemyBullet::update(int currentTime, GameState &gameState) {
             gameState.playerHealth = 0;
         return true;
     }
-    return abs(currentPosition.x) > 1.0f || abs(currentPosition.y) > 1.0f;
+    return abs(currentPosition.x) > 2.0f || abs(currentPosition.y) > 2.0f;
 }
 void EnemyBullet::draw(const GameState &gameState) {
     const float BASE_SCALE = 0.03f;
@@ -126,7 +126,7 @@ bool PlayerBullet::update(int currentTime, GameState &gameState) {
             gameState.bossHealth = 0;
         return true;
     }
-    return abs(currentPosition.x) > 1.0f || abs(currentPosition.y) > 1.0f;
+    return abs(currentPosition.x) > 2.0f || abs(currentPosition.y) > 2.0f;
 }
 void PlayerBullet::draw(const GameState &gameState) {
     const float WIDTH = 0.015f;

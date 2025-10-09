@@ -140,7 +140,7 @@ void BossArm::draw(const GameState &gameState) {
 
 Boss::Boss(glm::fvec2 initialPosition, int id)
     : currentPosition(initialPosition), currentMove(idleBossMove(initialPosition, 0)),
-      leftArm(true, id), rightArm(false, id) {}
+      leftArm(true, id), rightArm(false, id), bossId(id) {}
 
 bool Boss::update(int currentTime, GameState &gameState) {
     if (isDying) {
@@ -282,7 +282,7 @@ void Boss::draw(const GameState &gameState) {
 
             const float EXPLOSION_SIZE = 0.3f * (1.0f + DT * 2.0f); // 느리게 팽창
             const float A = 1.0f - DT * 0.67f;                      // 느리게 페이드
-
+            
             glPushMatrix();
             glTranslatef(currentPosition.x, currentPosition.y, 0.f);
             glScalef(EXPLOSION_SIZE, EXPLOSION_SIZE, 1.f);
@@ -323,9 +323,14 @@ void Boss::draw(const GameState &gameState) {
         glPushMatrix();
         glRotatef((360.f / 6.f) * static_cast<float>(i), 0.f, 0.f, 1.f);
         drawUnitSpikeTri(
-            /*rOuter=*/1.3f, /*rInner=*/0.8f, /*z=*/0.02f,
-            /*innerRGBA*/ glm::vec4(0.6f, 0.1f, 1.0f, 0.9f),
-            /*tipRGBA  */ glm::vec4(0.2f, 0.0f, 0.4f, 0.6f));
+            1.3f, // rOuter
+            0.8f, // rInner
+            0.02f, // z
+            bossId == 1 ? glm::vec4(0.6f, 0.1f, 1.0f, 0.9f) // innerRGBA
+                        : glm::vec4(0.3f, 0.4f, 0.8f, 0.9f),
+            bossId == 1 ? glm::vec4(0.2f, 0.0f, 0.4f, 0.6f) // tipRGBA
+                        : glm::vec4(0.3f, 0.4f, 0.8f, 0.9f)
+        );
         glPopMatrix();
     }
     glPopMatrix();

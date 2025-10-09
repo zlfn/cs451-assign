@@ -133,6 +133,19 @@ bool Player::update(int currentTime, GameState &gameState) {
         this->isBullet = false;
         this->coolTime = currentTime + 100;
     }
+    
+    glm::fvec2 &cbo = gameState.cameraBaseOffset;
+    if (cbo.x - currentPosition.x >= 0.6) {
+        cbo.x = currentPosition.x + 0.6;
+    } else if (cbo.x - currentPosition.x <= -0.6) {
+        cbo.x = currentPosition.x - 0.6;
+    }
+    if (cbo.y - currentPosition.y >= 0.6) {
+        cbo.y = currentPosition.y + 0.6;
+    } else if (cbo.y - currentPosition.y <= 0.2) {
+        cbo.y = currentPosition.y + 0.2;
+    }
+
     return false;
 }
 
@@ -216,14 +229,14 @@ void Player::move(glm::fvec2 deltaPosition) {
     currentPosition += deltaPosition;
 
     // Clamp
-    if (currentPosition.x < -1.0f)
-        currentPosition.x = -1.0f;
-    if (currentPosition.x > 1.0f)
-        currentPosition.x = 1.0f;
-    if (currentPosition.y < -1.0f)
-        currentPosition.y = -1.0f;
-    if (currentPosition.y > 1.0f)
-        currentPosition.y = 1.0f;
+    if (currentPosition.x < -2.0f)
+        currentPosition.x = -2.0f;
+    if (currentPosition.x > 2.0f)
+        currentPosition.x = 2.0f;
+    if (currentPosition.y < -2.0f)
+        currentPosition.y = -2.0f;
+    if (currentPosition.y > 2.0f)
+        currentPosition.y = 2.0f;
 }
 void Player::takeDamage(int currentTime) {
     if (!isInvincible) {

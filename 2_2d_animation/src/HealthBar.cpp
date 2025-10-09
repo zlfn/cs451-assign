@@ -4,6 +4,7 @@ PlayerHealthBar::PlayerHealthBar(glm::fvec2 drawPosition) : drawPosition(drawPos
 void PlayerHealthBar::draw(const GameState &gameState) {
     glPushMatrix();
     glLoadIdentity();
+    glTranslatef(gameState.cameraBaseOffset.x, gameState.cameraBaseOffset.y, 0);
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -69,6 +70,7 @@ void BossHealthBar::draw(const GameState &gameState) {
 
     glPushMatrix();
     glLoadIdentity();
+    glTranslatef(gameState.cameraBaseOffset.x, gameState.cameraBaseOffset.y, 0);
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
