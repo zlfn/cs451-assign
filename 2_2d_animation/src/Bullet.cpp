@@ -119,11 +119,20 @@ bool PlayerBullet::update(int currentTime, GameState &gameState) {
     currentPosition =
         initialPosition + glm::fvec2(0, speed * static_cast<float>(currentTime - initialTime));
     // Don't damage boss if player is already dying
-    if (!gameState.playerObject.isDying && (detectCollision(*this, gameState.bossObject1) ||
-                                            detectCollision(*this, gameState.bossObject2))) {
+    bool hitBoss1 = detectCollision(*this, gameState.bossObject1);
+    bool hitBoss2 = detectCollision(*this, gameState.bossObject2);
+
+    if (!gameState.playerObject.isDying && (hitBoss1 || hitBoss2)) {
         gameState.bossHealth -= 1;
         if (gameState.bossHealth < 0)
             gameState.bossHealth = 0;
+
+        // Apply hit effect to the boss that was hit
+        if (hitBoss1)
+            gameState.bossObject1.takeDamage(currentTime);
+        if (hitBoss2)
+            gameState.bossObject2.takeDamage(currentTime);
+
         return true;
     }
     return abs(currentPosition.x) > 2.0f || abs(currentPosition.y) > 2.0f;
