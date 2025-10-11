@@ -5,16 +5,14 @@ Star::Star(glm::fvec2 pos, float spd, float sz, float br)
 
 bool Star::update(int deltaTime, GameState & /*gameState*/) {
     position.y -= speed * static_cast<float>(deltaTime);
-    if (position.y < -1.1f) {
-        position.y = 1.1f;
-        position.x = -1.0f + dist(gen) * 2.0f;
+    if (position.y < -2.2f) {
+        position.y = 2.2f;
+        position.x = -2.0f + dist(gen) * 4.0f;
     }
     return false;
 }
 
-void Star::draw(glm::fvec2 cameraOffset, const GameState &) {
-    const glm::fvec2 VIEW_POS = position - cameraOffset;
-
+void Star::draw(const GameState &) {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 
@@ -22,7 +20,7 @@ void Star::draw(glm::fvec2 cameraOffset, const GameState &) {
     glPointSize(size);
 
     glPushMatrix();
-    glTranslatef(VIEW_POS.x, VIEW_POS.y, -0.99f);
+    glTranslatef(position.x, position.y, -0.99f);
 
     glBegin(GL_POINTS);
     glVertex3f(0.0f, 0.0f, 0.0f);
@@ -35,11 +33,11 @@ void Star::draw(glm::fvec2 cameraOffset, const GameState &) {
 Background::Background() : lastUpdateTime(0) { initializeStars(); }
 
 void Background::initializeStars() {
-    const int NUM_STARS = 60;
+    const int NUM_STARS = 100;
     stars.reserve(NUM_STARS);
     for (int i = 0; i < NUM_STARS; ++i) {
-        float x = -1.0f + dist(gen) * 2.0f;
-        float y = -1.0f + dist(gen) * 2.0f;
+        float x = -2.0f + dist(gen) * 4.0f;
+        float y = -2.0f + dist(gen) * 4.0f;
         float speed = 0.0008f + dist(gen) * 0.001f;
         float size = 1.0f + dist(gen) * 3.0f;
         float brightness = 0.3f + dist(gen) * 0.7f;
@@ -62,15 +60,33 @@ bool Background::update(int currentTime, GameState &gameState) {
     return false;
 }
 
-void Background::draw(glm::fvec2 cameraOffset, const GameState &gameState) {
+static void drawWorldBorder() {
+    glColor3f(1.0f, 1.0f, 1.0f);
+    glLineWidth(5.0f);
+
+    glBegin(GL_LINES);
+    glVertex2f(-2.0f, -2.0f);
+    glVertex2f(-2.0f, 2.0f);
+
+    glVertex2f(-2.0f, 2.0f);
+    glVertex2f(2.0f, 2.0f);
+
+    glVertex2f(2.0f, 2.0f);
+    glVertex2f(2.0f, -2.0f);
+
+    glVertex2f(2.0f, -2.0f);
+    glVertex2f(-2.0f, -2.0f);
+    glEnd();
+}
+
+void Background::draw(const GameState &gameState) {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glEnable(GL_POINT_SMOOTH);
 
     for (auto &star : stars) {
-        star.draw(cameraOffset, gameState);
+        star.draw(gameState);
     }
 
-    glDisable(GL_POINT_SMOOTH);
-    glDisable(GL_BLEND);
+    drawWorldBorder();
 }

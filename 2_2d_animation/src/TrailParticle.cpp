@@ -16,14 +16,12 @@ bool TrailParticle::update(int currentTime, GameState &) {
     return alpha <= 0.0f || size <= 0.001f || deltaTime > 2000; // Last up to 2 seconds
 }
 
-void TrailParticle::draw(glm::fvec2 cameraOffset, const GameState &) {
-    const glm::fvec2 VIEW_POS = position - cameraOffset;
-
+void TrailParticle::draw(const GameState &) {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 
     glPushMatrix();
-    glTranslatef(VIEW_POS.x, VIEW_POS.y, -0.1f);
+    glTranslatef(position.x, position.y, -0.1f);
     glScalef(size, size, 1.0f);
 
     // Draw a glowing circle with brighter center

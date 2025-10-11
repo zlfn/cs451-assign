@@ -7,16 +7,16 @@ float sqrtPosFunc1(int t, float speed) {
 }
 float sqrtPosFunc2(int t, float speed) {
     float deltaX = static_cast<float>(t) * speed;
-    return -std::sqrt(3.0f * deltaX);
+    return deltaX;
 }
 
 BulletVec bossEmptyPattern(GameState &gameState, int /*currentTime*/, int bossNum) {
     switch (bossNum) {
     case 1:
-        gameState.bossObject1.coolTimePeriod = 300;
+        gameState.bossObject1.coolTimePeriod = 500;
         break;
     case 2:
-        gameState.bossObject2.coolTimePeriod = 300;
+        gameState.bossObject2.coolTimePeriod = 500;
         break;
     default:
         break;
@@ -26,10 +26,10 @@ BulletVec bossEmptyPattern(GameState &gameState, int /*currentTime*/, int bossNu
 BulletVec bossBulletPattern1(GameState &gameState, int currentTime, int bossNum) {
     switch (bossNum) {
     case 1:
-        gameState.bossObject1.coolTimePeriod = 300;
+        gameState.bossObject1.coolTimePeriod = 500;
         break;
     case 2:
-        gameState.bossObject2.coolTimePeriod = 300;
+        gameState.bossObject2.coolTimePeriod = 500;
         break;
     default:
         break;

@@ -46,11 +46,9 @@ bool EnemyBullet::update(int currentTime, GameState &gameState) {
             gameState.playerHealth = 0;
         return true;
     }
-    return abs(currentPosition.x) > 1.0f || abs(currentPosition.y) > 1.0f;
+    return abs(currentPosition.x) > 2.0f || abs(currentPosition.y) > 2.0f;
 }
-void EnemyBullet::draw(glm::fvec2 cameraOffset, const GameState &gameState) {
-    const glm::fvec2 VIEW_POS = currentPosition - cameraOffset;
-
+void EnemyBullet::draw(const GameState &gameState) {
     const float BASE_SCALE = 0.03f;
 
     const float T_MS = static_cast<float>(glutGet(GLUT_ELAPSED_TIME));
@@ -60,7 +58,7 @@ void EnemyBullet::draw(glm::fvec2 cameraOffset, const GameState &gameState) {
     glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 
     glPushMatrix();
-    glTranslatef(VIEW_POS.x, VIEW_POS.y, 0.0f);
+    glTranslatef(currentPosition.x, currentPosition.y, 0.0f);
     glScalef(BASE_SCALE, BASE_SCALE, 1.0f);
 
     glBegin(GL_TRIANGLE_FAN);
@@ -128,21 +126,18 @@ bool PlayerBullet::update(int currentTime, GameState &gameState) {
             gameState.bossHealth = 0;
         return true;
     }
-    return abs(currentPosition.x) > 1.0f || abs(currentPosition.y) > 1.0f;
+    return abs(currentPosition.x) > 2.0f || abs(currentPosition.y) > 2.0f;
 }
-void PlayerBullet::draw(glm::fvec2 cameraOffset, const GameState &gameState) {
+void PlayerBullet::draw(const GameState &gameState) {
     const float WIDTH = 0.015f;
     const float HEIGHT = 0.04f;
     const float Z_DEPTH = 0.0f;
-
-    const glm::fvec2 WORLD_POS = currentPosition;
-    const glm::fvec2 VIEW_POS = WORLD_POS - cameraOffset;
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 
     glPushMatrix();
-    glTranslatef(VIEW_POS.x, VIEW_POS.y, 0.0f);
+    glTranslatef(currentPosition.x, currentPosition.y, 0.0f);
     glRotatef(0.0f, 0.0f, 0.0f, 1.0f);
     glScalef(WIDTH, HEIGHT, 1.0f);
 

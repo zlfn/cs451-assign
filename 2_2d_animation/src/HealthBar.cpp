@@ -1,9 +1,10 @@
 #include "base.hpp"
 
 PlayerHealthBar::PlayerHealthBar(glm::fvec2 drawPosition) : drawPosition(drawPosition) {}
-void PlayerHealthBar::draw(glm::fvec2 cameraOffset, const GameState &gameState) {
+void PlayerHealthBar::draw(const GameState &gameState) {
     glPushMatrix();
     glLoadIdentity();
+    glTranslatef(gameState.cameraBaseOffset.x, gameState.cameraBaseOffset.y, 0);
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -56,7 +57,7 @@ void PlayerHealthBar::draw(glm::fvec2 cameraOffset, const GameState &gameState) 
 }
 
 BossHealthBar::BossHealthBar(glm::fvec2 drawPosition) : drawPosition(drawPosition) {}
-void BossHealthBar::draw(glm::fvec2 cameraOffset, const GameState &gameState) {
+void BossHealthBar::draw(const GameState &gameState) {
     float healthPercentage =
         static_cast<float>(gameState.bossHealth) / static_cast<float>(gameState.MAX_BOSS_HEALTH);
     healthPercentage = glm::clamp(healthPercentage, 0.0f, 1.0f);
@@ -69,6 +70,7 @@ void BossHealthBar::draw(glm::fvec2 cameraOffset, const GameState &gameState) {
 
     glPushMatrix();
     glLoadIdentity();
+    glTranslatef(gameState.cameraBaseOffset.x, gameState.cameraBaseOffset.y, 0);
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);

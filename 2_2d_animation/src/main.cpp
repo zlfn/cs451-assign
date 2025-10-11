@@ -7,11 +7,12 @@ std::uniform_real_distribution<float> dist(0.0f, 1.0f);
 
 GameState::GameState(int h, int bh)
     : MAX_PLAYER_HEALTH(h), MAX_BOSS_HEALTH(bh), playerHealth(h), bossHealth(bh),
-      cameraOffset(0.0f, 0.0f), playerObject(glm::fvec2(0.0f, -0.8f)),
-      bossObject1(glm::fvec2(0.5f, 0.6f), 1), bossObject2(glm::fvec2(-0.5f, 0.6f), 2),
-      bossHealthBarObject(glm::fvec2(0.0f, 0.0f)), heartsObject(glm::fvec2(0.0f, 0.0f)) {}
+      cameraBaseOffset(0.0f, 0.0f), cameraShakeOffset(0.0f, 0.0f),
+      playerObject(glm::fvec2(0.0f, -0.8f)), bossObject1(glm::fvec2(0.5f, 0.6f), 1),
+      bossObject2(glm::fvec2(-0.5f, 0.6f), 2), bossHealthBarObject(glm::fvec2(0.0f, 0.0f)),
+      heartsObject(glm::fvec2(0.0f, 0.0f)) {}
 
-float playerSpeedBase = 0.0005f; // f/ms
+float playerSpeedBase = 0.00065f; // f/ms
 bool isCameraShake = false;
 int cameraShakeStartTime = 0;
 bool keyStates[256] = {false};
@@ -65,30 +66,38 @@ void keyboardUp(unsigned char key, int /*x*/, int /*y*/) { keyStates[key] = fals
 void display() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+    glm::fvec2 &cbo = gameState.cameraBaseOffset;
+
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    glOrtho(-1.0, 1.0, -1.0, 1.0, -1.0, 1.0);
+    glOrtho(-1.0 + cbo.x, 1.0 + cbo.x, -1.0 + cbo.y, 1.0 + cbo.y, -1.0, 1.0);
+    glPushMatrix();
+    glTranslatef(-gameState.cameraShakeOffset.x, -gameState.cameraShakeOffset.y, 0.0f);
     glMatrixMode(GL_MODELVIEW);
 
-    gameState.backgroundObject.draw(gameState.cameraOffset, gameState);
+    gameState.backgroundObject.draw(gameState);
 
     // Draw trail particles before bullets for better visual effect
     for (auto &particle : gameState.trailParticles) {
-        particle.draw(gameState.cameraOffset, gameState);
+        particle.draw(gameState);
     }
 
     for (auto &object : gameState.enemyBulletObjects) {
-        object.draw(gameState.cameraOffset, gameState);
+        object.draw(gameState);
     }
     for (auto &object : gameState.playerBulletObjects) {
-        object.draw(gameState.cameraOffset, gameState);
+        object.draw(gameState);
     }
-    gameState.playerObject.draw(gameState.cameraOffset, gameState);
-    gameState.bossObject1.draw(gameState.cameraOffset, gameState);
-    gameState.bossObject2.draw(gameState.cameraOffset, gameState);
+    gameState.playerObject.draw(gameState);
+    gameState.bossObject1.draw(gameState);
+    gameState.bossObject2.draw(gameState);
 
-    gameState.bossHealthBarObject.draw(gameState.cameraOffset, gameState);
-    gameState.heartsObject.draw(gameState.cameraOffset, gameState);
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+    glMatrixMode(GL_MODELVIEW);
+
+    gameState.bossHealthBarObject.draw(gameState);
+    gameState.heartsObject.draw(gameState);
 
     glutSwapBuffers();
     glutPostRedisplay();
@@ -144,7 +153,7 @@ void timer(int) {
         gameState.bossObject2.currentMove = bossMoveData2.value();
     }
     if (isCameraShake) {
-        gameState.cameraOffset = cameraShake(now);
+        gameState.cameraShakeOffset = cameraShake(now);
     }
 
     int dt = now - lastMs;

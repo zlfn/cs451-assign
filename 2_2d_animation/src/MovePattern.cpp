@@ -15,15 +15,15 @@ MoveFn boss2Move1 = [](int currentTime, GameState &gameState) {
                     currentTime, traj1, por1);
 };
 MoveFn boss1RandomMove = [](int currentTime, GameState &gameState) {
-    float randomX = dist(gen) * 1.7f - 0.85f;
-    float randomY = dist(gen) * 0.85f;
+    float randomX = -1.8f + dist(gen) * 3.6f;
+    float randomY = -1.2f + dist(gen) * 3.9f;
 
-    return BossMove(gameState.bossObject1.currentPosition, glm::fvec2(randomX, randomY), 1000,
+    return BossMove(gameState.bossObject1.currentPosition, glm::fvec2(randomX, randomY), 2000,
                     currentTime, zeroTraj, por1);
 };
 MoveFn boss2RandomMove = [](int currentTime, GameState &gameState) {
-    float randomX = dist(gen) * 1.7f - 0.85f;
-    float randomY = dist(gen) * 0.85f;
+    float randomX = -1.3f + dist(gen) * 2.6f;
+    float randomY = -0.9f + dist(gen) * 1.8f;
 
     return BossMove(gameState.bossObject2.currentPosition, glm::fvec2(randomX, randomY), 1000,
                     currentTime, zeroTraj, por1);
@@ -45,11 +45,12 @@ int random2Iteration = 0;
 std::optional<BossMove> getCurrentMove(int currentTime, GameState &gameState, int bossNum) {
     std::size_t &bossMoveListCounter = (bossNum == 1) ? boss1MoveListCounter : boss2MoveListCounter;
     int &randomIteration = (bossNum == 1) ? random1Iteration : random2Iteration;
+    int randomPeriod = (bossNum == 1) ? 5000 : 3000;
     const std::vector<MoveEntry> &currentBossMoveList =
         (bossNum == 1) ? BOSS_MOVE_LIST1 : BOSS_MOVE_LIST2;
 
     if (bossMoveListCounter >= currentBossMoveList.size()) {
-        if (currentTime > 11000 + randomIteration * 5000) {
+        if (currentTime > 11000 + randomIteration * randomPeriod) {
             randomIteration += 1;
             return (bossNum == 1) ? boss1RandomMove(currentTime, gameState)
                                   : boss2RandomMove(currentTime, gameState);
