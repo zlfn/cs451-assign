@@ -12,9 +12,7 @@ void EnergyOrb::updatePosition() {
 }
 
 bool EnergyOrb::update(int currentTime, GameState &) {
-    // 각도는 Player::updateEnergyOrbs에서 관리되므로 여기서는 위치만 업데이트
-    updatePosition();
-    return false; // 에너지 구체는 자동으로 사라지지 않음
+    return false;
 }
 
 void EnergyOrb::draw(const GameState &) {
