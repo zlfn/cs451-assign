@@ -14,21 +14,18 @@ bool EnemyBullet::update(int currentTime, GameState &gameState) {
     currentPosition =
         initialPosition + float(dt) * initialDirection + posFunc(dt, speed) * normalDirection;
 
-    // Create trail particles
-    if (currentTime - lastTrailTime > 15) { // Create particles every 15ms (more frequent)
+    // 트레일 파티클 생성
+    if (currentTime - lastTrailTime > 15) {
         lastTrailTime = currentTime;
 
-        // Create 2 particles per update for denser trail
         for (int i = 0; i < 2; ++i) {
-            // Add more spread to the trail
             std::uniform_real_distribution<float> offsetDist(-0.015f, 0.015f);
             std::uniform_real_distribution<float> velDist(-0.025f, 0.025f);
 
             glm::fvec2 trailPos = currentPosition + glm::fvec2(offsetDist(gen), offsetDist(gen));
             glm::fvec2 trailVel(velDist(gen), velDist(gen));
-            float trailSize = 0.025f + offsetDist(gen) * 0.3f; // Bigger particles
+            float trailSize = 0.025f + offsetDist(gen) * 0.3f;
 
-            // Slightly dimmed purple/pink trail color for better contrast
             glm::fvec3 trailColor(0.6f, 0.25f, 0.8f);
 
             gameState.trailParticles.emplace_back(trailPos, trailVel, trailSize, trailColor,
@@ -36,7 +33,7 @@ bool EnemyBullet::update(int currentTime, GameState &gameState) {
         }
     }
 
-    // Don't damage player if boss is already dying
+    // 보스가 죽어가는 중이 아닐 때만 플레이어에게 데미지
     if (!gameState.bossObject1.isDying && !gameState.playerObject.isInvincible &&
         detectCollision(*this, gameState.playerObject)) {
         gameState.playerHealth -= 1;
@@ -118,7 +115,8 @@ PlayerBullet::PlayerBullet(glm::fvec2 initialPosition, float speed, int initialT
 bool PlayerBullet::update(int currentTime, GameState &gameState) {
     currentPosition =
         initialPosition + glm::fvec2(0, speed * static_cast<float>(currentTime - initialTime));
-    // Don't damage boss if player is already dying
+
+    // 플레이어가 죽어가는 중이 아닐 때만 보스에게 데미지
     bool hitBoss1 = detectCollision(*this, gameState.bossObject1);
     bool hitBoss2 = detectCollision(*this, gameState.bossObject2);
 
@@ -127,7 +125,7 @@ bool PlayerBullet::update(int currentTime, GameState &gameState) {
         if (gameState.bossHealth < 0)
             gameState.bossHealth = 0;
 
-        // Apply hit effect to the boss that was hit
+        // 피격된 보스에게 피격 효과 적용
         if (hitBoss1)
             gameState.bossObject1.takeDamage(currentTime);
         if (hitBoss2)

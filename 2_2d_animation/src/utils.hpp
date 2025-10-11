@@ -18,16 +18,14 @@ constexpr bool approxEqual(float a, float b, float epsilon = 1e-2f) {
     return (a > b ? a - b : b - a) < epsilon;
 }
 
-/// @brief Concept for functions f(0)=f(1)=0
-/// @tparam F Function type
+// f(0)=f(1)=0을 만족하는 함수의 콘셉트
 template <typename F>
 concept Map00Fn = requires {
     { F{}(0.0f) } -> std::same_as<float>;
     { F{}(1.0f) } -> std::same_as<float>;
 } && approxEqual(F{}(0.0f), 0.0f) && approxEqual(F{}(1.0f), 0.0f);
 
-/// @brief Concept for functions f(0)=0, f(1)=1
-/// @tparam F Function type
+// f(0)=0, f(1)=1을 만족하는 함수의 콘셉트
 template <typename F>
 concept Map01Fn = requires {
     { F{}(0.0f) } -> std::same_as<float>;

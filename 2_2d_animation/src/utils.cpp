@@ -61,7 +61,8 @@ void showVictoryScreen(const GameState &gameState) {
     std::cout << "\033[0m\n\n";
 }
 
-int getRandomRange(int a, int b) { // a, b 포함
+// a, b를 포함하는 범위에서 랜덤 정수 반환
+int getRandomRange(int a, int b) {
     static std::uniform_int_distribution<int> distInt(a, b);
     return static_cast<int>(dist(gen));
 }

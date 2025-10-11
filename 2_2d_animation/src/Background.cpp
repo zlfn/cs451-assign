@@ -60,6 +60,7 @@ bool Background::update(int currentTime, GameState &gameState) {
     return false;
 }
 
+// 월드 경계선 그리기
 static void drawWorldBorder() {
     glColor3f(1.0f, 1.0f, 1.0f);
     glLineWidth(5.0f);

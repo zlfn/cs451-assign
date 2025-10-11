@@ -8,14 +8,14 @@ bool TrailParticle::update(int currentTime, GameState &) {
     int deltaTime = currentTime - birthTime;
     float dt = static_cast<float>(deltaTime) * 0.001f;
 
-    // Slower drift and fade
     position += velocity * dt * 0.3f;
     alpha -= dt * 0.5f;
     size *= (1.0f - dt * 0.2f);
 
-    return alpha <= 0.0f || size <= 0.001f || deltaTime > 2000; // Last up to 2 seconds
+    return alpha <= 0.0f || size <= 0.001f || deltaTime > 2000;
 }
 
+// 빛나는 트레일 파티클 그리기
 void TrailParticle::draw(const GameState &) {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE);
@@ -24,13 +24,13 @@ void TrailParticle::draw(const GameState &) {
     glTranslatef(position.x, position.y, -0.1f);
     glScalef(size, size, 1.0f);
 
-    // Draw a glowing circle with brighter center
+    // 중심이 밝은 원 그리기
     glBegin(GL_TRIANGLE_FAN);
-    // Much brighter center (almost white)
+    // 밝은 중심
     glColor4f(glm::min(color.r * 1.5f, 1.0f), glm::min(color.g * 1.5f, 1.0f),
               glm::min(color.b * 1.5f, 1.0f), alpha * 1.2f);
     glVertex3f(0.0f, 0.0f, 0.0f);
-    // Fade to darker edges
+    // 어두운 가장자리
     glColor4f(color.r * 0.3f, color.g * 0.3f, color.b * 0.3f, 0.0f);
     const int N = 8;
     for (int i = 0; i <= N; ++i) {

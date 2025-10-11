@@ -1,11 +1,11 @@
 #include "base.hpp"
 
-// 궤적 함수
+// 궤적 함수 정의
 auto traj1 = [](float u) { return u * (1.0f - u); };
 auto por1 = [](float t) { return float(3 * t * t - 2 * t * t * t); };
 auto zeroTraj = [](float u) { return 0.0f; };
 
-// 움직임 함수
+// 보스 움직임 패턴
 MoveFn boss1Move1 = [](int currentTime, GameState &gameState) {
     return BossMove(gameState.bossObject1.currentPosition, glm::fvec2(0.0f, 0.0f), 3000,
                     currentTime, traj1, por1);
@@ -29,7 +29,7 @@ MoveFn boss2RandomMove = [](int currentTime, GameState &gameState) {
                     currentTime, zeroTraj, por1);
 };
 
-// 움직임 배열
+// 보스별 움직임 리스트
 static const std::vector<MoveEntry> BOSS_MOVE_LIST1 = {{
     {boss1Move1, 2000},
 }};
@@ -39,7 +39,7 @@ static const std::vector<MoveEntry> BOSS_MOVE_LIST2 = {{
 static std::size_t boss1MoveListCounter = 0;
 static std::size_t boss2MoveListCounter = 0;
 
-// 움직임 함수 얻기
+// 현재 움직임 가져오기
 int random1Iteration = 0;
 int random2Iteration = 0;
 std::optional<BossMove> getCurrentMove(int currentTime, GameState &gameState, int bossNum) {

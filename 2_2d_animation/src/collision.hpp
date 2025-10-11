@@ -4,12 +4,11 @@
 #include <variant>
 #include <concepts>
 
-// Forward declarations for collision shapes
 struct CollisionCircle;
 struct CollisionRectangle;
 using CollisionShape = std::variant<CollisionCircle, CollisionRectangle>;
 
-/// @brief Circle collision shape
+// 원형 충돌 영역
 struct CollisionCircle {
     glm::vec2 center;
     float raidus;
@@ -22,7 +21,7 @@ struct CollisionCircle {
     bool intersects(const CollisionRectangle &rect) const;
 };
 
-/// @brief Axis-aligned rectangle collision shape
+// 축에 정렬된 사각형 충돌 영역
 struct CollisionRectangle {
     glm::vec2 topLeft;
     glm::vec2 bottomRight;
@@ -46,43 +45,29 @@ inline bool CollisionCircle::intersects(const CollisionRectangle &rect) const {
     return distanceSquared < (raidus * raidus);
 }
 
-/// @brief Interface for objects that can be collided with
+// 충돌 가능한 객체의 인터페이스
 struct Collidable {
-    /// @brief Get the collision shape of the object
-    /// @return The collision shape
     virtual CollisionShape getShape() const = 0;
     virtual ~Collidable() = default;
 };
 
-/// @brief Concept for shapes that implement the Shape Interface
-/// @tparam T Type to check
+// Shape 인터페이스를 구현하는 도형의 콘셉트
 template <typename T>
 concept ShapeConcept = requires(const T &a, const CollisionCircle &c, const CollisionRectangle &r) {
     { a.intersects(c) } -> std::same_as<bool>;
     { a.intersects(r) } -> std::same_as<bool>;
 };
 
-/// @brief Shape-to-shape collision detect
-/// @tparam A Type of the first shape
-/// @tparam B Type of the second shape
-/// @param a The first shape
-/// @param b The second shape
+// 도형 간 충돌 감지
 template <ShapeConcept A, ShapeConcept B> bool detectCollision(const A &a, const B &b) {
     return a.intersects(b);
 }
 
-/// @brief Concept for objects that implement the Collidable Interface
-/// @tparam T Type to check
-/// @return true if T is derived from Collidable
+// Collidable 인터페이스를 구현하는 객체의 콘셉트
 template <typename T>
 concept CollidableObject = std::is_base_of_v<Collidable, T>;
 
-/// @breif Object-to-object collision detection (using their shapes)
-/// @tparam A Type of the first collidable objects
-/// @tparam B Type of the second collidable objects
-/// @param a The first collidable objects
-/// @param b The second collidable objects
-/// @return true if the objects collide
+// 객체 간 충돌 감지 (충돌 영역 사용)
 template <CollidableObject A, CollidableObject B> bool detectCollision(const A &a, const B &b) {
     const CollisionShape SHAPE_A = a.getShape();
     const CollisionShape SHAPE_B = b.getShape();

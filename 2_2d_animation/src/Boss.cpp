@@ -6,26 +6,26 @@ BossFragment::BossFragment(glm::fvec2 pos, glm::fvec2 vel, float rot, float rotS
       color(col) {}
 
 bool BossFragment::update(int deltaTime, GameState &) {
-    float dt = static_cast<float>(deltaTime) * 0.0005f; // Slower animation
+    float dt = static_cast<float>(deltaTime) * 0.0005f;
     position += velocity * dt;
     rotation += rotationSpeed * dt;
-    velocity.y -= 0.3f * dt;    // Slower gravity
-    alpha -= dt * 0.15f;        // Slower fade out
-    size *= (1.0f - dt * 0.1f); // Slower shrink
+    velocity.y -= 0.3f * dt;    // 중력 효과
+    alpha -= dt * 0.15f;        // 페이드 아웃
+    size *= (1.0f - dt * 0.1f); // 크기 축소
     return alpha <= 0.0f || size <= 0.001f;
 }
 
 void BossFragment::draw(const GameState &) {
     glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE); // 기존 가산 블렌딩 유지
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 
     glPushMatrix();
-    glTranslatef(position.x, position.y, 0.0f); // 위치
-    glRotatef(rotation, 0.0f, 0.0f, 1.0f);      // 회전
-    glScalef(size, size, 1.0f);                 // 크기 (행렬로 처리)
+    glTranslatef(position.x, position.y, 0.0f);
+    glRotatef(rotation, 0.0f, 0.0f, 1.0f);
+    glScalef(size, size, 1.0f);
 
-    // 원점 기준 단위 정삼각형: (0,1), (-sqrt{3}/2,-1/2), (sqrt{3}/2,-1/2)
-    constexpr float H = 0.8660254f; // sqrt{3}/2
+    // 단위 정삼각형
+    constexpr float H = 0.8660254f; // sqrt(3)/2
 
     glBegin(GL_TRIANGLES);
     glColor4f(color.r, color.g, color.b, alpha);
@@ -48,8 +48,8 @@ BossArm::BossArm(bool isLeft, int boss)
     std::uniform_real_distribution<float> dirDist(-60.0f, 60.0f);
 
     // 각 보스와 팔마다 고유한 특성 생성
-    float bossMultiplier = (bossId == 1) ? 1.0f : 1.5f; // 보스2가 더 빠름
-    float armMultiplier = isLeftArm ? 1.0f : 1.2f;      // 좌우 팔 다름
+    float bossMultiplier = (bossId == 1) ? 1.0f : 1.5f;
+    float armMultiplier = isLeftArm ? 1.0f : 1.2f;
 
     for (int i = 0; i < 4; ++i) {
         uniquePhase[i] = phaseDist(gen) + (static_cast<float>(bossId) * 1.2f) +
@@ -58,30 +58,27 @@ BossArm::BossArm(bool isLeft, int boss)
         angles[i] = 0.0f;
     }
 
-    // 방향성을 랜덤하게
     baseDirection = dirDist(gen);
 }
 
+// 팔 관절의 움직임 업데이트
 void BossArm::update(float time) {
-    // 각 관절의 연속적인 움직임 계산
     float intensities[4] = {35.0f, 20.0f, 15.0f, 10.0f}; // 관절별 최대 각도
     float limits[4][2] = {{-70.0f, 70.0f}, {-40.0f, 40.0f}, {-30.0f, 30.0f}, {-20.0f, 20.0f}};
 
     for (int i = 0; i < 4; ++i) {
-        // 연속적인 사인파 기반 움직임
+        // 사인파 기반 자연스러운 움직임
         float mainWave = std::sin(time * uniqueSpeed[i] + uniquePhase[i]);
         float microWave = std::sin(time * uniqueSpeed[i] * 2.3f + uniquePhase[i] + 1.0f) * 0.3f;
 
-        // 기본 각도 계산
         float targetAngle = (mainWave + microWave) * intensities[i];
 
-        // 어깨는 기본적으로 바깥쪽으로 펼쳐지게 하기
+        // 어깨는 바깥쪽으로 펼침
         if (i == 0) {
             float armSign = isLeftArm ? -1.0f : 1.0f;
             targetAngle = targetAngle * 0.6f + armSign * 40.0f + baseDirection * 0.3f;
         }
 
-        // 각도 제한
         angles[i] = glm::clamp(targetAngle, limits[i][0], limits[i][1]);
     }
 }
@@ -126,7 +123,7 @@ void BossArm::draw(const GameState &gameState) {
     glPushMatrix();
     glTranslatef(shoulderX, shoulderY, 0.01f);
 
-    // 4개 관절을 순서대로 그리기
+    // 4개 관절을 순서대로 그림
     for (int i = 0; i < 4; ++i) {
         glRotatef(angles[i], 0.0f, 0.0f, 1.0f);
         drawJoint(armWidth * (1.6f - float(i) * 0.2f));
@@ -148,30 +145,29 @@ void Boss::takeDamage(int currentTime) {
 }
 
 bool Boss::update(int currentTime, GameState &gameState) {
-    // Update hit intensity (decay over time)
+    // 피격 강도 감쇠
     if (hitIntensity > 0.0f) {
         float timeSinceHit = static_cast<float>(currentTime - lastHitTime) * 0.001f;
-        hitIntensity = std::max(0.0f, 1.0f - timeSinceHit * 3.0f); // Decay over ~0.33 seconds
+        hitIntensity = std::max(0.0f, 1.0f - timeSinceHit * 3.0f);
     }
 
     if (isDying) {
-        // Update fragments
+        // 파편 업데이트
         int deltaTime = currentTime - deathStartTime;
         std::erase_if(fragments, [deltaTime, &gameState](auto &fragment) {
             return fragment.update(deltaTime, gameState);
         });
 
-        // Show victory screen after 3 seconds
+        // 3초 후 승리 화면 표시
         if ((currentTime - deathStartTime) > 3000) {
             showVictoryScreen(gameState);
             std::exit(0);
         }
 
-        // Boss is completely destroyed after 6 seconds (won't reach here due to exit)
         return (currentTime - deathStartTime) > 5000;
     }
 
-    // Check if boss should die
+    // 보스가 죽어야 하는지 확인
     if (gameState.bossHealth <= 0 && !isDying) {
         startDeathAnimation(currentTime);
         startCameraShake(currentTime);
@@ -180,7 +176,7 @@ bool Boss::update(int currentTime, GameState &gameState) {
 
     this->currentPosition = this->currentMove.getCurrentPosition(currentTime);
 
-    // Don't damage player if boss is already dying
+    // 보스가 죽어가는 중이 아닐 때만 플레이어에게 데미지
     if (!isDying && !gameState.playerObject.isInvincible &&
         detectCollision(*this, gameState.playerObject)) {
         gameState.playerHealth -= 1;
@@ -203,17 +199,18 @@ bool Boss::update(int currentTime, GameState &gameState) {
 
     return false;
 }
+// 보스 사망 애니메이션 시작
 void Boss::startDeathAnimation(int currentTime) {
     if (isDying)
         return;
     isDying = true;
     deathStartTime = currentTime;
 
-    // Create fragments
-    std::uniform_real_distribution<float> speedDist(0.3f, 1.2f); // Slower speed
+    // 파편 생성
+    std::uniform_real_distribution<float> speedDist(0.3f, 1.2f);
     std::uniform_real_distribution<float> angleDist(0.0f, 2.0f * std::numbers::pi_v<float>);
-    std::uniform_real_distribution<float> rotSpeedDist(-180.0f, 180.0f); // Slower rotation
-    std::uniform_real_distribution<float> sizeDist(0.03f, 0.1f);         // Bigger fragments
+    std::uniform_real_distribution<float> rotSpeedDist(-180.0f, 180.0f);
+    std::uniform_real_distribution<float> sizeDist(0.03f, 0.1f);
 
     for (int i = 0; i < 20; ++i) {
         float speed = speedDist(gen);
@@ -224,11 +221,11 @@ void Boss::startDeathAnimation(int currentTime) {
 
         glm::fvec3 color;
         if (i % 3 == 0) {
-            color = glm::fvec3(1.0f, 0.2f, 0.8f); // Pink
+            color = glm::fvec3(1.0f, 0.2f, 0.8f);
         } else if (i % 3 == 1) {
-            color = glm::fvec3(0.6f, 0.1f, 1.0f); // Purple
+            color = glm::fvec3(0.6f, 0.1f, 1.0f);
         } else {
-            color = glm::fvec3(0.8f, 0.4f, 1.0f); // Light purple
+            color = glm::fvec3(0.8f, 0.4f, 1.0f);
         }
 
         fragments.emplace_back(currentPosition, vel, 0.0f, rotSpeed, size, color);
@@ -248,7 +245,7 @@ void Boss::drawUnitCircleFan(int seg, float z, const glm::vec4 &centerRGBA,
     glEnd();
 }
 
-// 반지름 1인 정팔각형 팬 (중심 포함)
+// 단위 정팔각형 그리기
 void Boss::drawUnitOctagonFan(float z, const glm::vec4 &centerRGBA, const glm::vec4 &edgeRGBA) {
     glBegin(GL_TRIANGLE_FAN);
     glColor4f(centerRGBA.r, centerRGBA.g, centerRGBA.b, centerRGBA.a);
@@ -261,7 +258,7 @@ void Boss::drawUnitOctagonFan(float z, const glm::vec4 &centerRGBA, const glm::v
     glEnd();
 }
 
-// 출렁이는 팔각형 (액체 효과)
+// 출렁이는 팔각형 그리기 (피격 시 효과)
 void Boss::drawWobblyOctagonFan(float z, const glm::vec4 &centerRGBA, const glm::vec4 &edgeRGBA,
                                 float wobbleAmount) {
     const float T = static_cast<float>(glutGet(GLUT_ELAPSED_TIME)) * 0.001f;
@@ -275,18 +272,18 @@ void Boss::drawWobblyOctagonFan(float z, const glm::vec4 &centerRGBA, const glm:
         float x = std::cos(ang);
         float y = std::sin(ang);
 
-        // y 좌표가 낮을수록 (아래쪽일수록) 출렁임이 커짐
-        float verticalFactor = (1.0f - y) * 0.5f; // 0 (위) ~ 1 (아래)
+        // 아래쪽일수록 출렁임이 커짐
+        float verticalFactor = (1.0f - y) * 0.5f;
 
-        // 느린 파동 효과 (2Hz)
+        // 파동 효과
         float wave = std::sin(T * 2.0f * std::numbers::pi_v<float> * 2.0f + ang * 2.0f);
-        float wobble = wobbleAmount * verticalFactor * wave * 0.2f; // 최대 20% 변형
+        float wobble = wobbleAmount * verticalFactor * wave * 0.2f;
 
-        // 아래쪽(y < 0)만 밝게
+        // 아래쪽만 밝게
         float brightness = 1.0f;
         if (y < 0) {
-            float bottomFactor = -y;                                // 0 (중앙) ~ 1 (최하단)
-            brightness = 1.0f + bottomFactor * wobbleAmount * 2.0f; // 최대 2배 밝기
+            float bottomFactor = -y;
+            brightness = 1.0f + bottomFactor * wobbleAmount * 2.0f;
         }
         glColor4f(edgeRGBA.r * brightness, edgeRGBA.g * brightness, edgeRGBA.b * brightness,
                   edgeRGBA.a);
@@ -296,7 +293,7 @@ void Boss::drawWobblyOctagonFan(float z, const glm::vec4 &centerRGBA, const glm:
     glEnd();
 }
 
-// 스파이크 1개 (원점에서 시작, 외내곽 반지름을 유닛으로 받음)
+// 스파이크 하나 그리기
 void Boss::drawUnitSpikeTri(float rOuter, float rInner, float z, const glm::vec4 &innerRGBA,
                             const glm::vec4 &tipRGBA) {
     glBegin(GL_TRIANGLES);
@@ -308,26 +305,25 @@ void Boss::drawUnitSpikeTri(float rOuter, float rInner, float z, const glm::vec4
     glEnd();
 }
 
-// 메인 드로우
+// 보스 그리기
 void Boss::draw(const GameState &gameState) {
-    const float SIZE = 0.15f; // 전체 스케일(월드 단위)
+    const float SIZE = 0.15f;
     const float T = static_cast<float>(glutGet(GLUT_ELAPSED_TIME)) * 0.001f;
 
     if (isDying) {
-        // 파편
         for (auto &fragment : fragments) {
             fragment.draw(gameState);
         }
 
-        // 폭발
+        // 폭발 효과
         const int NOW_MS = glutGet(GLUT_ELAPSED_TIME);
         const float DT = static_cast<float>(NOW_MS - deathStartTime) * 0.001f;
         if (DT < 1.5f) {
             glEnable(GL_BLEND);
-            glBlendFunc(GL_SRC_ALPHA, GL_ONE); // 가산 혼합 유지
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 
-            const float EXPLOSION_SIZE = 0.3f * (1.0f + DT * 2.0f); // 느리게 팽창
-            const float A = 1.0f - DT * 0.67f;                      // 느리게 페이드
+            const float EXPLOSION_SIZE = 0.3f * (1.0f + DT * 2.0f);
+            const float A = 1.0f - DT * 0.67f;
 
             glPushMatrix();
             glTranslatef(currentPosition.x, currentPosition.y, 0.f);
@@ -344,14 +340,13 @@ void Boss::draw(const GameState &gameState) {
     }
 
     glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); // 본체는 일반 알파 블렌딩
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    // 모델 행렬
     glPushMatrix();
     glTranslatef(currentPosition.x, currentPosition.y, 0.f);
     glScalef(SIZE, SIZE, 1.f);
 
-    // 본체 (피격 시 출렁임 효과)
+    // 본체 (피격 시 출렁임)
     if (hitIntensity > 0.0f) {
         drawWobblyOctagonFan(0.0f, glm::vec4(0.3f, 0.0f, 0.8f, 1.0f),
                              glm::vec4(0.1f, 0.0f, 0.6f, 1.0f), hitIntensity);
@@ -367,19 +362,16 @@ void Boss::draw(const GameState &gameState) {
                       glm::vec4(0.4f, 0.0f, 0.8f, 0.2f));
     glPopMatrix();
 
-    // 회전 스파이크
+    // 회전하는 스파이크
     glPushMatrix();
-    glRotatef(T * 57.2957795f, 0.f, 0.f, 1.f); // rad -> deg
+    glRotatef(T * 57.2957795f, 0.f, 0.f, 1.f);
     for (int i = 0; i < 6; ++i) {
         glPushMatrix();
         glRotatef((360.f / 6.f) * static_cast<float>(i), 0.f, 0.f, 1.f);
-        drawUnitSpikeTri(1.3f,                                           // rOuter
-                         0.8f,                                           // rInner
-                         0.02f,                                          // z
-                         bossId == 1 ? glm::vec4(0.6f, 0.1f, 1.0f, 0.9f) // innerRGBA
-                                     : glm::vec4(0.3f, 0.4f, 0.8f, 0.9f),
-                         bossId == 1 ? glm::vec4(0.2f, 0.0f, 0.4f, 0.6f) // tipRGBA
-                                     : glm::vec4(0.3f, 0.4f, 0.8f, 0.9f));
+        drawUnitSpikeTri(
+            1.3f, 0.8f, 0.02f,
+            bossId == 1 ? glm::vec4(0.6f, 0.1f, 1.0f, 0.9f) : glm::vec4(0.3f, 0.4f, 0.8f, 0.9f),
+            bossId == 1 ? glm::vec4(0.2f, 0.0f, 0.4f, 0.6f) : glm::vec4(0.3f, 0.4f, 0.8f, 0.9f));
         glPopMatrix();
     }
     glPopMatrix();
@@ -396,28 +388,28 @@ void Boss::draw(const GameState &gameState) {
         const int SEG = 16;
         const float WOBBLE_UNIT = 0.02f / SIZE;
 
-        glLineWidth(2.0f); // glBegin 밖에서 설정
+        glLineWidth(2.0f);
         glBegin(GL_LINE_LOOP);
         glColor4f(0.4f, 0.2f, 1.0f, 0.5f);
         for (int i = 0; i < SEG; ++i) {
             float ang = (float)i * 2.f * std::numbers::pi_v<float> / (float)SEG;
             float wobble = std::sin(T * 3.0f + ang * 2.0f) * WOBBLE_UNIT;
-            float r = 1.1f + wobble; // 유닛 반지름
+            float r = 1.1f + wobble;
             glVertex3f(r * std::cos(ang), r * std::sin(ang), 0.0f);
         }
         glEnd();
     }
 
-    // 좌우 팔
+    // 팔 그리기
     leftArm.draw(gameState);
     rightArm.draw(gameState);
 
-    glPopMatrix(); // 모델 행렬 끝
+    glPopMatrix();
     glDisable(GL_BLEND);
 }
+
 CollisionShape Boss::getShape() const {
     if (isDying) {
-        // No collision when dying
         return CollisionCircle(glm::fvec2(-999.0f, -999.0f), 0.0f);
     }
     return CollisionCircle(currentPosition, 0.15f);

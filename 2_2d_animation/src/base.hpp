@@ -35,19 +35,15 @@ extern bool keyStates[256];
 void startCameraShake(int currentTime);
 BulletPattern getCurrentBulletPattern(int currentTime);
 
-/// @brief Interface for objects that can be drawn
+// 그릴 수 있는 객체의 인터페이스
 struct Drawable {
-    /// @brief Draw the object with a given camera camera_offset
-    /// @param camera_offset The camera offset to apply
     virtual void draw(const GameState &gameState) = 0;
     virtual ~Drawable() = default;
 };
 
-/// @brief Interface for objects that can be updated
+// 업데이트 가능한 객체의 인터페이스
 struct Updatable {
-    /// @brief Update the object's state. Return true if the object should be removed.
-    /// @param deltaTime Time elapsed since the last update in milliseconds
-    /// @return true if the object should be removed
+    // 객체의 상태를 업데이트. 제거해야 할 경우 true 반환
     virtual bool update(int currentTime, GameState &gameState) = 0;
     virtual ~Updatable() = default;
 };
@@ -96,11 +92,11 @@ struct PlayerBullet : Updatable, Drawable, Collidable {
 };
 
 struct EnergyOrb : Drawable, Updatable {
-    glm::fvec2 offset; // 플레이어 중심으로부터의 오프셋
-    float angle;       // 현재 회전 각도
-    float orbitRadius; // 궤도 반지름
-    float size;        // 구체 크기
-    int birthTime;     // 생성 시간
+    glm::fvec2 offset;
+    float angle;
+    float orbitRadius;
+    float size;
+    int birthTime;
 
     EnergyOrb(float startAngle, float radius, float sz, int currentTime);
     void updatePosition();
@@ -128,14 +124,14 @@ struct Player : Updatable, Drawable, Collidable {
     int coolTime = 0;
     bool isInvincible = false;
     int invincibilityEndTime = 0;
-    float tiltAngle = 0.0f;                             // Rotation angle for tilting
-    float targetTiltAngle = 0.0f;                       // Target angle for smooth transition
-    static constexpr int INVINCIBILITY_DURATION = 1200; // 1.2 seconds of invincibility
+    float tiltAngle = 0.0f;
+    float targetTiltAngle = 0.0f;
+    static constexpr int INVINCIBILITY_DURATION = 1200;
     bool isDying = false;
     int deathStartTime = 0;
     std::vector<PlayerFragment> fragments;
-    int bulletCount = 3;               // Number of bullets to fire at once
-    std::vector<EnergyOrb> energyOrbs; // 에너지 구체들
+    int bulletCount = 3;
+    std::vector<EnergyOrb> energyOrbs;
 
     Player(glm::fvec2 initialPosition);
 
@@ -155,8 +151,8 @@ struct BossMove {
     glm::fvec2 normalVector{};
     int travelTime;
     int initialTime;
-    std::function<float(float)> trajectory; // f(0) = 0, f(1) = 0
-    std::function<float(float)> portion;    // f(1) = 0, f(1) = 1
+    std::function<float(float)> trajectory;
+    std::function<float(float)> portion;
 
     template <Map00Fn TrajFn, Map01Fn PorFn>
     BossMove(glm::fvec2 origin, glm::fvec2 destination, int travelTime, int initialTime,
@@ -188,20 +184,16 @@ struct BossFragment : Drawable, Updatable {
     void draw(const GameState &) override;
 };
 struct BossArm : Drawable {
-    // 4개 관절 각도
-    float angles[4] = {0.0f}; // 어깨, 상완, 하완, 손목
-
-    // 세그먼트 길이
+    float angles[4] = {0.0f};
     float lengths[4] = {0.8f, 0.7f, 0.6f, 0.4f};
     float armWidth = 0.12f;
     glm::vec3 armColor = glm::vec3(0.7f, 0.2f, 0.9f);
 
-    // 각 보스마다 다른 특성
-    int bossId; // 1 또는 2
+    int bossId;
     bool isLeftArm;
-    float uniquePhase[4]; // 각 보스의 고유한 위상
-    float uniqueSpeed[4]; // 각 보스의 고유한 속도
-    float baseDirection;  // 기본 방향
+    float uniquePhase[4];
+    float uniqueSpeed[4];
+    float baseDirection;
 
     BossArm(bool isLeft, int boss);
     void update(float time);
@@ -220,8 +212,8 @@ struct Boss : Updatable, Drawable, Collidable {
     std::vector<BossFragment> fragments;
     BossArm leftArm{true, 1};
     BossArm rightArm{false, 1};
-    int lastHitTime = 0;       // 마지막 피격 시각
-    float hitIntensity = 0.0f; // 피격 강도 (시간에 따라 감쇠)
+    int lastHitTime = 0;
+    float hitIntensity = 0.0f;
 
     Boss(glm::fvec2 initialPosition, int id = 1);
 

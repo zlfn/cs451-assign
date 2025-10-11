@@ -12,7 +12,7 @@ GameState::GameState(int h, int bh)
       bossObject2(glm::fvec2(-0.5f, 0.6f), 2), bossHealthBarObject(glm::fvec2(0.0f, 0.0f)),
       heartsObject(glm::fvec2(0.0f, 0.0f)) {}
 
-float playerSpeedBase = 0.00065f; // f/ms
+float playerSpeedBase = 0.00065f;
 bool isCameraShake = false;
 int cameraShakeStartTime = 0;
 bool keyStates[256] = {false};
@@ -36,25 +36,20 @@ glm::fvec2 cameraShake(int currentTime) {
 
 GameState gameState(5, 1000);
 
-// Konami Command: up, up, down, down, left, right, left, right, B, A
-// This command is widely known in gaming culture for granting special
+// 코나미 커맨드: ↑↑↓↓←→←→BA
 CommandExecutor commandExecutor({'w', 'w', 's', 's', 'a', 'd', 'a', 'd', 'b', 'a'},
                                 [](GameState &gameState) {
-                                    // Prevent activation if player is dying
                                     if (gameState.playerObject.isDying)
                                         return;
-                                    // Activate Konami command effects
+
                                     gameState.MAX_PLAYER_HEALTH = 10;
                                     gameState.playerHealth = 10;
                                     gameState.konamiUsed = true;
 
-                                    // Grant 5 seconds of invincibility
                                     int currentTime = glutGet(GLUT_ELAPSED_TIME);
                                     gameState.playerObject.isInvincible = true;
                                     gameState.playerObject.invincibilityEndTime =
-                                        currentTime + 5000; // 5 seconds
-
-                                    // Upgrade to 5 bullets
+                                        currentTime + 5000;
                                     gameState.playerObject.bulletCount = 5;
 
                                     std::cout << "↑↑↓↓←→←→BA" << '\n';
@@ -77,7 +72,6 @@ void display() {
 
     gameState.backgroundObject.draw(gameState);
 
-    // Draw trail particles before bullets for better visual effect
     for (auto &particle : gameState.trailParticles) {
         particle.draw(gameState);
     }
@@ -113,12 +107,11 @@ void keyInputUpdate(int dt) {
         gameState.playerObject.move(glm::vec2(0.0f, playerSpeed));
     }
 
-    // Reset tilt angle when no left/right movement
     bool movingHorizontal = false;
 
     if (keyStates['a']) {
         gameState.playerObject.move(glm::vec2(-playerSpeed, 0.0f));
-        gameState.playerObject.targetTiltAngle = 25.0f; // Roll left when moving left
+        gameState.playerObject.targetTiltAngle = 25.0f;
         movingHorizontal = true;
     }
     if (keyStates['s']) {
@@ -126,11 +119,10 @@ void keyInputUpdate(int dt) {
     }
     if (keyStates['d']) {
         gameState.playerObject.move(glm::vec2(playerSpeed, 0.0f));
-        gameState.playerObject.targetTiltAngle = -25.0f; // Roll right when moving right
+        gameState.playerObject.targetTiltAngle = -25.0f;
         movingHorizontal = true;
     }
 
-    // Return to neutral position when not moving horizontally
     if (!movingHorizontal) {
         gameState.playerObject.targetTiltAngle = 0.0f;
     }
@@ -141,7 +133,7 @@ void keyInputUpdate(int dt) {
 }
 
 void timer(int) {
-    int now = glutGet(GLUT_ELAPSED_TIME); // Get Time in milliseconds.
+    int now = glutGet(GLUT_ELAPSED_TIME);
     static int lastMs = now;
 
     auto bossMoveData1 = getCurrentMove(now, gameState, 1);
@@ -180,7 +172,6 @@ void timer(int) {
 }
 
 void reshape(int width, int height) {
-    // Force window size to remain 800x800
     if (width != 800 || height != 800) {
         glutReshapeWindow(800, 800);
     }
@@ -192,9 +183,6 @@ int main(int argc, char **argv) {
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
     glutInitWindowSize(800, 800);
     glutCreateWindow("CSED451 Assn 2");
-
-    // Test GLM properly linked
-    glm::vec3 glmTest(1.0f, 0.0f, 0.0f);
 
     GLenum err = glewInit();
     if (err != GLEW_OK) {
