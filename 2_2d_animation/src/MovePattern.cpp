@@ -12,8 +12,8 @@ MoveFn boss1Move1 = [](int currentTime, GameState &gameState) {
 };
 MoveFn boss2Move1 = [](int currentTime, GameState &gameState) {
     const glm::fvec2 &cPos = gameState.bossObject2.currentPosition;
-    return BossMove(cPos, glm::fvec2(cPos.x, cPos.y - 1.0f), 3000,
-                    currentTime, zeroTrajectory, por1);
+    return BossMove(cPos, glm::fvec2(cPos.x, cPos.y - 1.0f), 3000, currentTime, zeroTrajectory,
+                    por1);
 };
 MoveFn boss1RandomMove = [](int currentTime, GameState &gameState) {
     float randomX = -1.8f + dist(gen) * 3.6f;
