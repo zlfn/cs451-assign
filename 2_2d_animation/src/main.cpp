@@ -81,7 +81,6 @@ void display() {
     for (auto &particle : gameState.trailParticles) {
         particle.draw(gameState);
     }
-
     for (auto &object : gameState.enemyBulletObjects) {
         object.draw(gameState);
     }

@@ -83,8 +83,8 @@ void EnergyOrb::draw(const GameState &) {
     glColor4f(1.0f, 0.3f, 0.0f, 0.0f); // 가장자리: 투명
     const int SEGMENTS = 12;
     for (int i = 0; i <= SEGMENTS; ++i) {
-        float segAngle = static_cast<float>(i) * 2.0f * std::numbers::pi_v<float> /
-                         static_cast<float>(SEGMENTS);
+        float segAngle =
+            static_cast<float>(i) * 2.0f * std::numbers::pi_v<float> / static_cast<float>(SEGMENTS);
         glVertex3f(1.5f * std::cos(segAngle), 1.5f * std::sin(segAngle), 0.0f);
     }
     glEnd();
@@ -96,8 +96,8 @@ void EnergyOrb::draw(const GameState &) {
 
     glColor4f(1.0f, 0.5f, 0.0f, 0.7f); // 가장자리: 어두운 주황색
     for (int i = 0; i <= SEGMENTS; ++i) {
-        float segAngle = static_cast<float>(i) * 2.0f * std::numbers::pi_v<float> /
-                         static_cast<float>(SEGMENTS);
+        float segAngle =
+            static_cast<float>(i) * 2.0f * std::numbers::pi_v<float> / static_cast<float>(SEGMENTS);
         glVertex3f(0.8f * std::cos(segAngle), 0.8f * std::sin(segAngle), 0.01f);
     }
     glEnd();
