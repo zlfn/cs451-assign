@@ -97,13 +97,14 @@ void PlayerFragment::draw(const GameState &) {
 
 Player::Player(glm::fvec2 initialPosition) : currentPosition(initialPosition) {}
 
+// 플레이어 사망 애니메이션 시작
 void Player::startDeathAnimation(int currentTime) {
     if (isDying)
         return;
     isDying = true;
     deathStartTime = currentTime;
 
-    // Create fragments
+    // 파편 생성
     std::uniform_real_distribution<float> speedDist(0.4f, 1.5f);
     std::uniform_real_distribution<float> angleDist(0.0f, 2.0f * std::numbers::pi_v<float>);
     std::uniform_real_distribution<float> rotSpeedDist(-360.0f, 360.0f);
@@ -118,21 +119,21 @@ void Player::startDeathAnimation(int currentTime) {
 
         glm::fvec3 color;
         if (i % 3 == 0) {
-            color = glm::fvec3(1.0f, 1.0f, 0.0f); // Yellow
+            color = glm::fvec3(1.0f, 1.0f, 0.0f);
         } else if (i % 3 == 1) {
-            color = glm::fvec3(1.0f, 0.6f, 0.0f); // Orange
+            color = glm::fvec3(1.0f, 0.6f, 0.0f);
         } else {
-            color = glm::fvec3(1.0f, 0.8f, 0.2f); // Light orange
+            color = glm::fvec3(1.0f, 0.8f, 0.2f);
         }
 
         fragments.emplace_back(currentPosition, vel, 0.0f, rotSpeed, size, color);
     }
 }
 
+// 에너지 구체 업데이트
 void Player::updateEnergyOrbs(int currentHealth, int currentTime) {
     int currentOrbCount = static_cast<int>(energyOrbs.size());
 
-    // 체력 변화에 따른 구체 개수 변화
     if (currentHealth > currentOrbCount) {
         for (int i = currentOrbCount; i < currentHealth; ++i) {
             float startAngle = static_cast<float>(i) * 2.0f * std::numbers::pi_v<float> /
@@ -143,7 +144,7 @@ void Player::updateEnergyOrbs(int currentHealth, int currentTime) {
         energyOrbs.erase(energyOrbs.begin() + currentHealth, energyOrbs.end());
     }
 
-    // 구체 배치
+    // 구체 회전 및 배치
     for (int i = 0; i < static_cast<int>(energyOrbs.size()); ++i) {
         float baseAngle = static_cast<float>(i) * 2.0f * std::numbers::pi_v<float> /
                           static_cast<float>(energyOrbs.size());
@@ -152,7 +153,7 @@ void Player::updateEnergyOrbs(int currentHealth, int currentTime) {
 
         energyOrbs[i].angle = baseAngle + globalRotation;
 
-        // 정규화
+        // 각도 정규화
         while (energyOrbs[i].angle > 2.0f * std::numbers::pi_v<float>) {
             energyOrbs[i].angle -= 2.0f * std::numbers::pi_v<float>;
         }
@@ -160,18 +161,18 @@ void Player::updateEnergyOrbs(int currentHealth, int currentTime) {
             energyOrbs[i].angle += 2.0f * std::numbers::pi_v<float>;
         }
 
-        energyOrbs[i].updatePosition(); // 위치 업데이트
+        energyOrbs[i].updatePosition();
     }
 }
 bool Player::update(int currentTime, GameState &gameState) {
     if (isDying) {
-        // Update fragments
+        // 파편 업데이트
         int deltaTime = currentTime - deathStartTime;
         std::erase_if(fragments, [deltaTime, &gameState](auto &fragment) {
             return fragment.update(deltaTime, gameState);
         });
 
-        // Exit game after 4 seconds
+        // 4초 후 게임 종료
         if ((currentTime - deathStartTime) > 4000) {
             std::cout << "Game Over! Exiting...\n";
             std::exit(0);
@@ -180,14 +181,14 @@ bool Player::update(int currentTime, GameState &gameState) {
         return false;
     }
 
-    // Check if player should die
+    // 플레이어가 죽어야 하는지 확인
     if (gameState.playerHealth <= 0 && !isDying) {
         startDeathAnimation(currentTime);
         startCameraShake(currentTime);
         return false;
     }
 
-    // Check if invincibility period has ended
+    // 무적 시간 종료 확인
     if (isInvincible && currentTime >= invincibilityEndTime) {
         isInvincible = false;
     }
@@ -199,16 +200,16 @@ bool Player::update(int currentTime, GameState &gameState) {
         tiltAngle = targetTiltAngle;
     }
 
+    // 총알 발사
     if (currentTime >= this->coolTime && this->isBullet) {
-        // Fire bullets dynamically based on bulletCount
-        float spacing = 0.03f; // Base spacing between bullets
+        float spacing = 0.03f;
         float totalWidth = spacing * static_cast<float>(bulletCount - 1);
         float startX = -totalWidth / 2.0f;
-        float yForwardOffset = 0.04f; // How far forward the center bullet is
+        float yForwardOffset = 0.04f; // 중앙 총알이 더 앞으로
 
         for (int i = 0; i < bulletCount; ++i) {
             float xOffset = startX + (spacing * static_cast<float>(i));
-            // Calculate Y offset - center bullets are more forward
+            // 중앙 총알일수록 더 앞으로 배치
             float centerDistance =
                 std::abs(static_cast<float>(i) - static_cast<float>(bulletCount - 1) / 2.0f);
             float normalizedDistance =
@@ -246,12 +247,11 @@ void Player::tryAttack() {
 }
 void Player::draw(const GameState &gameState) {
     if (isDying) {
-        // 파편은 그대로(파편 내부에서 동일한 방식으로 모델행렬 쓰는 게 이상적)
         for (auto &fragment : fragments) {
             fragment.draw(gameState);
         }
 
-        // 폭발 효과: 원점 단위 원을 그리고 모델 행렬로 위치/스케일 적용
+        // 폭발 효과
         int currentTime = glutGet(GLUT_ELAPSED_TIME);
         float timeSinceDeath = static_cast<float>(currentTime - deathStartTime) * 0.001f;
 
@@ -318,11 +318,11 @@ void Player::draw(const GameState &gameState) {
 }
 void Player::move(glm::fvec2 deltaPosition) {
     if (isDying)
-        return; // No movement when dying
+        return;
 
     currentPosition += deltaPosition;
 
-    // Clamp
+    // 위치 제한
     if (currentPosition.x < -2.0f)
         currentPosition.x = -2.0f;
     if (currentPosition.x > 2.0f)
@@ -340,7 +340,6 @@ void Player::takeDamage(int currentTime) {
 }
 CollisionShape Player::getShape() const {
     if (isDying) {
-        // No collision when dying
         return CollisionCircle(glm::fvec2(-999.0f, -999.0f), 0.0f);
     }
     return CollisionRectangle(currentPosition - glm::fvec2(0.015f, 0.015f + 0.025f),
