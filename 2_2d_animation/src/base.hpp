@@ -134,7 +134,7 @@ struct Player : Updatable, Drawable, Collidable {
     bool isDying = false;
     int deathStartTime = 0;
     std::vector<PlayerFragment> fragments;
-    int bulletCount = 3; // Number of bullets to fire at once
+    int bulletCount = 3;               // Number of bullets to fire at once
     std::vector<EnergyOrb> energyOrbs; // 에너지 구체들
 
     Player(glm::fvec2 initialPosition);
@@ -220,14 +220,19 @@ struct Boss : Updatable, Drawable, Collidable {
     std::vector<BossFragment> fragments;
     BossArm leftArm{true, 1};
     BossArm rightArm{false, 1};
+    int lastHitTime = 0;       // 마지막 피격 시각
+    float hitIntensity = 0.0f; // 피격 강도 (시간에 따라 감쇠)
 
     Boss(glm::fvec2 initialPosition, int id = 1);
 
+    void takeDamage(int currentTime);
     void startDeathAnimation(int currentTime);
     bool update(int currentTime, GameState &gameState) override;
     static void drawUnitCircleFan(int seg, float z, const glm::vec4 &centerRGBA,
                                   const glm::vec4 &edgeRGBA);
     static void drawUnitOctagonFan(float z, const glm::vec4 &centerRGBA, const glm::vec4 &edgeRGBA);
+    void drawWobblyOctagonFan(float z, const glm::vec4 &centerRGBA, const glm::vec4 &edgeRGBA,
+                              float wobbleAmount);
     static void drawUnitSpikeTri(float rOuter, float rInner, float z, const glm::vec4 &innerRGBA,
                                  const glm::vec4 &tipRGBA);
     void draw(const GameState &gameState) override;

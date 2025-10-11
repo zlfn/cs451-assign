@@ -11,9 +11,7 @@ void EnergyOrb::updatePosition() {
     offset.y = orbitRadius * std::sin(angle);
 }
 
-bool EnergyOrb::update(int currentTime, GameState &) {
-    return false;
-}
+bool EnergyOrb::update(int currentTime, GameState &) { return false; }
 
 void EnergyOrb::draw(const GameState &) {
     const glm::fvec2 VIEW_POS = offset;
