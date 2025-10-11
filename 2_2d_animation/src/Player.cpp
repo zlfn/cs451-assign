@@ -1,6 +1,65 @@
 #include "base.hpp"
 #include "utils.hpp"
 
+EnergyOrb::EnergyOrb(float startAngle, float radius, float sz, int currentTime)
+    : offset(0.0f, 0.0f), angle(startAngle), orbitRadius(radius), size(sz), birthTime(currentTime) {
+    updatePosition();
+}
+
+void EnergyOrb::updatePosition() {
+    offset.x = orbitRadius * std::cos(angle);
+    offset.y = orbitRadius * std::sin(angle);
+}
+
+bool EnergyOrb::update(int currentTime, GameState &) {
+    // 각도는 Player::updateEnergyOrbs에서 관리되므로 여기서는 위치만 업데이트
+    updatePosition();
+    return false; // 에너지 구체는 자동으로 사라지지 않음
+}
+
+void EnergyOrb::draw(const GameState &) {
+    const glm::fvec2 VIEW_POS = offset;
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+
+    glPushMatrix();
+    glTranslatef(VIEW_POS.x, VIEW_POS.y, 0.1f);
+    glScalef(size, size, 1.0f);
+
+    glBegin(GL_TRIANGLE_FAN);
+    glColor4f(1.0f, 0.5f, 0.0f, 0.3f);
+    glVertex3f(0.0f, 0.0f, 0.0f);
+
+    const int OUTER_SEGMENTS = 8;
+    for (int i = 0; i <= OUTER_SEGMENTS; ++i) {
+        float angle = static_cast<float>(i) * 2.0f * std::numbers::pi_v<float> /
+                      static_cast<float>(OUTER_SEGMENTS);
+        float colorVariation = 0.2f + 0.1f * std::sin(angle * 2.0f);
+        glColor4f(1.0f, colorVariation, 0.0f, 0.0f);
+        glVertex3f(1.5f * std::cos(angle), 1.5f * std::sin(angle), 0.0f);
+    }
+    glEnd();
+
+    glBegin(GL_TRIANGLE_FAN);
+    glColor4f(1.0f, 0.8f, 0.2f, 0.9f);
+    glVertex3f(0.0f, 0.0f, 0.01f);
+
+    const int INNER_SEGMENTS = 8;
+    for (int i = 0; i <= INNER_SEGMENTS; ++i) {
+        float angle = static_cast<float>(i) * 2.0f * std::numbers::pi_v<float> /
+                      static_cast<float>(INNER_SEGMENTS);
+        float colorVariation = 0.4f + 0.1f * std::sin(angle * 3.0f);
+        float alphaVariation = 0.7f + 0.1f * std::cos(angle * 2.0f);
+        glColor4f(1.0f, colorVariation, 0.0f, alphaVariation);
+        glVertex3f(0.8f * std::cos(angle), 0.8f * std::sin(angle), 0.01f);
+    }
+    glEnd();
+
+    glPopMatrix();
+    glDisable(GL_BLEND);
+}
+
 PlayerFragment::PlayerFragment(glm::fvec2 pos, glm::fvec2 vel, float rot, float rotSpeed, float sz,
                                glm::fvec3 col)
     : position(pos), velocity(vel), rotation(rot), rotationSpeed(rotSpeed), size(sz), alpha(1.0f),
@@ -74,6 +133,40 @@ void Player::startDeathAnimation(int currentTime) {
     }
 }
 
+void Player::updateEnergyOrbs(int currentHealth, int currentTime) {
+    int currentOrbCount = static_cast<int>(energyOrbs.size());
+
+    // 체력 변화에 따른 구체 개수 변화
+    if (currentHealth > currentOrbCount) {
+        for (int i = currentOrbCount; i < currentHealth; ++i) {
+            float startAngle = static_cast<float>(i) * 2.0f * std::numbers::pi_v<float> /
+                               static_cast<float>(currentHealth);
+            energyOrbs.emplace_back(startAngle, 0.6f, 0.2f, currentTime);
+        }
+    } else if (currentHealth < currentOrbCount) {
+        energyOrbs.erase(energyOrbs.begin() + currentHealth, energyOrbs.end());
+    }
+
+    // 구체 배치
+    for (int i = 0; i < static_cast<int>(energyOrbs.size()); ++i) {
+        float baseAngle = static_cast<float>(i) * 2.0f * std::numbers::pi_v<float> /
+                          static_cast<float>(energyOrbs.size());
+        float rotationSpeed = std::numbers::pi_v<float> / 2.0f;
+        float globalRotation = rotationSpeed * static_cast<float>(currentTime) * 0.001f;
+
+        energyOrbs[i].angle = baseAngle + globalRotation;
+
+        // 정규화
+        while (energyOrbs[i].angle > 2.0f * std::numbers::pi_v<float>) {
+            energyOrbs[i].angle -= 2.0f * std::numbers::pi_v<float>;
+        }
+        while (energyOrbs[i].angle < 0.0f) {
+            energyOrbs[i].angle += 2.0f * std::numbers::pi_v<float>;
+        }
+
+        energyOrbs[i].updatePosition(); // 위치 업데이트
+    }
+}
 bool Player::update(int currentTime, GameState &gameState) {
     if (isDying) {
         // Update fragments
@@ -133,6 +226,8 @@ bool Player::update(int currentTime, GameState &gameState) {
         this->isBullet = false;
         this->coolTime = currentTime + 100;
     }
+
+    updateEnergyOrbs(gameState.playerHealth, currentTime);
 
     glm::fvec2 &cbo = gameState.cameraBaseOffset;
     if (cbo.x - currentPosition.x >= 0.6) {
@@ -217,6 +312,10 @@ void Player::draw(const GameState &gameState) {
         glDisable(GL_BLEND);
     } else {
         drawSpaceship(glm::fvec2(0.0f, 0.0f), 1.0f, glm::fvec4(1.0f, 1.0f, 0.0f, 1.0f));
+    }
+
+    for (auto &orb : energyOrbs) {
+        orb.draw(gameState);
     }
 
     glPopMatrix();
