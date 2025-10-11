@@ -45,7 +45,7 @@ int random2Iteration = 0;
 std::optional<BossMove> getCurrentMove(int currentTime, GameState &gameState, int bossNum) {
     std::size_t &bossMoveListCounter = (bossNum == 1) ? boss1MoveListCounter : boss2MoveListCounter;
     int &randomIteration = (bossNum == 1) ? random1Iteration : random2Iteration;
-    int randomPeriod = (bossNum == 1) ? 5000 : 3000; 
+    int randomPeriod = (bossNum == 1) ? 5000 : 3000;
     const std::vector<MoveEntry> &currentBossMoveList =
         (bossNum == 1) ? BOSS_MOVE_LIST1 : BOSS_MOVE_LIST2;
 

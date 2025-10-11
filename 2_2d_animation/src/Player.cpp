@@ -133,17 +133,17 @@ bool Player::update(int currentTime, GameState &gameState) {
         this->isBullet = false;
         this->coolTime = currentTime + 100;
     }
-    
+
     glm::fvec2 &cbo = gameState.cameraBaseOffset;
     if (cbo.x - currentPosition.x >= 0.6) {
-        cbo.x = currentPosition.x + 0.6;
+        cbo.x = currentPosition.x + 0.6f;
     } else if (cbo.x - currentPosition.x <= -0.6) {
-        cbo.x = currentPosition.x - 0.6;
+        cbo.x = currentPosition.x - 0.6f;
     }
     if (cbo.y - currentPosition.y >= 0.6) {
-        cbo.y = currentPosition.y + 0.6;
+        cbo.y = currentPosition.y + 0.6f;
     } else if (cbo.y - currentPosition.y <= 0.2) {
-        cbo.y = currentPosition.y + 0.2;
+        cbo.y = currentPosition.y + 0.2f;
     }
 
     return false;
@@ -172,8 +172,7 @@ void Player::draw(const GameState &gameState) {
             float alpha = 1.0f - timeSinceDeath * 0.83f;
 
             // M = T(pos - camera) * S(explosionSize)
-            glm::mat4 m =
-                glm::translate(glm::mat4(1.0f), glm::vec3(currentPosition, 0.0f));
+            glm::mat4 m = glm::translate(glm::mat4(1.0f), glm::vec3(currentPosition, 0.0f));
             m = glm::scale(m, glm::vec3(explosionSize, explosionSize, 1.0f));
 
             glPushMatrix();

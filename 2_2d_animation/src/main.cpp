@@ -8,9 +8,9 @@ std::uniform_real_distribution<float> dist(0.0f, 1.0f);
 GameState::GameState(int h, int bh)
     : MAX_PLAYER_HEALTH(h), MAX_BOSS_HEALTH(bh), playerHealth(h), bossHealth(bh),
       cameraBaseOffset(0.0f, 0.0f), cameraShakeOffset(0.0f, 0.0f),
-      playerObject(glm::fvec2(0.0f, -0.8f)),
-      bossObject1(glm::fvec2(0.5f, 0.6f), 1), bossObject2(glm::fvec2(-0.5f, 0.6f), 2),
-      bossHealthBarObject(glm::fvec2(0.0f, 0.0f)), heartsObject(glm::fvec2(0.0f, 0.0f)) {}
+      playerObject(glm::fvec2(0.0f, -0.8f)), bossObject1(glm::fvec2(0.5f, 0.6f), 1),
+      bossObject2(glm::fvec2(-0.5f, 0.6f), 2), bossHealthBarObject(glm::fvec2(0.0f, 0.0f)),
+      heartsObject(glm::fvec2(0.0f, 0.0f)) {}
 
 float playerSpeedBase = 0.00065f; // f/ms
 bool isCameraShake = false;

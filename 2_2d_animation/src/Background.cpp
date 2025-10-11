@@ -65,17 +65,17 @@ static void drawWorldBorder() {
     glLineWidth(5.0f);
 
     glBegin(GL_LINES);
-        glVertex2f(-2.0f, -2.0f);
-        glVertex2f(-2.0f, 2.0f);
+    glVertex2f(-2.0f, -2.0f);
+    glVertex2f(-2.0f, 2.0f);
 
-        glVertex2f(-2.0f, 2.0f);
-        glVertex2f(2.0f, 2.0f);
+    glVertex2f(-2.0f, 2.0f);
+    glVertex2f(2.0f, 2.0f);
 
-        glVertex2f(2.0f, 2.0f);
-        glVertex2f(2.0f, -2.0f);
+    glVertex2f(2.0f, 2.0f);
+    glVertex2f(2.0f, -2.0f);
 
-        glVertex2f(2.0f, -2.0f);
-        glVertex2f(-2.0f, -2.0f);
+    glVertex2f(2.0f, -2.0f);
+    glVertex2f(-2.0f, -2.0f);
     glEnd();
 }
 
