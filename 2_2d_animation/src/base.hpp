@@ -14,6 +14,7 @@
 #include <vector>
 #include <random>
 #include <iomanip>
+#include <memory>
 #include "collision.hpp"
 #include "utils.hpp"
 
@@ -93,6 +94,19 @@ struct PlayerBullet : Updatable, Drawable, Collidable {
     void draw(const GameState &gameState) override;
     CollisionShape getShape() const override;
 };
+
+struct EnergyOrb : Drawable, Updatable {
+    glm::fvec2 offset; // 플레이어 중심으로부터의 오프셋
+    float angle;       // 현재 회전 각도
+    float orbitRadius; // 궤도 반지름
+    float size;        // 구체 크기
+    int birthTime;     // 생성 시간
+
+    EnergyOrb(float startAngle, float radius, float sz, int currentTime);
+    void updatePosition();
+    bool update(int currentTime, GameState &) override;
+    void draw(const GameState &) override;
+};
 struct PlayerFragment : Drawable, Updatable {
     glm::fvec2 position;
     glm::fvec2 velocity;
@@ -121,9 +135,11 @@ struct Player : Updatable, Drawable, Collidable {
     int deathStartTime = 0;
     std::vector<PlayerFragment> fragments;
     int bulletCount = 3; // Number of bullets to fire at once
+    std::vector<EnergyOrb> energyOrbs; // 에너지 구체들
 
     Player(glm::fvec2 initialPosition);
 
+    void updateEnergyOrbs(int currentHealth, int currentTime);
     void startDeathAnimation(int currentTime);
     void tryAttack();
     bool update(int currentTime, GameState &gameState) override;

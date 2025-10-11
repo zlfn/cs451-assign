@@ -24,8 +24,8 @@ void BossFragment::draw(const GameState &) {
     glRotatef(rotation, 0.0f, 0.0f, 1.0f);      // 회전
     glScalef(size, size, 1.0f);                 // 크기 (행렬로 처리)
 
-    // 원점 기준 단위 정삼각형: (0,1), (-√3/2,-1/2), (√3/2,-1/2)
-    constexpr float H = 0.8660254f; // √3/2
+    // 원점 기준 단위 정삼각형: (0,1), (-sqrt{3}/2,-1/2), (sqrt{3}/2,-1/2)
+    constexpr float H = 0.8660254f; // sqrt{3}/2
 
     glBegin(GL_TRIANGLES);
     glColor4f(color.r, color.g, color.b, alpha);
@@ -281,7 +281,7 @@ void Boss::draw(const GameState &gameState) {
             glBlendFunc(GL_SRC_ALPHA, GL_ONE); // 가산 혼합 유지
 
             const float EXPLOSION_SIZE = 0.3f * (1.0f + DT * 2.0f); // 느리게 팽창
-            const float A = 1.0f - DT * 0.67f;                      // 느리게 페이드
+            const float A = 1.0f - DT * 0.67f; // 느리게 페이드
 
             glPushMatrix();
             glTranslatef(currentPosition.x, currentPosition.y, 0.f);
