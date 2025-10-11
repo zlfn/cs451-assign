@@ -10,7 +10,7 @@ Enter-VsDevShell -VsInstallPath "C:\Program Files\Microsoft Visual Studio\2022\C
 Set-Location $currentDir
 
 # Build main executable
-cl src\main.cpp /EHsc /std:c++20 /D "NDEBUG" /I ..\win-x64-msvc\include /I src /Fo"build\\" /Fe"build\2_2d_animation.exe" /Fd"build\vc.pdb" /link /LIBPATH:..\win-x64-msvc\lib freeglut.lib glew32.lib opengl32.lib
+cl src\*.cpp /EHsc /std:c++20 /D "NDEBUG" /I ..\win-x64-msvc\include /I src /Fo"build\\" /Fe"build\2_2d_animation.exe" /Fd"build\vc.pdb" /link /LIBPATH:..\win-x64-msvc\lib freeglut.lib glew32.lib opengl32.lib
 
 $env:Path = $env:Path + ";$currentDir\..\win-x64-msvc\bin"
 
