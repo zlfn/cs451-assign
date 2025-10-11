@@ -199,7 +199,7 @@ struct BossArm : Drawable {
     void update(float time);
     void drawSegment(float length, float width, float brightness);
     void drawJoint(float size);
-    void draw(const GameState &gameState) override;
+    void draw(const GameState &) override;
 };
 struct Boss : Updatable, Drawable, Collidable {
     glm::fvec2 currentPosition;

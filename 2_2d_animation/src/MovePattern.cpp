@@ -1,32 +1,33 @@
 #include "base.hpp"
 
 // 궤적 함수 정의
-auto traj1 = [](float u) { return u * (1.0f - u); };
 auto por1 = [](float t) { return float(3 * t * t - 2 * t * t * t); };
-auto zeroTraj = [](float u) { return 0.0f; };
+auto zeroTrajectory = [](float u) { return 0.0f; };
 
 // 보스 움직임 패턴
 MoveFn boss1Move1 = [](int currentTime, GameState &gameState) {
-    return BossMove(gameState.bossObject1.currentPosition, glm::fvec2(0.0f, 0.0f), 3000,
-                    currentTime, traj1, por1);
+    const glm::fvec2 &cPos = gameState.bossObject1.currentPosition;
+    return BossMove(cPos, glm::fvec2(cPos.x, cPos.y - 1.0f), 3000, currentTime, zeroTrajectory,
+                    por1);
 };
 MoveFn boss2Move1 = [](int currentTime, GameState &gameState) {
-    return BossMove(gameState.bossObject2.currentPosition, glm::fvec2(0.0f, 0.6f), 3000,
-                    currentTime, traj1, por1);
+    const glm::fvec2 &cPos = gameState.bossObject2.currentPosition;
+    return BossMove(cPos, glm::fvec2(cPos.x, cPos.y - 1.0f), 3000,
+                    currentTime, zeroTrajectory, por1);
 };
 MoveFn boss1RandomMove = [](int currentTime, GameState &gameState) {
     float randomX = -1.8f + dist(gen) * 3.6f;
     float randomY = -1.2f + dist(gen) * 3.9f;
 
     return BossMove(gameState.bossObject1.currentPosition, glm::fvec2(randomX, randomY), 2000,
-                    currentTime, zeroTraj, por1);
+                    currentTime, zeroTrajectory, por1);
 };
 MoveFn boss2RandomMove = [](int currentTime, GameState &gameState) {
     float randomX = -1.3f + dist(gen) * 2.6f;
     float randomY = -0.9f + dist(gen) * 1.8f;
 
     return BossMove(gameState.bossObject2.currentPosition, glm::fvec2(randomX, randomY), 1000,
-                    currentTime, zeroTraj, por1);
+                    currentTime, zeroTrajectory, por1);
 };
 
 // 보스별 움직임 리스트
