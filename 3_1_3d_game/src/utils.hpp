@@ -48,3 +48,4 @@ struct ThreeDObj {
     void setColor(const glm::vec3 &color);
     void draw();
 };
+
