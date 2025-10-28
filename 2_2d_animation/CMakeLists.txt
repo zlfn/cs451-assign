@@ -10,6 +10,7 @@ target_sources(2_2d_animation PRIVATE
     src/MovePattern.cpp
     src/Boss.cpp
     src/HealthBar.cpp
+    src/BossIndicator.cpp
     src/Background.cpp
     src/CommandExecuter.cpp
     src/utils.cpp

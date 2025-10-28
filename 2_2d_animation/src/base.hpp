@@ -246,6 +246,13 @@ struct BossHealthBar : Drawable {
     void draw(const GameState &gameState) override;
 };
 
+struct BossIndicator : Drawable {
+    BossIndicator();
+
+    void drawArrow(float x, float y, float angle, float size, glm::fvec4 color);
+    void draw(const GameState &gameState) override;
+};
+
 struct Star : Drawable, Updatable {
     glm::fvec2 position;
     float speed;
@@ -283,6 +290,7 @@ struct GameState {
     Boss bossObject2;
     BossHealthBar bossHealthBarObject;
     PlayerHealthBar heartsObject;
+    BossIndicator bossIndicatorObject;
     Background backgroundObject;
 
     std::vector<PlayerBullet> playerBulletObjects;

@@ -17,7 +17,7 @@ MoveFn boss2Move1 = [](int currentTime, GameState &gameState) {
 };
 MoveFn boss1RandomMove = [](int currentTime, GameState &gameState) {
     float randomX = -1.8f + dist(gen) * 3.6f;
-    float randomY = -1.2f + dist(gen) * 3.9f;
+    float randomY = -1.2f + dist(gen) * 3.0f;
 
     return BossMove(gameState.bossObject1.currentPosition, glm::fvec2(randomX, randomY), 2000,
                     currentTime, zeroTrajectory, por1);
