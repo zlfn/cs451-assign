@@ -10,11 +10,11 @@ Enter-VsDevShell -VsInstallPath "C:\Program Files\Microsoft Visual Studio\2022\C
 Set-Location $currentDir
 
 # Build main executable
-cl src\*.cpp /EHsc /std:c++20 /D "NDEBUG" /I ..\win-x64-msvc\include /I src /Fo"build\\" /Fe"build\2_2d_animation.exe" /Fd"build\vc.pdb" /link /LIBPATH:..\win-x64-msvc\lib freeglut.lib glew32.lib opengl32.lib
+cl src\*.cpp /EHsc /std:c++20 /D "NDEBUG" /I ..\win-x64-msvc\include /I src /Fo"build\\" /Fe"build\3_1_3d_game.exe" /Fd"build\vc.pdb" /link /LIBPATH:..\win-x64-msvc\lib freeglut.lib glew32.lib opengl32.lib
 
 $env:Path = $env:Path + ";$currentDir\..\win-x64-msvc\bin"
 
 # Run main program
-Write-Host "Running 2_2d_animation..."
-.\build\2_2d_animation.exe
-Write-Host "2_2d_animation exited."
+Write-Host "Running 3_1_3d_game..."
+.\build\3_1_3d_game.exe
+Write-Host "3_1_3d_game exited."

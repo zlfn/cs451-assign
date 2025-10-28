@@ -1,6 +1,8 @@
 #include "base.hpp"
 #include "utils.hpp"
 
+ThreeDObj paperPlaneObj = ThreeDObj("assets/drone.obj");
+
 EnergyOrb::EnergyOrb(float startAngle, float radius, float sz, int currentTime)
     : offset(0.0f, 0.0f), angle(startAngle), orbitRadius(radius), size(sz), birthTime(currentTime) {
     updatePosition();
@@ -290,12 +292,12 @@ void Player::draw(const GameState &gameState) {
     // 우주선: drawSpaceship을 원점/단위 스케일 기준으로 호출하고,
     // 모델 행렬로 위치/회전/스케일을 적용
     // M = T(current - camera) * R_y(tiltAngle) * S(0.14)
-    glm::mat4 m = glm::translate(glm::mat4(1.0f), glm::vec3(currentPosition, 0.0f));
-    m = glm::rotate(m, glm::radians(tiltAngle), glm::vec3(0.0f, 1.0f, 0.0f));
-    m = glm::scale(m, glm::vec3(0.14f, 0.14f, 0.14f));
 
     glPushMatrix();
-    glMultMatrixf(glm::value_ptr(m));
+    glTranslatef(currentPosition.x, currentPosition.y, 0.0f);
+    glRotatef(-90.0f, 1.0f, 0.0f, 0.0f);
+    glRotatef(-90.0f, 0.0f, 1.0f, 0.0f);
+    glScalef(3.0f, 3.0f, 3.0f);
 
     if (isInvincible) {
         float alpha =
@@ -304,15 +306,17 @@ void Player::draw(const GameState &gameState) {
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         // 로컬 기준으로 그리기 (원점, 단위 스케일)
-        drawSpaceship(glm::fvec2(0.0f, 0.0f), 1.0f, glm::fvec4(1.0f, 1.0f, 0.0f, alpha));
+        paperPlaneObj.draw();
         glDisable(GL_BLEND);
     } else {
-        drawSpaceship(glm::fvec2(0.0f, 0.0f), 1.0f, glm::fvec4(1.0f, 1.0f, 0.0f, 1.0f));
+        paperPlaneObj.draw();
     }
 
+    /*
     for (auto &orb : energyOrbs) {
         orb.draw(gameState);
     }
+    */
 
     glPopMatrix();
 }

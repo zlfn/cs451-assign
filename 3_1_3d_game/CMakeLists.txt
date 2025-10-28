@@ -16,7 +16,7 @@ target_sources(3_1_3d_game PRIVATE
 )
 
 # Add local include directories for GLM and other headers
-target_include_directories(2_2d_animation PRIVATE 
+target_include_directories(3_1_3d_game PRIVATE 
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/../win-x64-msvc/include
 )

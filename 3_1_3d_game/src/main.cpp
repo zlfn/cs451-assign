@@ -65,13 +65,15 @@ void display() {
 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    glOrtho(-1.0 + cbo.x, 1.0 + cbo.x, -1.0 + cbo.y, 1.0 + cbo.y, -1.0, 1.0);
+    glFrustum(-0.5f, 0.5f, -0.5f, 0.5f, 1.0f, 20.0f);
     glPushMatrix();
-    glTranslatef(-gameState.cameraShakeOffset.x, -gameState.cameraShakeOffset.y, 0.0f);
     glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+    glTranslatef(0.0f, 0.0f, -3.0f);
+    // glRotatef(-90.0f, 1.0f, 0.0f, 0.0f);
+    // glTranslatef(-gameState.cameraShakeOffset.x - cbo.x, -gameState.cameraShakeOffset.y - cbo.y, 0.0f);
 
     gameState.backgroundObject.draw(gameState);
-
     for (auto &particle : gameState.trailParticles) {
         particle.draw(gameState);
     }
@@ -85,6 +87,7 @@ void display() {
     gameState.playerObject.draw(gameState);
     gameState.bossObject1.draw(gameState);
     gameState.bossObject2.draw(gameState);
+    gameState.playerObject.draw(gameState);
 
     glMatrixMode(GL_PROJECTION);
     glPopMatrix();
