@@ -1,7 +1,7 @@
-# Create 1_2d_game executable
-add_gl_executable_single_file(2_2d_animation src/main.cpp)
+# Create 3_1_3d_game executable
+add_gl_executable_single_file(3_1_3d_game src/main.cpp)
 
-target_sources(2_2d_animation PRIVATE
+target_sources(3_1_3d_game PRIVATE
     src/TrailParticle.cpp
     src/Bullet.cpp
     src/BulletPattern.cpp
