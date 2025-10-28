@@ -1,6 +1,80 @@
 #include "base.hpp"
 #include "utils.hpp"
 
+ThreeDObj::ThreeDObj(const std::string filePath)
+    : objectColor(1.0f, 1.0f, 1.0f) // 흰색
+{
+    try {
+        getObjFile(filePath);
+    } catch (const std::exception &e) {
+        std::cerr << "Error loading object: " << e.what() << std::endl;
+    }
+}
+
+void ThreeDObj::getObjFile(const std::string filePath) {
+    std::ifstream file(filePath);
+    if (!file.is_open()) {
+        throw std::runtime_error("Failed to open file: " + filePath);
+    }
+
+    baseVertices.clear();
+    indices.clear();
+    std::string line;
+
+    while (std::getline(file, line)) {
+        std::stringstream ss(line);
+        std::string prefix;
+        ss >> prefix;
+
+        if (prefix == "v") {
+            glm::vec3 vertex;
+            ss >> vertex.x >> vertex.y >> vertex.z;
+            baseVertices.push_back(vertex);
+
+        } else if (prefix == "f") {
+            std::vector<unsigned int> faceIndices;
+            std::string vertexToken;
+            while (ss >> vertexToken) {
+                std::stringstream tokenSS(vertexToken);
+                std::string indexStr;
+                std::getline(tokenSS, indexStr, '/');
+                faceIndices.push_back(std::stoul(indexStr) - 1);
+            }
+
+            for (size_t i = 1; i < faceIndices.size() - 1; ++i) {
+                indices.push_back(faceIndices[0]);
+                indices.push_back(faceIndices[i]);
+                indices.push_back(faceIndices[i + 1]);
+            }
+        }
+    }
+    file.close();
+    std::cout << "Loaded " << baseVertices.size() << " vertices, " << (indices.size() / 3)
+              << " triangles from " << filePath << std::endl;
+}
+
+void ThreeDObj::setColor(const glm::vec3 &color) { objectColor = color; }
+
+void ThreeDObj::draw() {
+    if (baseVertices.empty() || indices.empty()) {
+        return;
+    }
+
+    glColor3f(objectColor.x, objectColor.y, objectColor.z);
+
+    // 삼각형 와이어프레임 그리기
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    glBegin(GL_TRIANGLES);
+    {
+        for (unsigned int index : indices) {
+            const glm::vec3 &vertex = baseVertices[index];
+            glVertex3f(vertex.x, vertex.y, vertex.z);
+        }
+    }
+    glEnd();
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+}
+
 void showVictoryScreen(const GameState &gameState) {
     int elapsedTime = glutGet(GLUT_ELAPSED_TIME);
     int seconds = elapsedTime / 1000;

@@ -4,6 +4,11 @@
 #include <numbers>
 #include <algorithm>
 #include <random>
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <vector>
 
 extern std::random_device rd;
 extern std::mt19937 gen;
@@ -31,3 +36,16 @@ concept Map01Fn = requires {
     { F{}(0.0f) } -> std::same_as<float>;
     { F{}(1.0f) } -> std::same_as<float>;
 } && approxEqual(F{}(0.0f), 0.0f) && approxEqual(F{}(1.0f), 1.0f);
+
+struct ThreeDObj {
+    std::vector<glm::vec3> baseVertices;
+    std::vector<unsigned int> indices;
+    glm::vec3 objectColor;
+
+    ThreeDObj(const std::string filePath);
+
+    void getObjFile(const std::string filePath);
+    void setColor(const glm::vec3 &color);
+    void draw();
+};
+
