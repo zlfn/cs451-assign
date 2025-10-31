@@ -61,23 +61,27 @@ void keyboardUp(unsigned char key, int /*x*/, int /*y*/) { keyStates[key] = fals
 void display() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    glm::fvec2 &cbo = gameState.cameraBaseOffset;
-
+    // 3D 투영
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    glFrustum(-0.5f, 0.5f, -0.5f, 0.5f, 1.0f, 20.0f);
-    glPushMatrix();
+    glFrustum(-1.0f, 1.0f, -1.0f, 1.0f, 0.5f, 20.0f);
+    
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-    glTranslatef(0.0f, 0.0f, -3.0f);
-    // glRotatef(-90.0f, 1.0f, 0.0f, 0.0f);
-    // glTranslatef(-gameState.cameraShakeOffset.x - cbo.x, -gameState.cameraShakeOffset.y - cbo.y, 0.0f);
+    glPushMatrix();
+
+    glm::fvec2 &cbo = gameState.cameraBaseOffset;
+    glTranslatef(0.0, 0.0, -2.0);
+    /*glTranslatef(-gameState.cameraShakeOffset.x - cbo.x,
+                 -gameState.cameraShakeOffset.y - cbo.y,
+                 -2.0f); // 카메라 위치
+    */
+    glRotatef(-45.0f, 1.0f, 0.0f, 0.0f); // perspective view를 위함
 
     gameState.backgroundObject.draw(gameState);
     for (auto &particle : gameState.trailParticles) {
         particle.draw(gameState);
     }
-
     for (auto &object : gameState.enemyBulletObjects) {
         object.draw(gameState);
     }
@@ -87,11 +91,16 @@ void display() {
     gameState.playerObject.draw(gameState);
     gameState.bossObject1.draw(gameState);
     gameState.bossObject2.draw(gameState);
-    gameState.playerObject.draw(gameState);
 
-    glMatrixMode(GL_PROJECTION);
     glPopMatrix();
+
+    // 2D 투영
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    glOrtho(-1.0, 1.0, -1.0, 1.0, -1.0, 1.0);
+
     glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
 
     gameState.bossHealthBarObject.draw(gameState);
     gameState.heartsObject.draw(gameState);

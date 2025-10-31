@@ -183,24 +183,6 @@ struct BossFragment : Drawable, Updatable {
     bool update(int deltaTime, GameState &) override;
     void draw(const GameState &) override;
 };
-struct BossArm : Drawable {
-    float angles[4] = {0.0f};
-    float lengths[4] = {0.8f, 0.7f, 0.6f, 0.4f};
-    float armWidth = 0.12f;
-    glm::vec3 armColor = glm::vec3(0.7f, 0.2f, 0.9f);
-
-    int bossId;
-    bool isLeftArm;
-    float uniquePhase[4];
-    float uniqueSpeed[4];
-    float baseDirection;
-
-    BossArm(bool isLeft, int boss);
-    void update(float time);
-    void drawSegment(float length, float width, float brightness);
-    void drawJoint(float size);
-    void draw(const GameState &) override;
-};
 struct Boss : Updatable, Drawable, Collidable {
     glm::fvec2 currentPosition;
     BossMove currentMove;
@@ -210,8 +192,6 @@ struct Boss : Updatable, Drawable, Collidable {
     bool isDying = false;
     int deathStartTime = 0;
     std::vector<BossFragment> fragments;
-    BossArm leftArm{true, 1};
-    BossArm rightArm{false, 1};
     int lastHitTime = 0;
     float hitIntensity = 0.0f;
 
@@ -220,13 +200,6 @@ struct Boss : Updatable, Drawable, Collidable {
     void takeDamage(int currentTime);
     void startDeathAnimation(int currentTime);
     bool update(int currentTime, GameState &gameState) override;
-    static void drawUnitCircleFan(int seg, float z, const glm::vec4 &centerRGBA,
-                                  const glm::vec4 &edgeRGBA);
-    static void drawUnitOctagonFan(float z, const glm::vec4 &centerRGBA, const glm::vec4 &edgeRGBA);
-    void drawWobblyOctagonFan(float z, const glm::vec4 &centerRGBA, const glm::vec4 &edgeRGBA,
-                              float wobbleAmount);
-    static void drawUnitSpikeTri(float rOuter, float rInner, float z, const glm::vec4 &innerRGBA,
-                                 const glm::vec4 &tipRGBA);
     void draw(const GameState &gameState) override;
     CollisionShape getShape() const override;
 };

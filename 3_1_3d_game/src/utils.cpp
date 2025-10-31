@@ -1,8 +1,8 @@
 #include "base.hpp"
 #include "utils.hpp"
 
-ThreeDObj::ThreeDObj(const std::string filePath)
-    : objectColor(1.0f, 1.0f, 1.0f) // 흰색
+ThreeDObj::ThreeDObj(const std::string filePath, const glm::fvec3 &color)
+    : objectColor(color) // 기본은 흰색
 {
     try {
         getObjFile(filePath);
@@ -60,6 +60,7 @@ void ThreeDObj::draw() {
         return;
     }
 
+    glLineWidth(1.0f);
     glColor3f(objectColor.x, objectColor.y, objectColor.z);
 
     // 삼각형 와이어프레임 그리기

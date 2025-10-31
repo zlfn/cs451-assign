@@ -1,7 +1,8 @@
 #include "base.hpp"
 #include "utils.hpp"
 
-ThreeDObj paperPlaneObj = ThreeDObj("assets/drone.obj");
+ThreeDObj paperPlaneObj = ThreeDObj("assets/jet.obj", glm::fvec3(1.0, 1.0, 0.0));
+ThreeDObj energyOrbObj = ThreeDObj("assets/star.obj", glm::fvec3(0.5, 0.2, 0.1));
 
 EnergyOrb::EnergyOrb(float startAngle, float radius, float sz, int currentTime)
     : offset(0.0f, 0.0f), angle(startAngle), orbitRadius(radius), size(sz), birthTime(currentTime) {
@@ -23,36 +24,10 @@ void EnergyOrb::draw(const GameState &) {
 
     glPushMatrix();
     glTranslatef(VIEW_POS.x, VIEW_POS.y, 0.1f);
-    glScalef(size, size, 1.0f);
+    glScalef(size, size, size);
+    glRotatef(90.0, 1.0, 0.0, 0.0);
 
-    glBegin(GL_TRIANGLE_FAN);
-    glColor4f(1.0f, 0.5f, 0.0f, 0.3f);
-    glVertex3f(0.0f, 0.0f, 0.0f);
-
-    const int OUTER_SEGMENTS = 8;
-    for (int i = 0; i <= OUTER_SEGMENTS; ++i) {
-        float angle = static_cast<float>(i) * 2.0f * std::numbers::pi_v<float> /
-                      static_cast<float>(OUTER_SEGMENTS);
-        float colorVariation = 0.2f + 0.1f * std::sin(angle * 2.0f);
-        glColor4f(1.0f, colorVariation, 0.0f, 0.0f);
-        glVertex3f(1.5f * std::cos(angle), 1.5f * std::sin(angle), 0.0f);
-    }
-    glEnd();
-
-    glBegin(GL_TRIANGLE_FAN);
-    glColor4f(1.0f, 0.8f, 0.2f, 0.9f);
-    glVertex3f(0.0f, 0.0f, 0.01f);
-
-    const int INNER_SEGMENTS = 8;
-    for (int i = 0; i <= INNER_SEGMENTS; ++i) {
-        float angle = static_cast<float>(i) * 2.0f * std::numbers::pi_v<float> /
-                      static_cast<float>(INNER_SEGMENTS);
-        float colorVariation = 0.4f + 0.1f * std::sin(angle * 3.0f);
-        float alphaVariation = 0.7f + 0.1f * std::cos(angle * 2.0f);
-        glColor4f(1.0f, colorVariation, 0.0f, alphaVariation);
-        glVertex3f(0.8f * std::cos(angle), 0.8f * std::sin(angle), 0.01f);
-    }
-    glEnd();
+    energyOrbObj.draw();
 
     glPopMatrix();
     glDisable(GL_BLEND);
@@ -229,16 +204,8 @@ bool Player::update(int currentTime, GameState &gameState) {
     updateEnergyOrbs(gameState.playerHealth, currentTime);
 
     glm::fvec2 &cbo = gameState.cameraBaseOffset;
-    if (cbo.x - currentPosition.x >= 0.6) {
-        cbo.x = currentPosition.x + 0.6f;
-    } else if (cbo.x - currentPosition.x <= -0.6) {
-        cbo.x = currentPosition.x - 0.6f;
-    }
-    if (cbo.y - currentPosition.y >= 0.6) {
-        cbo.y = currentPosition.y + 0.6f;
-    } else if (cbo.y - currentPosition.y <= 0.2) {
-        cbo.y = currentPosition.y + 0.2f;
-    }
+    cbo.x = currentPosition.x;
+    cbo.y = currentPosition.y;
 
     return false;
 }
@@ -248,6 +215,8 @@ void Player::tryAttack() {
         isBullet = true;
 }
 void Player::draw(const GameState &gameState) {
+    const float SCALE = 0.01;
+    const float ORB_SCALE = 0.2;
     if (isDying) {
         for (auto &fragment : fragments) {
             fragment.draw(gameState);
@@ -289,15 +258,11 @@ void Player::draw(const GameState &gameState) {
         return;
     }
 
-    // 우주선: drawSpaceship을 원점/단위 스케일 기준으로 호출하고,
-    // 모델 행렬로 위치/회전/스케일을 적용
-    // M = T(current - camera) * R_y(tiltAngle) * S(0.14)
-
     glPushMatrix();
     glTranslatef(currentPosition.x, currentPosition.y, 0.0f);
+    glPushMatrix();
     glRotatef(-90.0f, 1.0f, 0.0f, 0.0f);
-    glRotatef(-90.0f, 0.0f, 1.0f, 0.0f);
-    glScalef(3.0f, 3.0f, 3.0f);
+    glScalef(SCALE, SCALE, SCALE);
 
     if (isInvincible) {
         float alpha =
@@ -305,18 +270,17 @@ void Player::draw(const GameState &gameState) {
             0.4f * std::abs(std::sin(static_cast<float>(glutGet(GLUT_ELAPSED_TIME)) * 0.01f));
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        // 로컬 기준으로 그리기 (원점, 단위 스케일)
         paperPlaneObj.draw();
         glDisable(GL_BLEND);
     } else {
         paperPlaneObj.draw();
     }
 
-    /*
+    glPopMatrix();
+    glScalef(ORB_SCALE, ORB_SCALE, ORB_SCALE);
     for (auto &orb : energyOrbs) {
         orb.draw(gameState);
     }
-    */
 
     glPopMatrix();
 }

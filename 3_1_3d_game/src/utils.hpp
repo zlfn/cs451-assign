@@ -42,10 +42,9 @@ struct ThreeDObj {
     std::vector<unsigned int> indices;
     glm::vec3 objectColor;
 
-    ThreeDObj(const std::string filePath);
+    ThreeDObj(const std::string filePath, const glm::fvec3 &color = glm::fvec3(1.0f, 1.0f, 1.0f));
 
     void getObjFile(const std::string filePath);
     void setColor(const glm::vec3 &color);
     void draw();
 };
-
