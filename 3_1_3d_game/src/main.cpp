@@ -59,24 +59,35 @@ void keyboardDown(unsigned char key, int /*x*/, int /*y*/) { keyStates[key] = tr
 void keyboardUp(unsigned char key, int /*x*/, int /*y*/) { keyStates[key] = false; }
 
 void display() {
+    // 설정 값
+    const float SCALE = 3.0;
+    const float CAMERA_ANGLE_X_DEG = 50.0f; // 카메라 회전 각도
+    const float Z_DIST_VIEW = -0.5f;        // 뷰 공간(View Space)에서의 목표 Z 거리
+
+    const float angle_rad = CAMERA_ANGLE_X_DEG * (std::numbers::pi / 180.0f);
+
+    // Y 보정값
+    const float y_compensation = (std::tan(angle_rad) * std::abs(Z_DIST_VIEW)) / SCALE;
+
+    // glTranslatef에 쓸 Z 거리. 결과가 Z_DIST_VIEW가 되도록 역산
+    const float z_translate = Z_DIST_VIEW / std::cos(angle_rad) / SCALE;
+
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     // 3D 투영
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    glFrustum(-1.0f, 1.0f, -1.0f, 1.0f, 0.5f, 20.0f);
-    
+    glFrustum(-1.0f, 1.0f, -1.0f, 1.0f, 0.5f, 20.0f); 
+
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     glPushMatrix();
 
     glm::fvec2 &cbo = gameState.cameraBaseOffset;
-    glTranslatef(0.0, 0.0, -2.0);
-    /*glTranslatef(-gameState.cameraShakeOffset.x - cbo.x,
-                 -gameState.cameraShakeOffset.y - cbo.y,
-                 -2.0f); // 카메라 위치
-    */
-    glRotatef(-45.0f, 1.0f, 0.0f, 0.0f); // perspective view를 위함
+    glRotatef(-CAMERA_ANGLE_X_DEG, 1.0f, 0.0f, 0.0f); // perspective view
+    glScalef(SCALE, SCALE, SCALE);
+    glTranslatef(-cbo.x, -cbo.y + y_compensation, z_translate);
+    glTranslatef(-gameState.cameraShakeOffset.x, -gameState.cameraShakeOffset.y, 0.0f);
 
     gameState.backgroundObject.draw(gameState);
     for (auto &particle : gameState.trailParticles) {
@@ -88,11 +99,11 @@ void display() {
     for (auto &object : gameState.playerBulletObjects) {
         object.draw(gameState);
     }
-    gameState.playerObject.draw(gameState);
     gameState.bossObject1.draw(gameState);
     gameState.bossObject2.draw(gameState);
+    gameState.playerObject.draw(gameState);
 
-    glPopMatrix();
+    glPopMatrix(); // 3D 뷰 매트릭스 제거
 
     // 2D 투영
     glMatrixMode(GL_PROJECTION);
