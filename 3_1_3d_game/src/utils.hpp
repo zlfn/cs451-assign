@@ -43,6 +43,7 @@ using Indices = std::vector<unsigned int>;
 struct ThreeDObj {
     std::vector<glm::vec3> baseVertices;
     std::map<std::string, Indices> objIndicesMap;
+    std::map<std::string, glm::vec3> objCenterMap;
     glm::vec3 objectColor;
 
     ThreeDObj(const std::string &FILE_PATH, const glm::fvec3 &color = glm::fvec3(1.0f, 1.0f, 1.0f));

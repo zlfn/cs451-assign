@@ -54,6 +54,17 @@ void ThreeDObj::getObjFile(const std::string &FILE_PATH) {
         }
     }
     file.close();
+
+    for (const auto &[key, value] : objIndicesMap) {
+        Indices currentIndices = value;
+        glm::vec3 centerPos = glm::vec3(0.0,0.0,0.0);
+        for (const auto &vIndex : currentIndices) {
+            centerPos += baseVertices[vIndex];
+        }
+        centerPos /= currentIndices.size();
+        objCenterMap.insert({key, centerPos});
+    }
+
     std::cout << "Loaded " << baseVertices.size() << " vertices, " << (objIndicesMap.size())
               << " objects from " << FILE_PATH << std::endl;
 }
