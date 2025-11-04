@@ -1,7 +1,7 @@
 #include "base.hpp"
 #include "utils.hpp"
 
-ThreeDObj paperPlaneObj = ThreeDObj("assets/jet.obj", glm::fvec3(1.0, 1.0, 0.0));
+ThreeDObj jetObj = ThreeDObj("assets/jet.obj", glm::fvec3(1.0, 1.0, 0.0));
 ThreeDObj energyOrbObj = ThreeDObj("assets/star.obj", glm::fvec3(0.5, 0.2, 0.1));
 
 EnergyOrb::EnergyOrb(float startAngle, float radius, float sz, int currentTime)
@@ -27,7 +27,7 @@ void EnergyOrb::draw(const GameState &) {
     glScalef(size, size, size);
     glRotatef(90.0, 1.0, 0.0, 0.0);
 
-    energyOrbObj.draw();
+    energyOrbObj.draw("Sphere");
 
     glPopMatrix();
     glDisable(GL_BLEND);
@@ -267,10 +267,10 @@ void Player::draw(const GameState &gameState) {
     if (isInvincible) {
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        paperPlaneObj.draw();
+        jetObj.draw("base");
         glDisable(GL_BLEND);
     } else {
-        paperPlaneObj.draw();
+        jetObj.draw("base");
     }
 
     glPopMatrix();

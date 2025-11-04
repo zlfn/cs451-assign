@@ -17,8 +17,10 @@ void ThreeDObj::getObjFile(const std::string &FILE_PATH) {
         throw std::runtime_error("Failed to open file: " + FILE_PATH);
     }
 
+    std::string currentObjName = "base";
+
     baseVertices.clear();
-    indices.clear();
+    objIndicesMap.clear();
     std::string line;
 
     while (std::getline(file, line)) {
@@ -26,12 +28,15 @@ void ThreeDObj::getObjFile(const std::string &FILE_PATH) {
         std::string prefix;
         ss >> prefix;
 
-        if (prefix == "v") {
+        if (prefix == "o") {
+            Indices newIndices;
+            ss >> currentObjName;
+            objIndicesMap.insert({currentObjName, newIndices});
+        } else if (prefix == "v") {
             glm::vec3 vertex;
             ss >> vertex.x >> vertex.y >> vertex.z;
             baseVertices.push_back(vertex);
-
-        } else if (prefix == "f") {
+        } else if (prefix == "f" && currentObjName != "") {
             std::vector<unsigned int> faceIndices;
             std::string vertexToken;
             while (ss >> vertexToken) {
@@ -42,22 +47,40 @@ void ThreeDObj::getObjFile(const std::string &FILE_PATH) {
             }
 
             for (size_t i = 1; i < faceIndices.size() - 1; ++i) {
-                indices.push_back(faceIndices[0]);
-                indices.push_back(faceIndices[i]);
-                indices.push_back(faceIndices[i + 1]);
+                objIndicesMap[currentObjName].push_back(faceIndices[0]);
+                objIndicesMap[currentObjName].push_back(faceIndices[i]);
+                objIndicesMap[currentObjName].push_back(faceIndices[i + 1]);
             }
         }
     }
     file.close();
-    std::cout << "Loaded " << baseVertices.size() << " vertices, " << (indices.size() / 3)
-              << " triangles from " << FILE_PATH << '\n';
+
+    for (const auto &[key, value] : objIndicesMap) {
+        Indices currentIndices = value;
+        glm::vec3 centerPos = glm::vec3(0.0,0.0,0.0);
+        for (const auto &vIndex : currentIndices) {
+            centerPos += baseVertices[vIndex];
+        }
+        centerPos /= currentIndices.size();
+        objCenterMap.insert({key, centerPos});
+    }
+
+    std::cout << "Loaded " << baseVertices.size() << " vertices, " << (objIndicesMap.size())
+              << " objects from " << FILE_PATH << std::endl;
 }
 
 void ThreeDObj::setColor(const glm::vec3 &color) { objectColor = color; }
 
-void ThreeDObj::draw() {
-    if (baseVertices.empty() || indices.empty()) {
+void ThreeDObj::draw(const std::string objName) {
+    if (baseVertices.empty() || objIndicesMap.empty()) {
         return;
+    }
+
+    Indices indices;
+    try {
+        indices = objIndicesMap[objName];
+    } catch (const std::out_of_range &oor) {
+        std::cerr << "Error: there is no object named " << objName << std::endl;
     }
 
     glLineWidth(1.0f);

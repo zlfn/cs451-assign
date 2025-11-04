@@ -9,6 +9,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <map>
 
 extern std::random_device rd;
 extern std::mt19937 gen;
@@ -37,14 +38,17 @@ concept Map01Fn = requires {
     { F{}(1.0f) } -> std::same_as<float>;
 } && approxEqual(F{}(0.0f), 0.0f) && approxEqual(F{}(1.0f), 1.0f);
 
+using Indices = std::vector<unsigned int>;
+
 struct ThreeDObj {
     std::vector<glm::vec3> baseVertices;
-    std::vector<unsigned int> indices;
+    std::map<std::string, Indices> objIndicesMap;
+    std::map<std::string, glm::vec3> objCenterMap;
     glm::vec3 objectColor;
 
     ThreeDObj(const std::string &FILE_PATH, const glm::fvec3 &color = glm::fvec3(1.0f, 1.0f, 1.0f));
 
     void getObjFile(const std::string &FILE_PATH);
     void setColor(const glm::vec3 &color);
-    void draw();
+    void draw(const std::string objName);
 };

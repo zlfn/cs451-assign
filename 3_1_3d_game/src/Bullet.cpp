@@ -64,13 +64,13 @@ void EnemyBullet::draw(const GameState &gameState) {
     glTranslatef(currentPosition.x, currentPosition.y, 0.0f);
     glScalef(BASE_SCALE, BASE_SCALE, BASE_SCALE);
 
-    enemyBulletObj.draw();
+    enemyBulletObj.draw("Sphere");
 
     glScalef(SONIC_RELATIVE_SCALE, SONIC_RELATIVE_SCALE, SONIC_RELATIVE_SCALE);
     glRotatef(ROTATION_DEG, 0.0, 0.0, 1.0);
     glTranslatef(5.0f, 0.0f, 0.0f);
     glRotatef(90, 0.0, 1.0, 0.0);
-    enemyBulletSonicObj.draw();
+    enemyBulletSonicObj.draw("Sphere");
 
     glPopMatrix();
 
@@ -117,7 +117,7 @@ void PlayerBullet::draw(const GameState &gameState) {
     glScalef(SCALE, SCALE, SCALE);
     glRotatef(-90.0f, 0.0f, 1.0f, 0.0f);
 
-    playerBulletObj.draw();
+    playerBulletObj.draw("Sphere");
 
     glPopMatrix();
 
