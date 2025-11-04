@@ -17,6 +17,7 @@
 #include <memory>
 #include "collision.hpp"
 #include "utils.hpp"
+#include "Skybox.hpp"
 
 struct GameState;
 struct EnemyBullet;
@@ -257,6 +258,7 @@ struct GameState {
     BossHealthBar bossHealthBarObject;
     PlayerHealthBar heartsObject;
     Background backgroundObject;
+    Skybox skyboxObject;
 
     std::vector<PlayerBullet> playerBulletObjects;
     std::vector<EnemyBullet> enemyBulletObjects;
