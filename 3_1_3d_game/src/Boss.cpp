@@ -137,7 +137,7 @@ void Boss::startDeathAnimation(int currentTime) {
 
 // 보스 그리기
 void Boss::draw(const GameState &gameState) {
-    const float SIZE = 0.15f;
+    const float SIZE = 0.25f;
 
     if (isDying) {
         for (auto &fragment : fragments) {
@@ -168,10 +168,15 @@ void Boss::draw(const GameState &gameState) {
 
     glPushMatrix();
     glTranslatef(currentPosition.x, currentPosition.y, 0.f);
-    glScalef(SIZE, SIZE, 1.f);
+    glScalef(SIZE, SIZE, SIZE);
 
     glRotatef(90.0, 1.0, 0.0, 0.0);
-    bossObj.draw();
+    bossObj.draw("Body");
+    bossObj.draw("Rotor_FL");
+    bossObj.draw("Rotor_FR");
+    bossObj.draw("Rotor_BL");
+    bossObj.draw("Rotor_BR");
+    bossObj.draw("Cube.002");
 
     glPopMatrix();
     glDisable(GL_BLEND);
