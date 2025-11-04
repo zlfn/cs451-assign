@@ -180,6 +180,7 @@ void Boss::draw(const GameState &gameState) {
 
     glPushMatrix();
     glTranslatef(currentPosition.x, currentPosition.y, 0.f);
+  
     glScalef(SIZE, SIZE, SIZE);
 
     glRotatef(90.0, 1.0, 0.0, 0.0);
