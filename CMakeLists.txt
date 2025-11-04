@@ -11,6 +11,14 @@ set(WIN_X64_MSVC_BIN_DIR "${CMAKE_SOURCE_DIR}/win-x64-msvc/bin")
 
 include(FetchContent)
 
+# Fetch stb_image
+FetchContent_Declare(
+  stb
+  GIT_REPOSITORY https://github.com/nothings/stb.git
+  GIT_TAG master
+)
+FetchContent_MakeAvailable(stb)
+
 find_package(OpenGL REQUIRED)
 
 if(WIN32)

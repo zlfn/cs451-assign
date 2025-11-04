@@ -81,6 +81,14 @@ void display() {
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
+
+    // Draw skybox first without camera translation (only rotation)
+    glPushMatrix();
+    glRotatef(-CAMERA_ANGLE_X_DEG, 1.0f, 0.0f, 0.0f);
+    gameState.skyboxObject.draw(gameState);
+    glPopMatrix();
+
+    // Now apply full camera transform for other objects
     glPushMatrix();
 
     glm::fvec2 &cbo = gameState.cameraBaseOffset;
@@ -88,7 +96,6 @@ void display() {
     glScalef(SCALE, SCALE, SCALE);
     glTranslatef(-cbo.x, -cbo.y + Y_COMPENSATION, Z_TRANSLATE);
     glTranslatef(-gameState.cameraShakeOffset.x, -gameState.cameraShakeOffset.y, 0.0f);
-
     gameState.backgroundObject.draw(gameState);
     for (auto &particle : gameState.trailParticles) {
         particle.draw(gameState);
@@ -214,6 +221,11 @@ int main(int argc, char **argv) {
     }
 
     glEnable(GL_DEPTH_TEST);
+
+    // Load skybox
+    if (!gameState.skyboxObject.load("assets/skybox")) {
+        std::cerr << "Failed to load skybox textures\n";
+    }
 
     glutKeyboardFunc(keyboardDown);
     glutKeyboardUpFunc(keyboardUp);
