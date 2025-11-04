@@ -7,16 +7,16 @@
 struct GameState;
 
 class Skybox {
-public:
+  public:
     Skybox();
     ~Skybox();
 
-    bool load(const std::string& directory);
-    void draw(const GameState& gameState);
+    bool load(const std::string &directory);
+    void draw(const GameState &gameState);
 
-private:
-    GLuint textureID;
-    bool loaded;
+  private:
+    GLuint textureID_;
+    bool loaded_;
 
-    bool loadCubemapFace(const std::string& path, GLenum target);
+    bool loadCubemapFace(const std::string &path, GLenum target);
 };

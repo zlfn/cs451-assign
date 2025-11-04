@@ -4,18 +4,17 @@
 #include "base.hpp"
 #include <iostream>
 
-Skybox::Skybox() : textureID(0), loaded(false) {
-}
+Skybox::Skybox() : textureID_(0), loaded_(false) {}
 
 Skybox::~Skybox() {
-    if (textureID != 0) {
-        glDeleteTextures(1, &textureID);
+    if (textureID_ != 0) {
+        glDeleteTextures(1, &textureID_);
     }
 }
 
-bool Skybox::loadCubemapFace(const std::string& path, GLenum target) {
+bool Skybox::loadCubemapFace(const std::string &path, GLenum target) {
     int width = 0, height = 0, channels = 0;
-    unsigned char* data = stbi_load(path.c_str(), &width, &height, &channels, 4);
+    unsigned char *data = stbi_load(path.c_str(), &width, &height, &channels, 4);
 
     if (!data) {
         std::cerr << "Failed to load texture: " << path << '\n';
@@ -29,24 +28,24 @@ bool Skybox::loadCubemapFace(const std::string& path, GLenum target) {
     return true;
 }
 
-bool Skybox::load(const std::string& directory) {
-    if (textureID == 0) {
-        glGenTextures(1, &textureID);
+bool Skybox::load(const std::string &directory) {
+    if (textureID_ == 0) {
+        glGenTextures(1, &textureID_);
     }
-    glBindTexture(GL_TEXTURE_CUBE_MAP, textureID);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, textureID_);
 
     std::array<std::string, 6> faces = {
-        directory + "/right.png",   // GL_TEXTURE_CUBE_MAP_POSITIVE_X
-        directory + "/left.png",    // GL_TEXTURE_CUBE_MAP_NEGATIVE_X
-        directory + "/top.png",     // GL_TEXTURE_CUBE_MAP_POSITIVE_Y
-        directory + "/bottom.png",  // GL_TEXTURE_CUBE_MAP_NEGATIVE_Y
-        directory + "/front.png",   // GL_TEXTURE_CUBE_MAP_POSITIVE_Z
-        directory + "/back.png"     // GL_TEXTURE_CUBE_MAP_NEGATIVE_Z
+        directory + "/right.png",  // GL_TEXTURE_CUBE_MAP_POSITIVE_X
+        directory + "/left.png",   // GL_TEXTURE_CUBE_MAP_NEGATIVE_X
+        directory + "/top.png",    // GL_TEXTURE_CUBE_MAP_POSITIVE_Y
+        directory + "/bottom.png", // GL_TEXTURE_CUBE_MAP_NEGATIVE_Y
+        directory + "/front.png",  // GL_TEXTURE_CUBE_MAP_POSITIVE_Z
+        directory + "/back.png"    // GL_TEXTURE_CUBE_MAP_NEGATIVE_Z
     };
 
     for (size_t i = 0; i < faces.size(); i++) {
         if (!loadCubemapFace(faces[i], GL_TEXTURE_CUBE_MAP_POSITIVE_X + i)) {
-            loaded = false;
+            loaded_ = false;
             return false;
         }
     }
@@ -60,19 +59,20 @@ bool Skybox::load(const std::string& directory) {
     // Enable seamless cubemap to remove seams between faces
     glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 
-    loaded = true;
+    loaded_ = true;
     return true;
 }
 
-void Skybox::draw(const GameState& /*gameState*/) {
-    if (!loaded) return;
+void Skybox::draw(const GameState & /*gameState*/) {
+    if (!loaded_)
+        return;
 
     glDepthMask(GL_FALSE);
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
 
     glEnable(GL_TEXTURE_CUBE_MAP);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, textureID);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, textureID_);
 
     const float SIZE = 14.0f;
 
@@ -80,50 +80,74 @@ void Skybox::draw(const GameState& /*gameState*/) {
 
     // Front face (Positive Z)
     glBegin(GL_QUADS);
-    glTexCoord3f(SIZE, -SIZE, SIZE); glVertex3f(SIZE, -SIZE, SIZE);
-    glTexCoord3f(-SIZE, -SIZE, SIZE); glVertex3f(-SIZE, -SIZE, SIZE);
-    glTexCoord3f(-SIZE, SIZE, SIZE); glVertex3f(-SIZE, SIZE, SIZE);
-    glTexCoord3f(SIZE, SIZE, SIZE); glVertex3f(SIZE, SIZE, SIZE);
+    glTexCoord3f(SIZE, -SIZE, SIZE);
+    glVertex3f(SIZE, -SIZE, SIZE);
+    glTexCoord3f(-SIZE, -SIZE, SIZE);
+    glVertex3f(-SIZE, -SIZE, SIZE);
+    glTexCoord3f(-SIZE, SIZE, SIZE);
+    glVertex3f(-SIZE, SIZE, SIZE);
+    glTexCoord3f(SIZE, SIZE, SIZE);
+    glVertex3f(SIZE, SIZE, SIZE);
     glEnd();
 
     // Back face (Negative Z)
     glBegin(GL_QUADS);
-    glTexCoord3f(-SIZE, -SIZE, -SIZE); glVertex3f(-SIZE, -SIZE, -SIZE);
-    glTexCoord3f(SIZE, -SIZE, -SIZE); glVertex3f(SIZE, -SIZE, -SIZE);
-    glTexCoord3f(SIZE, SIZE, -SIZE); glVertex3f(SIZE, SIZE, -SIZE);
-    glTexCoord3f(-SIZE, SIZE, -SIZE); glVertex3f(-SIZE, SIZE, -SIZE);
+    glTexCoord3f(-SIZE, -SIZE, -SIZE);
+    glVertex3f(-SIZE, -SIZE, -SIZE);
+    glTexCoord3f(SIZE, -SIZE, -SIZE);
+    glVertex3f(SIZE, -SIZE, -SIZE);
+    glTexCoord3f(SIZE, SIZE, -SIZE);
+    glVertex3f(SIZE, SIZE, -SIZE);
+    glTexCoord3f(-SIZE, SIZE, -SIZE);
+    glVertex3f(-SIZE, SIZE, -SIZE);
     glEnd();
 
     // Right face (Positive X)
     glBegin(GL_QUADS);
-    glTexCoord3f(SIZE, -SIZE, -SIZE); glVertex3f(SIZE, -SIZE, -SIZE);
-    glTexCoord3f(SIZE, -SIZE, SIZE); glVertex3f(SIZE, -SIZE, SIZE);
-    glTexCoord3f(SIZE, SIZE, SIZE); glVertex3f(SIZE, SIZE, SIZE);
-    glTexCoord3f(SIZE, SIZE, -SIZE); glVertex3f(SIZE, SIZE, -SIZE);
+    glTexCoord3f(SIZE, -SIZE, -SIZE);
+    glVertex3f(SIZE, -SIZE, -SIZE);
+    glTexCoord3f(SIZE, -SIZE, SIZE);
+    glVertex3f(SIZE, -SIZE, SIZE);
+    glTexCoord3f(SIZE, SIZE, SIZE);
+    glVertex3f(SIZE, SIZE, SIZE);
+    glTexCoord3f(SIZE, SIZE, -SIZE);
+    glVertex3f(SIZE, SIZE, -SIZE);
     glEnd();
 
     // Left face (Negative X)
     glBegin(GL_QUADS);
-    glTexCoord3f(-SIZE, -SIZE, SIZE); glVertex3f(-SIZE, -SIZE, SIZE);
-    glTexCoord3f(-SIZE, -SIZE, -SIZE); glVertex3f(-SIZE, -SIZE, -SIZE);
-    glTexCoord3f(-SIZE, SIZE, -SIZE); glVertex3f(-SIZE, SIZE, -SIZE);
-    glTexCoord3f(-SIZE, SIZE, SIZE); glVertex3f(-SIZE, SIZE, SIZE);
+    glTexCoord3f(-SIZE, -SIZE, SIZE);
+    glVertex3f(-SIZE, -SIZE, SIZE);
+    glTexCoord3f(-SIZE, -SIZE, -SIZE);
+    glVertex3f(-SIZE, -SIZE, -SIZE);
+    glTexCoord3f(-SIZE, SIZE, -SIZE);
+    glVertex3f(-SIZE, SIZE, -SIZE);
+    glTexCoord3f(-SIZE, SIZE, SIZE);
+    glVertex3f(-SIZE, SIZE, SIZE);
     glEnd();
 
     // Top face (Positive Y)
     glBegin(GL_QUADS);
-    glTexCoord3f(SIZE, SIZE, SIZE); glVertex3f(SIZE, SIZE, SIZE);
-    glTexCoord3f(-SIZE, SIZE, SIZE); glVertex3f(-SIZE, SIZE, SIZE);
-    glTexCoord3f(-SIZE, SIZE, -SIZE); glVertex3f(-SIZE, SIZE, -SIZE);
-    glTexCoord3f(SIZE, SIZE, -SIZE); glVertex3f(SIZE, SIZE, -SIZE);
+    glTexCoord3f(SIZE, SIZE, SIZE);
+    glVertex3f(SIZE, SIZE, SIZE);
+    glTexCoord3f(-SIZE, SIZE, SIZE);
+    glVertex3f(-SIZE, SIZE, SIZE);
+    glTexCoord3f(-SIZE, SIZE, -SIZE);
+    glVertex3f(-SIZE, SIZE, -SIZE);
+    glTexCoord3f(SIZE, SIZE, -SIZE);
+    glVertex3f(SIZE, SIZE, -SIZE);
     glEnd();
 
     // Bottom face (Negative Y)
     glBegin(GL_QUADS);
-    glTexCoord3f(SIZE, -SIZE, -SIZE); glVertex3f(SIZE, -SIZE, -SIZE);
-    glTexCoord3f(-SIZE, -SIZE, -SIZE); glVertex3f(-SIZE, -SIZE, -SIZE);
-    glTexCoord3f(-SIZE, -SIZE, SIZE); glVertex3f(-SIZE, -SIZE, SIZE);
-    glTexCoord3f(SIZE, -SIZE, SIZE); glVertex3f(SIZE, -SIZE, SIZE);
+    glTexCoord3f(SIZE, -SIZE, -SIZE);
+    glVertex3f(SIZE, -SIZE, -SIZE);
+    glTexCoord3f(-SIZE, -SIZE, -SIZE);
+    glVertex3f(-SIZE, -SIZE, -SIZE);
+    glTexCoord3f(-SIZE, -SIZE, SIZE);
+    glVertex3f(-SIZE, -SIZE, SIZE);
+    glTexCoord3f(SIZE, -SIZE, SIZE);
+    glVertex3f(SIZE, -SIZE, SIZE);
     glEnd();
 
     glDisable(GL_TEXTURE_CUBE_MAP);
