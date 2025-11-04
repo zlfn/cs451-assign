@@ -60,23 +60,50 @@ bool Background::update(int currentTime, GameState &gameState) {
     return false;
 }
 
-// 월드 경계선 그리기
+// 경계선 그리기
 static void drawWorldBorder() {
     glColor3f(1.0f, 1.0f, 1.0f);
-    glLineWidth(5.0f);
+    glLineWidth(2.0f);
 
     glBegin(GL_LINES);
-    glVertex2f(-2.0f, -2.0f);
-    glVertex2f(-2.0f, 2.0f);
+    // 아래쪽 사각형
+    glVertex3f(-2.0f, -2.0f, -1.0f);
+    glVertex3f(-2.0f, 2.0f, -1.0f);
 
-    glVertex2f(-2.0f, 2.0f);
-    glVertex2f(2.0f, 2.0f);
+    glVertex3f(-2.0f, 2.0f, -1.0f);
+    glVertex3f(2.0f, 2.0f, -1.0f);
 
-    glVertex2f(2.0f, 2.0f);
-    glVertex2f(2.0f, -2.0f);
+    glVertex3f(2.0f, 2.0f, -1.0f);
+    glVertex3f(2.0f, -2.0f, -1.0f);
 
-    glVertex2f(2.0f, -2.0f);
-    glVertex2f(-2.0f, -2.0f);
+    glVertex3f(2.0f, -2.0f, -1.0f);
+    glVertex3f(-2.0f, -2.0f, -1.0f);
+
+    // 위쪽 사각형
+    glVertex3f(-2.0f, -2.0f, 1.0f);
+    glVertex3f(-2.0f, 2.0f, 1.0f);
+
+    glVertex3f(-2.0f, 2.0f, 1.0f);
+    glVertex3f(2.0f, 2.0f, 1.0f);
+
+    glVertex3f(2.0f, 2.0f, 1.0f);
+    glVertex3f(2.0f, -2.0f, 1.0f);
+
+    glVertex3f(2.0f, -2.0f, 1.0f);
+    glVertex3f(-2.0f, -2.0f, 1.0f);
+
+    // 사각형 연결
+    glVertex3f(-2.0f, -2.0f, 1.0f);
+    glVertex3f(-2.0f, -2.0f, -1.0f);
+
+    glVertex3f(-2.0f, 2.0f, 1.0f);
+    glVertex3f(-2.0f, 2.0f, -1.0f);
+
+    glVertex3f(2.0f, 2.0f, 1.0f);
+    glVertex3f(2.0f, 2.0f, -1.0f);
+
+    glVertex3f(2.0f, -2.0f, 1.0f);
+    glVertex3f(2.0f, -2.0f, -1.0f);
     glEnd();
 }
 

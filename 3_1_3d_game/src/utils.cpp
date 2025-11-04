@@ -1,20 +1,20 @@
 #include "base.hpp"
 #include "utils.hpp"
 
-ThreeDObj::ThreeDObj(const std::string filePath)
-    : objectColor(1.0f, 1.0f, 1.0f) // 흰색
+ThreeDObj::ThreeDObj(const std::string &FILE_PATH, const glm::fvec3 &color)
+    : objectColor(color) // 기본은 흰색
 {
     try {
-        getObjFile(filePath);
+        getObjFile(FILE_PATH);
     } catch (const std::exception &e) {
-        std::cerr << "Error loading object: " << e.what() << std::endl;
+        std::cerr << "Error loading object: " << e.what() << '\n';
     }
 }
 
-void ThreeDObj::getObjFile(const std::string filePath) {
-    std::ifstream file(filePath);
+void ThreeDObj::getObjFile(const std::string &FILE_PATH) {
+    std::ifstream file(FILE_PATH);
     if (!file.is_open()) {
-        throw std::runtime_error("Failed to open file: " + filePath);
+        throw std::runtime_error("Failed to open file: " + FILE_PATH);
     }
 
     baseVertices.clear();
@@ -50,7 +50,7 @@ void ThreeDObj::getObjFile(const std::string filePath) {
     }
     file.close();
     std::cout << "Loaded " << baseVertices.size() << " vertices, " << (indices.size() / 3)
-              << " triangles from " << filePath << std::endl;
+              << " triangles from " << FILE_PATH << '\n';
 }
 
 void ThreeDObj::setColor(const glm::vec3 &color) { objectColor = color; }
@@ -60,6 +60,7 @@ void ThreeDObj::draw() {
         return;
     }
 
+    glLineWidth(1.0f);
     glColor3f(objectColor.x, objectColor.y, objectColor.z);
 
     // 삼각형 와이어프레임 그리기

@@ -21,7 +21,7 @@ void TrailParticle::draw(const GameState &) {
     glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 
     glPushMatrix();
-    glTranslatef(position.x, position.y, -0.1f);
+    glTranslatef(position.x, position.y, 0.0f);
     glScalef(size, size, 1.0f);
 
     // 중심이 밝은 원 그리기
