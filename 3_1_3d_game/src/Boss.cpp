@@ -138,7 +138,6 @@ void Boss::startDeathAnimation(int currentTime) {
 // 보스 그리기
 void Boss::draw(const GameState &gameState) {
     const float SIZE = 0.15f;
-    const float T = static_cast<float>(glutGet(GLUT_ELAPSED_TIME)) * 0.001f;
 
     if (isDying) {
         for (auto &fragment : fragments) {
@@ -153,7 +152,6 @@ void Boss::draw(const GameState &gameState) {
             glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 
             const float EXPLOSION_SIZE = 0.3f * (1.0f + DT * 2.0f);
-            const float A = 1.0f - DT * 0.67f;
 
             glPushMatrix();
             glTranslatef(currentPosition.x, currentPosition.y, 0.f);

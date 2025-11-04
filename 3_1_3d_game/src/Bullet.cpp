@@ -53,7 +53,6 @@ void EnemyBullet::draw(const GameState &gameState) {
     const float BASE_SCALE = 0.03f;
     const float SONIC_RELATIVE_SCALE = 0.5f;
 
-    const float T_MS = static_cast<float>(glutGet(GLUT_ELAPSED_TIME));
     glm::fvec2 deltaPosition = currentPosition - previousPosition;
     const float ROTATION_DEG =
         std::atan2(deltaPosition.y, deltaPosition.x) * 180.0f / std::numbers::pi_v<float>;
@@ -117,7 +116,7 @@ void PlayerBullet::draw(const GameState &gameState) {
     glTranslatef(currentPosition.x, currentPosition.y, 0.0f);
     glScalef(SCALE, SCALE, SCALE);
     glRotatef(-90.0f, 0.0f, 1.0f, 0.0f);
-    
+
     playerBulletObj.draw();
 
     glPopMatrix();

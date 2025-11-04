@@ -78,7 +78,7 @@ static void drawWorldBorder() {
 
     glVertex3f(2.0f, -2.0f, -1.0f);
     glVertex3f(-2.0f, -2.0f, -1.0f);
-    
+
     // 위쪽 사각형
     glVertex3f(-2.0f, -2.0f, 1.0f);
     glVertex3f(-2.0f, 2.0f, 1.0f);

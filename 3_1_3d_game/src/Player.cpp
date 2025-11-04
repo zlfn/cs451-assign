@@ -265,9 +265,6 @@ void Player::draw(const GameState &gameState) {
     glScalef(SCALE, SCALE, SCALE);
 
     if (isInvincible) {
-        float alpha =
-            0.3f +
-            0.4f * std::abs(std::sin(static_cast<float>(glutGet(GLUT_ELAPSED_TIME)) * 0.01f));
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         paperPlaneObj.draw();

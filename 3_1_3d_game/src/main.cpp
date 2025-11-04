@@ -64,20 +64,20 @@ void display() {
     const float CAMERA_ANGLE_X_DEG = 50.0f; // 카메라 회전 각도
     const float Z_DIST_VIEW = -0.5f;        // 뷰 공간(View Space)에서의 목표 Z 거리
 
-    const float angle_rad = CAMERA_ANGLE_X_DEG * (std::numbers::pi / 180.0f);
+    const float ANGLE_RAD = (float)(CAMERA_ANGLE_X_DEG * (std::numbers::pi / 180.0f));
 
     // Y 보정값
-    const float y_compensation = (std::tan(angle_rad) * std::abs(Z_DIST_VIEW)) / SCALE;
+    const float Y_COMPENSATION = (std::tan(ANGLE_RAD) * std::abs(Z_DIST_VIEW)) / SCALE;
 
     // glTranslatef에 쓸 Z 거리. 결과가 Z_DIST_VIEW가 되도록 역산
-    const float z_translate = Z_DIST_VIEW / std::cos(angle_rad) / SCALE;
+    const float Z_TRANSLATE = Z_DIST_VIEW / std::cos(ANGLE_RAD) / SCALE;
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     // 3D 투영
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    glFrustum(-1.0f, 1.0f, -1.0f, 1.0f, 0.5f, 20.0f); 
+    glFrustum(-1.0f, 1.0f, -1.0f, 1.0f, 0.5f, 20.0f);
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
@@ -86,7 +86,7 @@ void display() {
     glm::fvec2 &cbo = gameState.cameraBaseOffset;
     glRotatef(-CAMERA_ANGLE_X_DEG, 1.0f, 0.0f, 0.0f); // perspective view
     glScalef(SCALE, SCALE, SCALE);
-    glTranslatef(-cbo.x, -cbo.y + y_compensation, z_translate);
+    glTranslatef(-cbo.x, -cbo.y + Y_COMPENSATION, Z_TRANSLATE);
     glTranslatef(-gameState.cameraShakeOffset.x, -gameState.cameraShakeOffset.y, 0.0f);
 
     gameState.backgroundObject.draw(gameState);
