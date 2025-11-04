@@ -12,6 +12,10 @@ GameState::GameState(int h, int bh)
       bossObject2(glm::fvec2(-0.5f, 0.6f), 2), bossHealthBarObject(glm::fvec2(0.0f, 0.0f)),
       heartsObject(glm::fvec2(0.0f, 0.0f)) {}
 
+enum ProjMethod { DIAG_PERSPECTIVE, TOP_PERSPECTIVE, TOP_PARALLEL };
+ProjMethod currentProjMethod = DIAG_PERSPECTIVE;
+int keyPressDelay = 0;
+
 float playerSpeedBase = 0.00065f;
 bool isCameraShake = false;
 int cameraShakeStartTime = 0;
@@ -58,11 +62,43 @@ CommandExecutor commandExecutor({'w', 'w', 's', 's', 'a', 'd', 'a', 'd', 'b', 'a
 void keyboardDown(unsigned char key, int /*x*/, int /*y*/) { keyStates[key] = true; }
 void keyboardUp(unsigned char key, int /*x*/, int /*y*/) { keyStates[key] = false; }
 
+float smoothProjRotChange() {
+    int dt = glutGet(GLUT_ELAPSED_TIME) - keyPressDelay;
+    if (dt > 500 || currentProjMethod == TOP_PARALLEL) {
+        return 0.0f;
+    } else {
+        return 50.0 * (1.0 - ((float)dt / 500.0));
+    }
+}
+
+float smoothProjScaleChange() {
+    int dt = glutGet(GLUT_ELAPSED_TIME) - keyPressDelay;
+    if (dt > 500 || currentProjMethod == TOP_PARALLEL) {
+        return 2.0f;
+    } else {
+        return 2.0 + (1.0 - ((float)dt / 500.0));
+    }
+}
+
+float smoothProjZDistChange() {
+    int dt = glutGet(GLUT_ELAPSED_TIME) - keyPressDelay;
+    if (dt > 500 || currentProjMethod == TOP_PARALLEL) {
+        return -1.0f;
+    } else {
+        return -0.5f - 0.5f * ((float)dt / 500.0);
+    }
+}
+
 void display() {
     // 설정 값
-    const float SCALE = 3.0;
-    const float CAMERA_ANGLE_X_DEG = 50.0f; // 카메라 회전 각도
-    const float Z_DIST_VIEW = -0.5f;        // 뷰 공간(View Space)에서의 목표 Z 거리
+    const float SCALE = currentProjMethod == DIAG_PERSPECTIVE
+        ? 3.0 : smoothProjScaleChange();
+    const float CAMERA_ANGLE_X_DEG = currentProjMethod == DIAG_PERSPECTIVE
+        ? 50.0f : smoothProjRotChange(); // 카메라 회전 각도
+    const float Z_DIST_VIEW = currentProjMethod == DIAG_PERSPECTIVE
+        ? -0.5f : smoothProjZDistChange(); // 뷰 공간(View Space)에서의 목표 Z 거리
+
+    // 참고: 플레이어와 뷰의 거리가 SCALE/2가 되어야 TOP_PERSPECTIVE -> TOP_PARALLEL 변환 시에 위화감이 없다.
 
     const float ANGLE_RAD = (float)(CAMERA_ANGLE_X_DEG * (std::numbers::pi / 180.0f));
 
@@ -77,7 +113,11 @@ void display() {
     // 3D 투영
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    glFrustum(-1.0f, 1.0f, -1.0f, 1.0f, 0.5f, 20.0f);
+    if (currentProjMethod == TOP_PARALLEL) {
+        glOrtho(-SCALE, SCALE, -SCALE, SCALE, -5.0f, 5.0f);
+    } else {
+        glFrustum(-1.0f, 1.0f, -1.0f, 1.0f, 0.5f, 20.0f);
+    }
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
@@ -153,6 +193,26 @@ void keyInputUpdate(int dt) {
         movingHorizontal = true;
     }
 
+    int now = glutGet(GLUT_ELAPSED_TIME);
+    if (keyStates['c'] && keyPressDelay + 500 < now) {
+        keyPressDelay = now;
+        std::cout << "Change projection method to ";
+        switch (currentProjMethod) {
+        case DIAG_PERSPECTIVE:
+            currentProjMethod = TOP_PERSPECTIVE;
+            std::cout << "\'top perspective\'" << std::endl;
+            break;
+        case TOP_PERSPECTIVE:
+            currentProjMethod = TOP_PARALLEL;
+            std::cout << "\'top parallel\'" << std::endl;
+            break;
+        case TOP_PARALLEL:
+            currentProjMethod = DIAG_PERSPECTIVE;
+            std::cout << "\'diagonal perspective\'" << std::endl;
+            break;
+        }
+    }
+
     if (!movingHorizontal) {
         gameState.playerObject.targetTiltAngle = 0.0f;
     }
@@ -221,6 +281,8 @@ int main(int argc, char **argv) {
     }
 
     glEnable(GL_DEPTH_TEST);
+
+    keyPressDelay = glutGet(GLUT_ELAPSED_TIME);
 
     // Load skybox
     if (!gameState.skyboxObject.load("assets/skybox")) {
