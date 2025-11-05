@@ -16,7 +16,6 @@ extern std::mt19937 gen;
 extern std::uniform_real_distribution<float> dist;
 
 int getRandomRange(int a, int b);
-void drawSpaceship(glm::fvec2 center, float size, glm::fvec4 color);
 void drawRectWithGlow(float x, float y, float width, float height, glm::fvec4 color, float glowSize,
                       float zDepth);
 
