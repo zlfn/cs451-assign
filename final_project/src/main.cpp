@@ -15,13 +15,24 @@ GLuint EBO;
 const char *vertexShaderSource = R"(
 #version 330 core
 
-layout (location = 0) in vec3 aPos;     // (x, y, 0) grid position in NDC
-layout (location = 1) in float aHeight; // calculated wave height
+layout (location = 0) in vec3 aPos;
+layout (location = 1) in float aHeight;
 out float vHeight;
 
 void main() {
-    // Use the height for the z-coordinate. Scale it for visibility.
-    gl_Position = vec4(aPos.xy, aHeight * 0.1f, 1.0);
+    // Scale height to make waves visible
+    vec3 pos = vec3(aPos.xy, aHeight * 5.0f);
+
+    // Apply a static rotation around the X-axis for a better viewing angle
+    float angle = -1.2f; // ~70 degrees
+    mat4 rotation = mat4(
+        1.0, 0.0, 0.0, 0.0,
+        0.0, cos(angle), -sin(angle), 0.0,
+        0.0, sin(angle), cos(angle), 0.0,
+        0.0, 0.0, 0.0, 1.0
+    );
+
+    gl_Position = rotation * vec4(pos, 1.0);
     
     vHeight = aHeight;
 }
@@ -38,7 +49,7 @@ vec3 heightToColor(float t) {
     // 높이 값을 -1 ~ 1 범위에서 0 ~ 1 범위로 정규화 (범위는 데이터에 맞게 조절)
     float value = (t * 0.5) + 0.5;
 
-    // 간단한 'Jet' 컬러맵 (Blue -> Green -> Red)
+    // 간단한 Jet 컬러맵 (Blue -> Green -> Red)
     vec3 low = vec3(0.0, 0.0, 1.0);  // Blue (낮음)
     vec3 mid = vec3(0.0, 1.0, 0.0);  // Green (중간)
     vec3 high = vec3(1.0, 0.0, 0.0); // Red (높음)
@@ -52,7 +63,7 @@ vec3 heightToColor(float t) {
 
 void main() {
     // 높이 값에 따라 색상 결정
-    FragColor = vec4(heightToColor(vHeight), 1.0);
+    FragColor = vec4(heightToColor(vHeight*100), 1.0);
 }
 )";
 
@@ -167,17 +178,18 @@ void display() {
 }
 
 float currentTime = 0.0f;
+float timeScale = 0.0005f;
 // 정점 데이터를 담을 벡터 (전역으로 두거나 timer 내에서 매번 생성)
 std::vector<float> vertices;
 
 void timer(int value) {
-    currentTime += TIMER_INTERVAL;
+    currentTime += TIMER_INTERVAL * timeScale;
     calcWaveField(currentTime);
     iFFT();
 
     // currentHeight[i][j].real이 (i, j)에서의 파도 높이
 
-    // --- VBO 업데이트 로직 ---
+    // VBO 업데이트 로직
     vertices.clear();
     vertices.reserve(GRID_SIZE * GRID_SIZE * 4); // 메모리 재할당 방지
 
@@ -200,7 +212,6 @@ void timer(int value) {
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
     glBufferSubData(GL_ARRAY_BUFFER, 0, vertices.size() * sizeof(float), vertices.data());
     glBindBuffer(GL_ARRAY_BUFFER, 0);
-    // --- VBO 업데이트 끝 ---
 
     glutPostRedisplay(); // 화면 다시 그리기
     glutTimerFunc(TIMER_INTERVAL, timer, value);
