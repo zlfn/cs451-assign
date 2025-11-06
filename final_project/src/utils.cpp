@@ -1,5 +1,6 @@
 #include "base.hpp"
 #include "utils.hpp"
+#include <cmath>
 
 ThreeDObj::ThreeDObj(const std::string &FILE_PATH, const glm::fvec3 &color)
     : objectColor(color) // 기본은 흰색
@@ -206,20 +207,35 @@ void calcWaveField(float t) {
 }
 
 void iFFT_1D_inplace(std::complex<float> data[GRID_SIZE]) {
-    // data[]는 비트 반전이 완료된 1D 배열
-    for (int len = 2; len <= GRID_SIZE; len <<= 1) { // len = 2^k 꼴. (합치는 단위 크기)
+    // Bit-reversal permutation
+    for (unsigned int i = 0; i < GRID_SIZE; i++) {
+        unsigned int rev = 0;
+        unsigned int temp_i = i;
+        int num_bits = static_cast<int>(log2(GRID_SIZE));
+        for (int j = 0; j < num_bits; j++) {
+            rev = (rev << 1) | (temp_i & 1);
+            temp_i >>= 1;
+        }
+        if (rev > i) {
+            std::swap(data[i], data[rev]);
+        }
+    }
+
+    // Cooley-Tukey FFT algorithm (Radix-2)
+    for (int len = 2; len <= GRID_SIZE; len <<= 1) {
         int m = len / 2;
-        std::complex<float> W_len = std::exp(std::complex<float>(0.0, 2.0 * std::numbers::pi / len));
-        for (int k = 0; k < GRID_SIZE; k += len) { // k는 블록의 시작 인덱스
+        std::complex<float> W_len =
+            std::exp(std::complex<float>(0.0, 2.0 * std::numbers::pi_v<float> / len));
+        for (int k = 0; k < GRID_SIZE; k += len) {
             std::complex<float> W = 1.0;
-            for (int j = 0; j < m; j++) { // j는 블록 내 오프셋
-                std::complex<float> T = W * data[k + j + m]; // 버터플라이 연산
+            for (int j = 0; j < m; j++) {
+                std::complex<float> T = W * data[k + j + m];
                 std::complex<float> U = data[k + j];
 
                 data[k + j] = U + T;
                 data[k + j + m] = U - T;
 
-                W = W * W_len; // 다음 회전 인자
+                W = W * W_len;
             }
         }
     }

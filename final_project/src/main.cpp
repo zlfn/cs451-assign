@@ -9,21 +9,19 @@ std::uniform_real_distribution<float> dist(0.0f, 1.0f);
 GLuint shaderProgram;
 GLuint VAO;
 GLuint VBO;
+GLuint EBO;
 
 // 셰이더 소스 수정
 const char *vertexShaderSource = R"(
 #version 330 core
 
-layout (location = 0) in vec3 aPos;     // (x, y, 0) 그리드 위치
-layout (location = 1) in float aHeight; // currentHeight[i][j].real 값
-out float vHeight; // 프래그먼트 셰이더로 높이 값 전달
+layout (location = 0) in vec3 aPos;     // (x, y, 0) grid position in NDC
+layout (location = 1) in float aHeight; // calculated wave height
+out float vHeight;
 
 void main() {
-    gl_Position = vec4(aPos, 1.0);
-    
-    // 높이(절대값)에 따라 점의 크기를 조절합니다.
-    // 5.0f, 1.0f 등의 값은 시각적으로 보면서 조절하세요.
-    gl_PointSize = (abs(aHeight) * 5.0f) + 1.0f; 
+    // Use the height for the z-coordinate. Scale it for visibility.
+    gl_Position = vec4(aPos.xy, aHeight * 0.1f, 1.0);
     
     vHeight = aHeight;
 }
@@ -107,43 +105,60 @@ void init() {
     glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
     shaderProgram = createShaderProgram();
 
-    // 셰이더에서 gl_PointSize를 사용하려면 이 옵션을 켜야 합니다.
-    glEnable(GL_PROGRAM_POINT_SIZE);
-
-    // --- 기존 삼각형 데이터 삭제 ---
-    // float vertices[] = { ... };
-
     glGenVertexArrays(1, &VAO);
     glGenBuffers(1, &VBO);
+    glGenBuffers(1, &EBO);
 
     glBindVertexArray(VAO);
+
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, GRID_SIZE * GRID_SIZE * 4 * sizeof(float), NULL,
+                 GL_DYNAMIC_DRAW);
 
-    // VBO를 동적으로 할당합니다.
-    // GRID_SIZE*GRID_SIZE개의 정점, 각 정점은 (x, y, z, height) 4개의 float 값을 가짐.
-    // (base.hpp 등에 GRID_SIZE, GRID_SIZE이 정의되어 있어야 합니다.)
-    glBufferData(GL_ARRAY_BUFFER, GRID_SIZE * GRID_SIZE * 4 * sizeof(float), NULL, GL_DYNAMIC_DRAW);
-
-    // 1. layout (location = 0) : vec3 aPos
+    // Vertex attributes
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)0);
     glEnableVertexAttribArray(0);
-
-    // 2. layout (location = 1) : float aHeight
-    glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)(3 * sizeof(float)));
+    glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, 4 * sizeof(float),
+                          (void *)(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
+
+    // Create and bind EBO with indices for a grid mesh
+    std::vector<unsigned int> indices;
+    indices.reserve((GRID_SIZE - 1) * (GRID_SIZE - 1) * 6);
+    for (int i = 0; i < GRID_SIZE - 1; ++i) {
+        for (int j = 0; j < GRID_SIZE - 1; ++j) {
+            unsigned int v0 = i * GRID_SIZE + j;
+            unsigned int v1 = i * GRID_SIZE + j + 1;
+            unsigned int v2 = (i + 1) * GRID_SIZE + j;
+            unsigned int v3 = (i + 1) * GRID_SIZE + j + 1;
+            // Triangle 1
+            indices.push_back(v0);
+            indices.push_back(v2);
+            indices.push_back(v1);
+            // Triangle 2
+            indices.push_back(v1);
+            indices.push_back(v2);
+            indices.push_back(v3);
+        }
+    }
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int),
+                 indices.data(), GL_STATIC_DRAW);
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 }
 
 void display() {
-    glClear(GL_COLOR_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     glUseProgram(shaderProgram);
     glBindVertexArray(VAO);
 
-    // 삼각형(3개) 대신 GRID_SIZE*GRID_SIZE 개의 '점'을 그립니다.
-    glDrawArrays(GL_POINTS, 0, GRID_SIZE * GRID_SIZE);
+    // Draw wireframe mesh
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    glDrawElements(GL_TRIANGLES, (GRID_SIZE - 1) * (GRID_SIZE - 1) * 6, GL_UNSIGNED_INT, 0);
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL); // Reset for other potential draws
 
     glBindVertexArray(0);
     glUseProgram(0);
@@ -172,7 +187,7 @@ void timer(int value) {
             float x = (j / (float)(GRID_SIZE - 1)) * 2.0f - 1.0f;
             float y = (i / (float)(GRID_SIZE - 1)) * 2.0f - 1.0f;
             float z = 0.0f; // 2D 시각화이므로 z=0
-            float height = currentHeight[i][j].real() * 30;
+            float height = currentHeight[i][j].real();
 
             vertices.push_back(x);
             vertices.push_back(y);
@@ -203,6 +218,7 @@ void keyboard(unsigned char key, int x, int y) {
 void cleanup() {
     glDeleteVertexArrays(1, &VAO);
     glDeleteBuffers(1, &VBO);
+    glDeleteBuffers(1, &EBO);
     glDeleteProgram(shaderProgram);
     std::cout << "Freed All Resources." << std::endl;
 }
@@ -214,8 +230,8 @@ int main(int argc, char **argv) {
     glutInitContextVersion(3, 3);
     glutInitContextProfile(GLUT_CORE_PROFILE);
 
-    // 디스플레이 모드 설정 (더블 버퍼링, RGBA 색상)
-    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
+    // 디스플레이 모드 설정 (더블 버퍼링, RGBA 색상, 깊이 버퍼)
+    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
     glutInitWindowSize(800, 600);
     glutCreateWindow("CSED451 Final Project");
 
@@ -225,6 +241,7 @@ int main(int argc, char **argv) {
         std::cerr << "GLEW Initialization Failure: " << glewGetErrorString(err) << std::endl;
         return -1;
     }
+    glEnable(GL_DEPTH_TEST); // 3D 렌더링을 위한 깊이 테스트 활성화
     std::cout << "Using OpenGL " << glGetString(GL_VERSION) << std::endl;
 
     init(); // 셰이더, VBO/VAO 생성
