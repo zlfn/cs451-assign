@@ -12,8 +12,12 @@
 #include <random>
 #include <numbers>
 #include <vector>
+#include <complex>
 #include "collision.hpp"
 #include "utils.hpp"
+
+#define FPS 60
+#define TIMER_INTERVAL (1000 / FPS)
 
 extern bool keyStates[256];
 

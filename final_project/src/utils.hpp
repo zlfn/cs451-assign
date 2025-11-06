@@ -49,3 +49,14 @@ struct ThreeDObj {
     void setColor(const glm::vec3 &color);
     void draw(const std::string objName);
 };
+
+#define GRID_SIZE 32
+
+struct vec2 {
+    float x = 0.0f, y = 0.0f;
+};
+
+extern std::complex<float> currentHeight[GRID_SIZE][GRID_SIZE];
+void initSpectra();
+void calcWaveField(float t);
+void iFFT();
