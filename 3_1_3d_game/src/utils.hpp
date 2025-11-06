@@ -9,6 +9,10 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <stdexcept>
+#include <set>
+#include <queue>
+#include <utility>
 #include <map>
 
 extern std::random_device rd;
@@ -43,6 +47,7 @@ struct ThreeDObj {
     std::vector<glm::vec3> baseVertices;
     std::map<std::string, Indices> objIndicesMap;
     std::map<std::string, glm::vec3> objCenterMap;
+    std::map<std::string, glm::vec3> objTranslationMap;
     glm::vec3 objectColor;
 
     ThreeDObj(const std::string &FILE_PATH, const glm::fvec3 &color = glm::fvec3(1.0f, 1.0f, 1.0f));
@@ -50,4 +55,14 @@ struct ThreeDObj {
     void getObjFile(const std::string &FILE_PATH);
     void setColor(const glm::vec3 &color);
     void draw(const std::string objName);
+    
+    void drawAll();
+    void separate(float separation_step);
+    void splitObjectByZPlane(const std::string &objName, float z_plane = 0.0f);
+
+  private:
+    glm::vec3 intersectPlane(const glm::vec3 &p1, const glm::vec3 &p2, float z_plane);
+    glm::vec3 calculateCenter(const Indices &indices);
+    void findConnectedComponents(Indices &all_indices, const std::string &objName,
+                                 const std::string &suffix);
 };
