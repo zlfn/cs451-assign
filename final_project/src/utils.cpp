@@ -67,7 +67,7 @@ void ThreeDObj::getObjFile(const std::string &FILE_PATH) {
     }
 
     std::cout << "Loaded " << baseVertices.size() << " vertices, " << (objIndicesMap.size())
-              << " objects from " << FILE_PATH << std::endl;
+              << " objects from " << FILE_PATH << '\n';
 }
 
 void ThreeDObj::setColor(const glm::vec3 &color) { objectColor = color; }
@@ -108,7 +108,7 @@ int getRandomRange(int a, int b) {
 
 ///////////// CPU VERSION /////////////
 
-vec2 w = {1.0, 0.0}; // Wind direction
+glm::vec2 w = {1.0, 0.0}; // Wind direction
 
 const float L_world = 32.0f; // 시뮬레이션 월드 물리적 크기. 여기서는 32m x 32m
 

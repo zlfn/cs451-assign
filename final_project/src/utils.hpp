@@ -15,8 +15,6 @@ extern std::random_device rd;
 extern std::mt19937 gen;
 extern std::uniform_real_distribution<float> dist;
 
-int getRandomRange(int a, int b);
-
 using Indices = std::vector<unsigned int>;
 
 struct ThreeDObj {
@@ -33,10 +31,6 @@ struct ThreeDObj {
 };
 
 #define GRID_SIZE 32
-
-struct vec2 {
-    float x = 0.0f, y = 0.0f;
-};
 
 extern std::complex<float> currentHeight[GRID_SIZE][GRID_SIZE];
 void initSpectra();

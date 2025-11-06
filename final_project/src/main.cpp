@@ -177,14 +177,13 @@ void display(GLFWwindow* window) {
     glfwSwapBuffers(window);
 }
 
-float currentTime = 0.0f;
-float timeScale = 0.0005f;
+float timeScale = 0.5f;
 float lastFrameTime = 0.0f;
 // 정점 데이터를 담을 벡터 (전역으로 두거나 timer 내에서 매번 생성)
 std::vector<float> vertices;
 
 void updateWaves() {
-    currentTime += TIMER_INTERVAL * timeScale;
+    float currentTime = glfwGetTime() * timeScale;
     calcWaveField(currentTime);
     iFFT();
 
@@ -286,12 +285,7 @@ int main(int argc, char **argv) {
         double currentFrameTime = glfwGetTime();
         double deltaTime = currentFrameTime - lastFrameTime;
 
-        // 60 FPS로 업데이트 (약 16.67ms마다)
-        if (deltaTime >= TIMER_INTERVAL / 1000.0) {
-            updateWaves();
-            lastFrameTime = currentFrameTime;
-        }
-
+        updateWaves();
         display(window);
         glfwPollEvents();
     }
