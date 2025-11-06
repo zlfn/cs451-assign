@@ -170,20 +170,6 @@ struct BossMove {
 };
 BossMove idleBossMove(glm::fvec2 position, int startTime = 0);
 
-struct BossFragment : Drawable, Updatable {
-    glm::fvec2 position;
-    glm::fvec2 velocity;
-    float rotation;
-    float rotationSpeed;
-    float size;
-    float alpha;
-    glm::fvec3 color;
-
-    BossFragment(glm::fvec2 pos, glm::fvec2 vel, float rot, float rotSpeed, float sz,
-                 glm::fvec3 col);
-    bool update(int deltaTime, GameState &) override;
-    void draw(const GameState &) override;
-};
 struct Boss : Updatable, Drawable, Collidable {
     glm::fvec2 currentPosition;
     BossMove currentMove;
@@ -192,7 +178,6 @@ struct Boss : Updatable, Drawable, Collidable {
     int coolTimePeriod = 500;
     bool isDying = false;
     int deathStartTime = 0;
-    std::vector<BossFragment> fragments;
     int lastHitTime = 0;
     float hitIntensity = 0.0f;
 

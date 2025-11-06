@@ -38,7 +38,7 @@ glm::fvec2 cameraShake(int currentTime) {
     return glm::fvec2(offset, 0.0);
 }
 
-GameState gameState(5, 1000);
+GameState gameState(5, 200);
 
 // 코나미 커맨드: ↑↑↓↓←→←→BA
 CommandExecutor commandExecutor({'w', 'w', 's', 's', 'a', 'd', 'a', 'd', 'b', 'a'},
@@ -101,7 +101,7 @@ void display() {
     // 참고: 플레이어와 뷰의 거리가 SCALE/2가 되어야 TOP_PERSPECTIVE -> TOP_PARALLEL 변환 시에 위화감이 없다.
 
     const float ANGLE_RAD = (float)(CAMERA_ANGLE_X_DEG * (std::numbers::pi / 180.0f));
-
+    
     // Y 보정값
     const float Y_COMPENSATION = (std::tan(ANGLE_RAD) * std::abs(Z_DIST_VIEW)) / SCALE;
 
