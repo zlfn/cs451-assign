@@ -38,7 +38,7 @@ glm::fvec2 cameraShake(int currentTime) {
     return glm::fvec2(offset, 0.0);
 }
 
-GameState gameState(5, 2);
+GameState gameState(5, 200);
 
 // 코나미 커맨드: ↑↑↓↓←→←→BA
 CommandExecutor commandExecutor({'w', 'w', 's', 's', 'a', 'd', 'a', 'd', 'b', 'a'},
