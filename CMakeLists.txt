@@ -19,6 +19,17 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(stb)
 
+# Fetch GLFW
+FetchContent_Declare(
+  glfw
+  GIT_REPOSITORY https://github.com/glfw/glfw.git
+  GIT_TAG 3.4
+)
+set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(glfw)
+
 find_package(OpenGL REQUIRED)
 
 if(WIN32)
@@ -79,7 +90,7 @@ function(add_gl_executable_single_file exec_name source_file)
   else()
     target_link_libraries(${exec_name} glm::glm)
   endif()
-  
+
   # Copy DLLs to output directory on Windows
   if(WIN32)
     if(CMAKE_CONFIGURATION_TYPES)
@@ -99,6 +110,39 @@ function(add_gl_executable_single_file exec_name source_file)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
           "${WIN_X64_MSVC_BIN_DIR}/freeglut.dll"
           "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/freeglut.dll"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+          "${WIN_X64_MSVC_BIN_DIR}/glew32.dll"
+          "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/glew32.dll"
+        COMMENT "Copying DLLs to output directory"
+      )
+    endif()
+  endif()
+endfunction()
+
+# Function for GLFW-based executables
+function(add_glfw_executable_single_file exec_name source_file)
+  add_executable(${exec_name} ${source_file})
+  target_link_libraries(${exec_name} OpenGL::GL glfw GLEW::glew)
+  target_compile_definitions(${exec_name} PRIVATE GL_SILENCE_DEPRECATION)
+  if(DEFINED GLM_INCLUDE_DIR)
+    target_include_directories(${exec_name} PRIVATE ${GLM_INCLUDE_DIR})
+  else()
+    target_link_libraries(${exec_name} glm::glm)
+  endif()
+
+  # Copy DLLs to output directory on Windows
+  if(WIN32)
+    if(CMAKE_CONFIGURATION_TYPES)
+      # Multi-config generators (Visual Studio) - use generator expression
+      add_custom_command(TARGET ${exec_name} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+          "${WIN_X64_MSVC_BIN_DIR}/glew32.dll"
+          "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/glew32.dll"
+        COMMENT "Copying DLLs to $<CONFIG> directory"
+      )
+    else()
+      # Single-config generators - copy once
+      add_custom_command(TARGET ${exec_name} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
           "${WIN_X64_MSVC_BIN_DIR}/glew32.dll"
           "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/glew32.dll"

@@ -1,5 +1,5 @@
-# Create final_project executable
-add_gl_executable_single_file(final_project src/main.cpp)
+# Create final_project executable with GLFW
+add_glfw_executable_single_file(final_project src/main.cpp)
 
 target_sources(final_project PRIVATE
     src/utils.cpp

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <GL/glew.h>
-#include <GL/freeglut.h>
+#include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -18,8 +18,6 @@
 
 #define FPS 60
 #define TIMER_INTERVAL (1000 / FPS)
-
-extern bool keyStates[256];
 
 // 그릴 수 있는 객체의 인터페이스
 struct Drawable {

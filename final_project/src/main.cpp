@@ -69,29 +69,29 @@ void main() {
 
 // 셰이더 컴파일
 GLuint createShaderProgram() {
-    GLint success;
+    GLint success = false;
     GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
     GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
     GLuint program = glCreateProgram();
 
     // 정점 셰이더 컴파일
-    glShaderSource(vertexShader, 1, &vertexShaderSource, NULL);
+    glShaderSource(vertexShader, 1, &vertexShaderSource, nullptr);
     glCompileShader(vertexShader);
     glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success); // 오류 검사
     if (!success) {
         char infoLog[512];
-        glGetShaderInfoLog(vertexShader, 512, NULL, infoLog);
-        std::cerr << "Vertex Shader Compile Failure:\n" << infoLog << std::endl;
+        glGetShaderInfoLog(vertexShader, 512, nullptr, infoLog);
+        std::cerr << "Vertex Shader Compile Failure:\n" << infoLog << '\n';
     }
 
     // 프래그먼트 셰이더 컴파일
-    glShaderSource(fragmentShader, 1, &fragmentShaderSource, NULL);
+    glShaderSource(fragmentShader, 1, &fragmentShaderSource, nullptr);
     glCompileShader(fragmentShader);
     glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success); // 오류 검사
     if (!success) {
         char infoLog[512];
         glGetShaderInfoLog(fragmentShader, 512, NULL, infoLog);
-        std::cerr << "Fragment Shader Compile Failure:\n" << infoLog << std::endl;
+        std::cerr << "Fragment Shader Compile Failure:\n" << infoLog << '\n';
     }
 
     // 셰이더 프로그램 링크
@@ -101,8 +101,8 @@ GLuint createShaderProgram() {
     glGetProgramiv(program, GL_LINK_STATUS, &success); // 링크 오류 검사
     if (!success) {
         char infoLog[512];
-        glGetProgramInfoLog(program, 512, NULL, infoLog);
-        std::cerr << "Shader Program Link Failure:\n" << infoLog << std::endl;
+        glGetProgramInfoLog(program, 512, nullptr, infoLog);
+        std::cerr << "Shader Program Link Failure:\n" << infoLog << '\n';
     }
 
     // 컴파일 & 링크 후 개별 shader 객체는 삭제
@@ -123,7 +123,7 @@ void init() {
     glBindVertexArray(VAO);
 
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, GRID_SIZE * GRID_SIZE * 4 * sizeof(float), NULL,
+    glBufferData(GL_ARRAY_BUFFER, GRID_SIZE * GRID_SIZE * 4 * sizeof(float), nullptr,
                  GL_DYNAMIC_DRAW);
 
     // Vertex attributes
@@ -160,7 +160,7 @@ void init() {
     glBindVertexArray(0);
 }
 
-void display() {
+void display(GLFWwindow* window) {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     glUseProgram(shaderProgram);
@@ -174,15 +174,16 @@ void display() {
     glBindVertexArray(0);
     glUseProgram(0);
 
-    glutSwapBuffers();
+    glfwSwapBuffers(window);
 }
 
 float currentTime = 0.0f;
 float timeScale = 0.0005f;
+float lastFrameTime = 0.0f;
 // 정점 데이터를 담을 벡터 (전역으로 두거나 timer 내에서 매번 생성)
 std::vector<float> vertices;
 
-void timer(int value) {
+void updateWaves() {
     currentTime += TIMER_INTERVAL * timeScale;
     calcWaveField(currentTime);
     iFFT();
@@ -212,16 +213,15 @@ void timer(int value) {
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
     glBufferSubData(GL_ARRAY_BUFFER, 0, vertices.size() * sizeof(float), vertices.data());
     glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-    glutPostRedisplay(); // 화면 다시 그리기
-    glutTimerFunc(TIMER_INTERVAL, timer, value);
 }
 
-void reshape(int width, int height) { glViewport(0, 0, width, height); }
+void framebufferSizeCallback(GLFWwindow* window, int width, int height) {
+    glViewport(0, 0, width, height);
+}
 
-void keyboard(unsigned char key, int x, int y) {
-    if (key == 27) { // ESC 키
-        glutLeaveMainLoop(); // 메인 루프 종료
+void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
+        glfwSetWindowShouldClose(window, GLFW_TRUE);
     }
 }
 
@@ -231,43 +231,74 @@ void cleanup() {
     glDeleteBuffers(1, &VBO);
     glDeleteBuffers(1, &EBO);
     glDeleteProgram(shaderProgram);
-    std::cout << "Freed All Resources." << std::endl;
+    std::cout << "Freed All Resources." << '\n';
 }
 
 int main(int argc, char **argv) {
-    glutInit(&argc, argv); // GLUT 초기화
+    // GLFW 초기화
+    if (!glfwInit()) {
+        std::cerr << "Failed to initialize GLFW\n";
+        return -1;
+    }
 
-    // 모던 opengl (Core Profile 3.3) 요청
-    glutInitContextVersion(3, 3);
-    glutInitContextProfile(GLUT_CORE_PROFILE);
+    // OpenGL 3.3 Core Profile 설정
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+#ifdef __APPLE__
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+#endif
 
-    // 디스플레이 모드 설정 (더블 버퍼링, RGBA 색상, 깊이 버퍼)
-    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
-    glutInitWindowSize(800, 600);
-    glutCreateWindow("CSED451 Final Project");
+    // 윈도우 생성
+    GLFWwindow* window = glfwCreateWindow(800, 600, "CSED451 Final Project", nullptr, nullptr);
+    if (!window) {
+        std::cerr << "Failed to create GLFW window\n";
+        glfwTerminate();
+        return -1;
+    }
+    glfwMakeContextCurrent(window);
 
     // GLEW 초기화
     GLenum err = glewInit();
     if (err != GLEW_OK) {
-        std::cerr << "GLEW Initialization Failure: " << glewGetErrorString(err) << std::endl;
+        std::cerr << "GLEW Initialization Failure: " << glewGetErrorString(err) << '\n';
+        glfwTerminate();
         return -1;
     }
+
     glEnable(GL_DEPTH_TEST); // 3D 렌더링을 위한 깊이 테스트 활성화
-    std::cout << "Using OpenGL " << glGetString(GL_VERSION) << std::endl;
+    std::cout << "Using OpenGL " << glGetString(GL_VERSION) << '\n';
+
+    // 콜백 함수 설정
+    glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
+    glfwSetKeyCallback(window, keyCallback);
+
+    // VSync 활성화 (60 FPS로 제한)
+    glfwSwapInterval(1);
 
     init(); // 셰이더, VBO/VAO 생성
-
-    // GLUT 콜백 함수
-    glutDisplayFunc(display); // 렌더링 콜백
-    glutTimerFunc(TIMER_INTERVAL, timer, 0);
-    glutReshapeFunc(reshape); // 창 크기 조절 콜백
-    glutKeyboardFunc(keyboard); // 키보드 콜백
-    glutCloseFunc(cleanup); // 창 닫을 때 cleanup 호출
-
     initSpectra(); // spectrum 초기화
 
-    // 메인 루프 시작
-    glutMainLoop();
+    lastFrameTime = glfwGetTime();
+
+    // 메인 루프
+    while (!glfwWindowShouldClose(window)) {
+        double currentFrameTime = glfwGetTime();
+        double deltaTime = currentFrameTime - lastFrameTime;
+
+        // 60 FPS로 업데이트 (약 16.67ms마다)
+        if (deltaTime >= TIMER_INTERVAL / 1000.0) {
+            updateWaves();
+            lastFrameTime = currentFrameTime;
+        }
+
+        display(window);
+        glfwPollEvents();
+    }
+
+    // 정리
+    cleanup();
+    glfwTerminate();
 
     return 0;
 }
