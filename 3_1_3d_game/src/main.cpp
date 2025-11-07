@@ -116,7 +116,7 @@ void display() {
     if (currentProjMethod == TOP_PARALLEL) {
         glOrtho(-SCALE, SCALE, -SCALE, SCALE, -5.0f, 5.0f);
     } else {
-        glFrustum(-1.0f, 1.0f, -1.0f, 1.0f, 0.5f, 20.0f);
+        glFrustum(-0.2f, 0.2f, -0.2f, 0.2f, 0.1f, 20.0f);
     }
 
     glMatrixMode(GL_MODELVIEW);
