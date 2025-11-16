@@ -3,8 +3,8 @@
 PlayerHealthBar::PlayerHealthBar(glm::fvec2 drawPosition) : drawPosition(drawPosition) {}
 // 플레이어 체력 바 그리기
 void PlayerHealthBar::draw(const GameState &gameState) {
-    glPushMatrix();
-    glLoadIdentity();
+    modelViewStack.matPush();
+    modelViewStack.loadIdentity();
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -48,7 +48,7 @@ void PlayerHealthBar::draw(const GameState &gameState) {
     }
 
     glDisable(GL_BLEND);
-    glPopMatrix();
+    modelViewStack.matPop();
 }
 
 BossHealthBar::BossHealthBar(glm::fvec2 drawPosition) : drawPosition(drawPosition) {}
@@ -65,8 +65,8 @@ void BossHealthBar::draw(const GameState &gameState) {
     float barY = 0.95f;
     float zDepth = 0.9f;
 
-    glPushMatrix();
-    glLoadIdentity();
+    modelViewStack.matPush();
+    modelViewStack.loadIdentity();
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -100,5 +100,5 @@ void BossHealthBar::draw(const GameState &gameState) {
 
     glDisable(GL_BLEND);
 
-    glPopMatrix();
+    modelViewStack.matPop();
 }

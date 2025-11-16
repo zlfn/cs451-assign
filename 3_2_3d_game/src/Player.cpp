@@ -22,14 +22,14 @@ void EnergyOrb::draw(const GameState &) {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 
-    glPushMatrix();
-    glTranslatef(VIEW_POS.x, VIEW_POS.y, 0.1f);
-    glScalef(size, size, size);
-    glRotatef(90.0, 1.0, 0.0, 0.0);
+    modelViewStack.matPush();
+    modelViewStack.translate(VIEW_POS.x, VIEW_POS.y, 0.1f);
+    modelViewStack.scale(size, size, size);
+    modelViewStack.rotate(90.0, 1.0, 0.0, 0.0);
 
     energyOrbObj.draw("Sphere");
 
-    glPopMatrix();
+    modelViewStack.matPop();
     glDisable(GL_BLEND);
 }
 
@@ -52,10 +52,10 @@ void PlayerFragment::draw(const GameState &) {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 
-    glPushMatrix();
-    glTranslatef(position.x, position.y, 0.0f);
-    glRotatef(rotation, 0.0f, 0.0f, 1.0f);
-    glScalef(size, size, 1.0f);
+    modelViewStack.matPush();
+    modelViewStack.translate(position.x, position.y, 0.0f);
+    modelViewStack.rotate(rotation, 0.0f, 0.0f, 1.0f);
+    modelViewStack.scale(size, size, 1.0f);
 
     const float H = std::sqrt(3.0f) / 2.0f;
 
@@ -68,7 +68,7 @@ void PlayerFragment::draw(const GameState &) {
     glVertex3f(H, -0.5f, 0.0f);
     glEnd();
 
-    glPopMatrix();
+    modelViewStack.matPop();
     glDisable(GL_BLEND);
 }
 
@@ -141,6 +141,7 @@ void Player::updateEnergyOrbs(int currentHealth, int currentTime) {
         energyOrbs[i].updatePosition();
     }
 }
+
 bool Player::update(int currentTime, GameState &gameState) {
     if (isDying) {
         // 파편 업데이트
@@ -234,11 +235,10 @@ void Player::draw(const GameState &gameState) {
             float alpha = 1.0f - timeSinceDeath * 0.83f;
 
             // M = T(pos - camera) * S(explosionSize)
-            glm::mat4 m = glm::translate(glm::mat4(1.0f), glm::vec3(currentPosition, 0.0f));
-            m = glm::scale(m, glm::vec3(explosionSize, explosionSize, 1.0f));
-
-            glPushMatrix();
-            glMultMatrixf(glm::value_ptr(m));
+            
+            modelViewStack.matPush();
+            modelViewStack.translate(currentPosition.x, currentPosition.y, 0.0f);
+            modelViewStack.scale(explosionSize, explosionSize, 1.0f);
 
             glBegin(GL_TRIANGLE_FAN);
             glColor4f(1.0f, 0.9f, 0.0f, alpha * 0.8f);
@@ -252,17 +252,17 @@ void Player::draw(const GameState &gameState) {
             }
             glEnd();
 
-            glPopMatrix();
+            modelViewStack.matPop();
             glDisable(GL_BLEND);
         }
         return;
     }
 
-    glPushMatrix();
-    glTranslatef(currentPosition.x, currentPosition.y, 0.0f);
-    glPushMatrix();
-    glRotatef(-90.0f, 1.0f, 0.0f, 0.0f);
-    glScalef(SCALE, SCALE, SCALE);
+    modelViewStack.matPush();
+    modelViewStack.translate(currentPosition.x, currentPosition.y, 0.0f);
+    modelViewStack.matPush();
+    modelViewStack.rotate(-90.0f, 1.0f, 0.0f, 0.0f);
+    modelViewStack.scale(SCALE, SCALE, SCALE);
 
     if (isInvincible) {
         glEnable(GL_BLEND);
@@ -273,13 +273,13 @@ void Player::draw(const GameState &gameState) {
         jetObj.draw("base");
     }
 
-    glPopMatrix();
-    glScalef(ORB_SCALE, ORB_SCALE, ORB_SCALE);
+    modelViewStack.matPop();
+    modelViewStack.scale(ORB_SCALE, ORB_SCALE, ORB_SCALE);
     for (auto &orb : energyOrbs) {
         orb.draw(gameState);
     }
 
-    glPopMatrix();
+    modelViewStack.matPop();
 }
 void Player::move(glm::fvec2 deltaPosition) {
     if (isDying)

@@ -12,21 +12,21 @@ bool Star::update(int deltaTime, GameState & /*gameState*/) {
     return false;
 }
 
-void Star::draw(const GameState &) {
+void Star::draw(const GameState &gameState) {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 
     glColor4f(brightness, brightness, brightness, brightness * 0.8f);
     glPointSize(size);
 
-    glPushMatrix();
-    glTranslatef(position.x, position.y, -0.99f);
+    modelViewStack.matPush();
+    modelViewStack.translate(position.x, position.y, -0.99f);
 
     glBegin(GL_POINTS);
     glVertex3f(0.0f, 0.0f, 0.0f);
     glEnd();
 
-    glPopMatrix();
+    modelViewStack.matPop();
     glDisable(GL_BLEND);
 }
 

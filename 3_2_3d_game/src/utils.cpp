@@ -1,6 +1,30 @@
 #include "base.hpp"
 #include "utils.hpp"
 
+MatrixStack::MatrixStack() { stack.push_back(glm::identity<glm::mat4x4>()); }
+
+void MatrixStack::loadIdentity() { stack.back() = glm::identity<glm::mat4x4>(); }
+
+void MatrixStack::matMul(glm::mat4x4 m) { stack.back() *= m; }
+
+glm::mat4x4 MatrixStack::getTopMatrix() { return stack.back(); }
+
+void MatrixStack::matPush() { stack.push_back(stack.back()); }
+
+void MatrixStack::matPop() { stack.pop_back(); }
+
+void MatrixStack::translate(float x, float y, float z) {
+    stack.back() = glm::translate(stack.back(), glm::vec3(x, y, z));
+}
+
+void MatrixStack::rotate(float angle, float x, float y, float z) {
+    stack.back() = glm::rotate(stack.back(), angle, glm::vec3(x, y, z));
+}
+
+void MatrixStack::scale(float x, float y, float z) {
+    stack.back() = glm::scale(stack.back(), glm::vec3(x, y, z));
+}
+
 ThreeDObj::ThreeDObj(const std::string &FILE_PATH, const glm::fvec3 &color)
     : objectColor(color) // 기본은 흰색
 {
@@ -54,7 +78,7 @@ void ThreeDObj::getObjFile(const std::string &FILE_PATH) {
         }
     }
     file.close();
-
+    
     for (const auto &[key, value] : objIndicesMap) {
         Indices currentIndices = value;
         glm::vec3 centerPos = glm::vec3(0.0,0.0,0.0);

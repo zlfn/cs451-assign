@@ -66,3 +66,16 @@ struct ThreeDObj {
     void findConnectedComponents(Indices &all_indices, const std::string &objName,
                                  const std::string &suffix);
 };
+
+struct MatrixStack {
+    std::vector<glm::mat4x4> stack;
+    MatrixStack();
+    void loadIdentity();
+    void matMul(glm::mat4x4 m);
+    glm::mat4x4 getTopMatrix();
+    void translate(float x, float y, float z);
+    void rotate(float angle, float x, float y, float z);
+    void scale(float x, float y, float z);
+    void matPush();
+    void matPop();
+};
