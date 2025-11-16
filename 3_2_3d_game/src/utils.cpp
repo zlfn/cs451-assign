@@ -19,7 +19,9 @@ void MatrixStack::translate(float x, float y, float z) {
 }
 
 void MatrixStack::rotate(float angle, float x, float y, float z) {
-    stack.back() = glm::rotate(stack.back(), angle, glm::vec3(x, y, z));
+    // angle은 degree로 받아서 radian으로 변환 (glRotatef와 호환)
+    float radians = glm::radians(angle);
+    stack.back() = glm::rotate(stack.back(), radians, glm::vec3(x, y, z));
 }
 
 void MatrixStack::scale(float x, float y, float z) {
