@@ -59,10 +59,13 @@ struct TrailParticle : Drawable, Updatable {
     float alpha;
     glm::fvec3 color;
     int birthTime;
+    std::unique_ptr<Mesh> mesh;
 
     TrailParticle(glm::fvec2 pos, glm::fvec2 vel, float sz, glm::fvec3 col, int currentTime);
     bool update(int currentTime, GameState &) override;
     void draw(const GameState &) override;
+private:
+    void createMesh();
 };
 struct EnemyBullet : Updatable, Drawable, Collidable {
     glm::fvec2 initialDirection;
@@ -115,12 +118,15 @@ struct PlayerFragment : Drawable, Updatable {
     float size;
     float alpha;
     glm::fvec3 color;
+    std::unique_ptr<Mesh> mesh;
 
     PlayerFragment(glm::fvec2 pos, glm::fvec2 vel, float rot, float rotSpeed, float sz,
                    glm::fvec3 col);
 
     bool update(int deltaTime, GameState &) override;
     void draw(const GameState &) override;
+private:
+    void createMesh();
 };
 struct Player : Updatable, Drawable, Collidable {
     glm::fvec2 currentPosition;

@@ -37,7 +37,9 @@ void EnergyOrb::draw(const GameState &) {
 PlayerFragment::PlayerFragment(glm::fvec2 pos, glm::fvec2 vel, float rot, float rotSpeed, float sz,
                                glm::fvec3 col)
     : position(pos), velocity(vel), rotation(rot), rotationSpeed(rotSpeed), size(sz), alpha(1.0f),
-      color(col) {}
+      color(col) {
+    createMesh();
+}
 
 bool PlayerFragment::update(int deltaTime, GameState &) {
     float dt = static_cast<float>(deltaTime) * 0.0005f;
@@ -49,8 +51,24 @@ bool PlayerFragment::update(int deltaTime, GameState &) {
     return alpha <= 0.0f || size <= 0.001f;
 }
 
+void PlayerFragment::createMesh() {
+    const float H = std::sqrt(3.0f) / 2.0f;
+
+    float vertices[] = {
+        0.0f, 1.0f, 0.0f,  color.r, color.g, color.b,
+        -H, -0.5f, 0.0f,   color.r * 0.5f, color.g * 0.5f, color.b * 0.5f,
+        H, -0.5f, 0.0f,    color.r * 0.5f, color.g * 0.5f, color.b * 0.5f
+    };
+
+    mesh = std::make_unique<Mesh>();
+    mesh->setData(vertices, sizeof(vertices), GL_STATIC_DRAW);
+    mesh->setAttribute(0, 3, GL_FLOAT, 6 * sizeof(float), (void*)0);
+    mesh->setAttribute(1, 3, GL_FLOAT, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+    mesh->setDrawMode(GL_TRIANGLES, 3);
+}
+
 void PlayerFragment::draw(const GameState &) {
-    if (!g_shaderProgram) return;
+    if (!g_shaderProgram || !mesh) return;
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE);
@@ -60,25 +78,10 @@ void PlayerFragment::draw(const GameState &) {
     modelViewStack.rotate(rotation, 0.0f, 0.0f, 1.0f);
     modelViewStack.scale(size, size, 1.0f);
 
-    const float H = std::sqrt(3.0f) / 2.0f;
-
-    // 정점 데이터 (position + color)
-    float vertices[] = {
-        0.0f, 1.0f, 0.0f,  color.r, color.g, color.b,  // vertex 1
-        -H, -0.5f, 0.0f,   color.r * 0.5f, color.g * 0.5f, color.b * 0.5f,  // vertex 2
-        H, -0.5f, 0.0f,    color.r * 0.5f, color.g * 0.5f, color.b * 0.5f   // vertex 3
-    };
-
-    Mesh mesh;
-    mesh.setData(vertices, sizeof(vertices), GL_DYNAMIC_DRAW);
-    mesh.setAttribute(0, 3, GL_FLOAT, 6 * sizeof(float), (void*)0);
-    mesh.setAttribute(1, 3, GL_FLOAT, 6 * sizeof(float), (void*)(3 * sizeof(float)));
-    mesh.setDrawMode(GL_TRIANGLES, 3);
-
     glm::mat4 projection = projectionStack.getTopMatrix();
     glm::mat4 modelView = modelViewStack.getTopMatrix();
 
-    drawMesh(mesh, *g_shaderProgram, [&](const ShaderProgram& prog) {
+    drawMesh(*mesh, *g_shaderProgram, [&](const ShaderProgram& prog) {
         prog.setUniform("projection", projection);
         prog.setUniform("modelView", modelView);
         prog.setUniform("objectColor", color);
