@@ -43,11 +43,15 @@ concept Map01Fn = requires {
 
 using Indices = std::vector<unsigned int>;
 
+// Forward declaration
+class Mesh;
+
 struct ThreeDObj {
     std::vector<glm::vec3> baseVertices;
     std::map<std::string, Indices> objIndicesMap;
     std::map<std::string, glm::vec3> objCenterMap;
     std::map<std::string, glm::vec3> objTranslationMap;
+    std::map<std::string, std::unique_ptr<Mesh>> objMeshMap;
     glm::vec3 objectColor;
 
     ThreeDObj(const std::string &FILE_PATH, const glm::fvec3 &color = glm::fvec3(1.0f, 1.0f, 1.0f));
@@ -65,6 +69,7 @@ struct ThreeDObj {
     glm::vec3 calculateCenter(const Indices &indices);
     void findConnectedComponents(Indices &all_indices, const std::string &objName,
                                  const std::string &suffix);
+    void createMesh(const std::string &objName);
 };
 
 // 셰이더 프로그램 (전역, main.cpp에서 초기화됨)

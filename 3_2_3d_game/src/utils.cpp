@@ -96,83 +96,71 @@ void ThreeDObj::getObjFile(const std::string &FILE_PATH) {
               << " objects from " << FILE_PATH << std::endl;
 }
 
-void ThreeDObj::setColor(const glm::vec3 &color) { objectColor = color; }
+void ThreeDObj::setColor(const glm::vec3 &color) {
+    objectColor = color;
+    objMeshMap.clear(); // color 변경 시 모든 Mesh 재생성 필요
+}
 
-void ThreeDObj::draw(const std::string objName) {
-    if (baseVertices.empty() || objIndicesMap.empty()) {
-        return;
-    }
-
+void ThreeDObj::createMesh(const std::string &objName) {
     Indices indices;
     try {
-        indices = objIndicesMap.at(objName); // .at()는 없는 키일 때 예외 처리해줘서 좋음
-    } catch (const std::out_of_range &oor) {
-        std::cerr << "Error: there is no object named " << objName << std::endl;
+        indices = objIndicesMap.at(objName);
+    } catch (const std::out_of_range &) {
         return;
     }
 
-    // 객체의 누적된 이동량 가져오기
-    glm::vec3 translation(0.0f);
-    if (objTranslationMap.find(objName) != objTranslationMap.end()) {
-        translation = objTranslationMap.at(objName);
-    }
-
-    // === 기존 Immediate Mode 코드 (주석 처리) ===
-    // glLineWidth(1.0f);
-    // glColor3f(objectColor.x, objectColor.y, objectColor.z);
-    // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-    // glBegin(GL_TRIANGLES);
-    // {
-    //     for (unsigned int index : indices) {
-    //         const glm::vec3 &vertex = baseVertices[index];
-    //         glVertex3f(vertex.x + translation.x, vertex.y + translation.y,
-    //                    vertex.z + translation.z);
-    //     }
-    // }
-    // glEnd();
-    // glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-
-    // === 셰이더 기반 렌더링 (Core Profile) ===
-    if (!g_shaderProgram) {
-        std::cerr << "Error: Shader program not initialized\n";
-        return;
-    }
-
-    // 정점 데이터 준비 (position + color interleaved)
     std::vector<float> vertexData;
-    vertexData.reserve(indices.size() * 6); // 3 for position, 3 for color
+    vertexData.reserve(indices.size() * 6);
 
     for (unsigned int index : indices) {
         const glm::vec3 &vertex = baseVertices[index];
-
-        // Position
-        vertexData.push_back(vertex.x + translation.x);
-        vertexData.push_back(vertex.y + translation.y);
-        vertexData.push_back(vertex.z + translation.z);
-
-        // Color
+        vertexData.push_back(vertex.x);
+        vertexData.push_back(vertex.y);
+        vertexData.push_back(vertex.z);
         vertexData.push_back(objectColor.x);
         vertexData.push_back(objectColor.y);
         vertexData.push_back(objectColor.z);
     }
 
-    // 임시 Mesh 생성
-    Mesh mesh;
-    mesh.setData(vertexData.data(), vertexData.size() * sizeof(float), GL_DYNAMIC_DRAW);
-    mesh.setAttribute(0, 3, GL_FLOAT, 6 * sizeof(float), (void*)0); // position
-    mesh.setAttribute(1, 3, GL_FLOAT, 6 * sizeof(float), (void*)(3 * sizeof(float))); // color
-    mesh.setDrawMode(GL_TRIANGLES, (GLsizei)indices.size());
+    auto mesh = std::make_unique<Mesh>();
+    mesh->setData(vertexData.data(), vertexData.size() * sizeof(float), GL_STATIC_DRAW);
+    mesh->setAttribute(0, 3, GL_FLOAT, 6 * sizeof(float), (void*)0);
+    mesh->setAttribute(1, 3, GL_FLOAT, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+    mesh->setDrawMode(GL_TRIANGLES, (GLsizei)indices.size());
 
-    // Projection과 ModelView 행렬 가져오기
+    objMeshMap[objName] = std::move(mesh);
+}
+
+void ThreeDObj::draw(const std::string objName) {
+    if (!g_shaderProgram || baseVertices.empty() || objIndicesMap.empty()) {
+        return;
+    }
+
+    // Mesh가 없으면 생성
+    if (objMeshMap.find(objName) == objMeshMap.end()) {
+        createMesh(objName);
+    }
+    if (objMeshMap.find(objName) == objMeshMap.end()) {
+        std::cerr << "Error: Object '" << objName << "' not found\n";
+        return;
+    }
+
+    // Translation 적용
+    glm::vec3 translation(0.0f);
+    if (objTranslationMap.find(objName) != objTranslationMap.end()) {
+        translation = objTranslationMap.at(objName);
+    }
+
+    modelViewStack.matPush();
+    modelViewStack.translate(translation.x, translation.y, translation.z);
+
     glm::mat4 projection = projectionStack.getTopMatrix();
     glm::mat4 modelView = modelViewStack.getTopMatrix();
 
-    // 와이어프레임 모드 설정 (Core Profile에서도 사용 가능)
     glLineWidth(1.0f);
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
-    // 렌더링
-    drawMesh(mesh, *g_shaderProgram, [&](const ShaderProgram& prog) {
+    drawMesh(*objMeshMap[objName], *g_shaderProgram, [&](const ShaderProgram& prog) {
         prog.setUniform("projection", projection);
         prog.setUniform("modelView", modelView);
         prog.setUniform("objectColor", objectColor);
@@ -180,6 +168,7 @@ void ThreeDObj::draw(const std::string objName) {
     });
 
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    modelViewStack.matPop();
 }
 
 void ThreeDObj::drawAll() {
