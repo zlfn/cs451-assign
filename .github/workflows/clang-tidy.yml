@@ -1,11 +1,6 @@
 name: Clang-Tidy
 
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
-
+on: workflow-dispatch
 jobs:
   clang-tidy:
     runs-on: ubuntu-latest

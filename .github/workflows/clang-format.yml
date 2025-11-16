@@ -1,11 +1,6 @@
 name: Clang-Format
 
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
-
+on: workflow-dispatch
 jobs:
   clang-format:
     runs-on: ubuntu-latest
