@@ -1,4 +1,5 @@
 #include "base.hpp"
+#include "graphics.hpp"
 
 PlayerHealthBar::PlayerHealthBar(glm::fvec2 drawPosition) : drawPosition(drawPosition) {}
 // 플레이어 체력 바 그리기
@@ -55,6 +56,8 @@ BossHealthBar::BossHealthBar(glm::fvec2 drawPosition) : drawPosition(drawPositio
 
 // 보스 체력 바 그리기
 void BossHealthBar::draw(const GameState &gameState) {
+    if (!g_shaderProgram) return;
+
     float healthPercentage =
         static_cast<float>(gameState.bossHealth) / static_cast<float>(gameState.MAX_BOSS_HEALTH);
     healthPercentage = glm::clamp(healthPercentage, 0.0f, 1.0f);
@@ -72,13 +75,7 @@ void BossHealthBar::draw(const GameState &gameState) {
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     // 배경 바 그리기
-    glBegin(GL_QUADS);
-    glColor4f(0.15f, 0.05f, 0.2f, 0.8f);
-    glVertex3f(-barWidth / 2, barY - barHeight / 2, zDepth);
-    glVertex3f(barWidth / 2, barY - barHeight / 2, zDepth);
-    glVertex3f(barWidth / 2, barY + barHeight / 2, zDepth);
-    glVertex3f(-barWidth / 2, barY + barHeight / 2, zDepth);
-    glEnd();
+    drawRectWithGlow(barX, barY, barWidth, barHeight, glm::fvec4(0.15f, 0.05f, 0.2f, 0.8f), 0.0f, zDepth);
 
     // 체력 바 그리기
     float healthBarWidth = barWidth * healthPercentage;

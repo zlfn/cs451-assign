@@ -1,5 +1,6 @@
 #include "base.hpp"
 #include "utils.hpp"
+#include "graphics.hpp"
 
 MatrixStack::MatrixStack() { stack.push_back(glm::identity<glm::mat4x4>()); }
 
@@ -114,21 +115,68 @@ void ThreeDObj::draw(const std::string objName) {
         translation = objTranslationMap.at(objName);
     }
 
-    glLineWidth(1.0f);
-    glColor3f(objectColor.x, objectColor.y, objectColor.z);
+    // === 기존 Immediate Mode 코드 (주석 처리) ===
+    // glLineWidth(1.0f);
+    // glColor3f(objectColor.x, objectColor.y, objectColor.z);
+    // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    // glBegin(GL_TRIANGLES);
+    // {
+    //     for (unsigned int index : indices) {
+    //         const glm::vec3 &vertex = baseVertices[index];
+    //         glVertex3f(vertex.x + translation.x, vertex.y + translation.y,
+    //                    vertex.z + translation.z);
+    //     }
+    // }
+    // glEnd();
+    // glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
-    // 삼각형 와이어프레임 그리기
-    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-    glBegin(GL_TRIANGLES);
-    {
-        for (unsigned int index : indices) {
-            const glm::vec3 &vertex = baseVertices[index];
-
-            glVertex3f(vertex.x + translation.x, vertex.y + translation.y,
-                       vertex.z + translation.z);
-        }
+    // === 셰이더 기반 렌더링 (Core Profile) ===
+    if (!g_shaderProgram) {
+        std::cerr << "Error: Shader program not initialized\n";
+        return;
     }
-    glEnd();
+
+    // 정점 데이터 준비 (position + color interleaved)
+    std::vector<float> vertexData;
+    vertexData.reserve(indices.size() * 6); // 3 for position, 3 for color
+
+    for (unsigned int index : indices) {
+        const glm::vec3 &vertex = baseVertices[index];
+
+        // Position
+        vertexData.push_back(vertex.x + translation.x);
+        vertexData.push_back(vertex.y + translation.y);
+        vertexData.push_back(vertex.z + translation.z);
+
+        // Color
+        vertexData.push_back(objectColor.x);
+        vertexData.push_back(objectColor.y);
+        vertexData.push_back(objectColor.z);
+    }
+
+    // 임시 Mesh 생성
+    Mesh mesh;
+    mesh.setData(vertexData.data(), vertexData.size() * sizeof(float), GL_DYNAMIC_DRAW);
+    mesh.setAttribute(0, 3, GL_FLOAT, 6 * sizeof(float), (void*)0); // position
+    mesh.setAttribute(1, 3, GL_FLOAT, 6 * sizeof(float), (void*)(3 * sizeof(float))); // color
+    mesh.setDrawMode(GL_TRIANGLES, (GLsizei)indices.size());
+
+    // Projection과 ModelView 행렬 가져오기
+    glm::mat4 projection = projectionStack.getTopMatrix();
+    glm::mat4 modelView = modelViewStack.getTopMatrix();
+
+    // 와이어프레임 모드 설정 (Core Profile에서도 사용 가능)
+    glLineWidth(1.0f);
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
+    // 렌더링
+    drawMesh(mesh, *g_shaderProgram, [&](const ShaderProgram& prog) {
+        prog.setUniform("projection", projection);
+        prog.setUniform("modelView", modelView);
+        prog.setUniform("objectColor", objectColor);
+        prog.setUniform("useVertexColor", 1.0f);
+    });
+
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 }
 
@@ -499,8 +547,44 @@ int getRandomRange(int a, int b) {
     return static_cast<int>(dist(gen));
 }
 
+// 셰이더 기반 사각형 그리기 (Glow 효과는 생략)
 void drawRectWithGlow(float x, float y, float width, float height, glm::fvec4 color, float glowSize,
                       float zDepth) {
+    if (!g_shaderProgram) return;
+
+    float halfW = width / 2.0f;
+    float halfH = height / 2.0f;
+
+    // 정점 데이터 (2 triangles = 6 vertices)
+    float vertices[] = {
+        // Triangle 1
+        x - halfW, y - halfH, zDepth,  color.r, color.g, color.b,
+        x + halfW, y - halfH, zDepth,  color.r, color.g, color.b,
+        x + halfW, y + halfH, zDepth,  color.r, color.g, color.b,
+
+        // Triangle 2
+        x + halfW, y + halfH, zDepth,  color.r, color.g, color.b,
+        x - halfW, y + halfH, zDepth,  color.r, color.g, color.b,
+        x - halfW, y - halfH, zDepth,  color.r, color.g, color.b
+    };
+
+    Mesh mesh;
+    mesh.setData(vertices, sizeof(vertices), GL_DYNAMIC_DRAW);
+    mesh.setAttribute(0, 3, GL_FLOAT, 6 * sizeof(float), (void*)0);
+    mesh.setAttribute(1, 3, GL_FLOAT, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+    mesh.setDrawMode(GL_TRIANGLES, 6);
+
+    glm::mat4 projection = projectionStack.getTopMatrix();
+    glm::mat4 modelView = modelViewStack.getTopMatrix();
+
+    drawMesh(mesh, *g_shaderProgram, [&](const ShaderProgram& prog) {
+        prog.setUniform("projection", projection);
+        prog.setUniform("modelView", modelView);
+        prog.setUniform("objectColor", glm::vec3(color.r, color.g, color.b));
+        prog.setUniform("useVertexColor", 1.0f);
+    });
+
+    /* === 기존 코드 (주석 처리) ===
     float halfW = width / 2.0f;
     float halfH = height / 2.0f;
 
@@ -590,4 +674,5 @@ void drawRectWithGlow(float x, float y, float width, float height, glm::fvec4 co
     glVertex3f(x + halfW, y + halfH, zDepth);
     glVertex3f(x - halfW, y + halfH, zDepth);
     glEnd();
+    */
 }

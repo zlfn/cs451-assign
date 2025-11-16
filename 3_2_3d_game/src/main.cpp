@@ -1,5 +1,6 @@
 ﻿#include "utils.hpp"
 #include "base.hpp"
+#include "graphics.hpp"
 
 std::random_device rd;
 std::mt19937 gen(rd());
@@ -267,8 +268,46 @@ void reshape(int width, int height) {
     glViewport(0, 0, 800, 800);
 }
 
+// Core profile용 셰이더 프로그램 (전역)
+ShaderProgram* g_shaderProgram = nullptr;
+
+// 셰이더 초기화 함수
+void initShaders() {
+    try {
+        // Vertex shader 생성
+        Shader vertShader = Shader::fromSource(
+            Shader::Type::VERTEX,
+            ShaderSources::vertexShaderSource
+        );
+
+        // Fragment shader 생성
+        Shader fragShader = Shader::fromSource(
+            Shader::Type::FRAGMENT,
+            ShaderSources::fragmentShaderSource
+        );
+
+        // 셰이더 프로그램 생성 및 링크
+        g_shaderProgram = new ShaderProgram();
+        g_shaderProgram->attachShader(vertShader);
+        g_shaderProgram->attachShader(fragShader);
+        g_shaderProgram->link();
+
+        std::cout << "Shaders initialized successfully\n";
+    } catch (const std::exception& e) {
+        std::cerr << "Shader initialization failed: " << e.what() << '\n';
+        std::exit(1);
+    }
+}
+
 int main(int argc, char **argv) {
     glutInit(&argc, argv);
+
+    // Core Profile 설정 (macOS GLUT에서는 지원하지 않음)
+    #ifndef __APPLE__
+    glutInitContextVersion(3, 3);
+    glutInitContextProfile(GLUT_CORE_PROFILE);
+    #endif
+
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
     glutInitWindowSize(800, 800);
     glutCreateWindow("CSED451 Assn 3");
@@ -278,6 +317,9 @@ int main(int argc, char **argv) {
         std::cerr << "GLEW 초기화 실패: " << glewGetErrorString(err) << '\n';
         return -1;
     }
+
+    // 셰이더 초기화
+    initShaders();
 
     glEnable(GL_DEPTH_TEST);
 

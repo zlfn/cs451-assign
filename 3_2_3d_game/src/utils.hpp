@@ -55,7 +55,7 @@ struct ThreeDObj {
     void getObjFile(const std::string &FILE_PATH);
     void setColor(const glm::vec3 &color);
     void draw(const std::string objName);
-    
+
     void drawAll();
     void separate(float separation_step);
     void splitObjectByZPlane(const std::string &objName, float z_plane = 0.0f);
@@ -66,6 +66,10 @@ struct ThreeDObj {
     void findConnectedComponents(Indices &all_indices, const std::string &objName,
                                  const std::string &suffix);
 };
+
+// 셰이더 프로그램 (전역, main.cpp에서 초기화됨)
+class ShaderProgram;
+extern ShaderProgram* g_shaderProgram;
 
 struct MatrixStack {
     std::vector<glm::mat4x4> stack;

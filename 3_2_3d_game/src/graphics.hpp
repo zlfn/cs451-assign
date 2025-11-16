@@ -240,5 +240,40 @@ private:
 //    });
 //
 // setupUniforms가 nullptr이면 uniform 설정을 건너뜁니다.
-void draw(const Mesh& mesh, const ShaderProgram& shader,
-          const std::function<void(const ShaderProgram&)>& setupUniforms = nullptr);
+void drawMesh(const Mesh& mesh, const ShaderProgram& shader,
+              const std::function<void(const ShaderProgram&)>& setupUniforms = nullptr);
+
+// 하드코딩된 셰이더 소스
+namespace ShaderSources {
+    // Vertex Shader: Projection * ModelView * position
+    inline const char* vertexShaderSource = R"(
+        #version 330 core
+        layout(location = 0) in vec3 position;
+        layout(location = 1) in vec3 color;
+
+        uniform mat4 projection;  // Projection matrix
+        uniform mat4 modelView;   // Model-View matrix
+
+        out vec3 fragColor;
+
+        void main() {
+            gl_Position = projection * modelView * vec4(position, 1.0);
+            fragColor = color;
+        }
+    )";
+
+    // Fragment Shader: 고정된 색상 또는 vertex color 사용
+    inline const char* fragmentShaderSource = R"(
+        #version 330 core
+        in vec3 fragColor;
+        out vec4 color;
+
+        uniform vec3 objectColor;
+        uniform float useVertexColor;  // 0.0 = use objectColor, 1.0 = use vertex color
+
+        void main() {
+            vec3 finalColor = mix(objectColor, fragColor, useVertexColor);
+            color = vec4(finalColor, 1.0);
+        }
+    )";
+}

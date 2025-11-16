@@ -64,6 +64,11 @@ bool Skybox::load(const std::string &directory) {
 }
 
 void Skybox::draw(const GameState & /*gameState*/) {
+    // === Immediate Mode + 텍스처 코드 (Core Profile에서 사용 불가) ===
+    // TODO: 셰이더 기반으로 재구현 필요 (텍스처 포함)
+    return; // 임시로 비활성화
+
+    /* === 기존 코드 (주석 처리) ===
     if (!loaded_)
         return;
 
@@ -154,4 +159,5 @@ void Skybox::draw(const GameState & /*gameState*/) {
     glEnable(GL_CULL_FACE);
     glDepthMask(GL_TRUE);
     glEnable(GL_DEPTH_TEST);
+    */
 }

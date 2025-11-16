@@ -1,5 +1,6 @@
 #include "base.hpp"
 #include "utils.hpp"
+#include "graphics.hpp"
 
 ThreeDObj jetObj = ThreeDObj("assets/jet.obj", glm::fvec3(1.0, 1.0, 0.0));
 ThreeDObj energyOrbObj = ThreeDObj("assets/star.obj", glm::fvec3(0.5, 0.2, 0.1));
@@ -49,6 +50,8 @@ bool PlayerFragment::update(int deltaTime, GameState &) {
 }
 
 void PlayerFragment::draw(const GameState &) {
+    if (!g_shaderProgram) return;
+
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 
@@ -59,14 +62,28 @@ void PlayerFragment::draw(const GameState &) {
 
     const float H = std::sqrt(3.0f) / 2.0f;
 
-    glBegin(GL_TRIANGLES);
-    glColor4f(color.r, color.g, color.b, alpha);
-    glVertex3f(0.0f, 1.0f, 0.0f);
+    // 정점 데이터 (position + color)
+    float vertices[] = {
+        0.0f, 1.0f, 0.0f,  color.r, color.g, color.b,  // vertex 1
+        -H, -0.5f, 0.0f,   color.r * 0.5f, color.g * 0.5f, color.b * 0.5f,  // vertex 2
+        H, -0.5f, 0.0f,    color.r * 0.5f, color.g * 0.5f, color.b * 0.5f   // vertex 3
+    };
 
-    glColor4f(color.r * 0.5f, color.g * 0.5f, color.b * 0.5f, alpha * 0.5f);
-    glVertex3f(-H, -0.5f, 0.0f);
-    glVertex3f(H, -0.5f, 0.0f);
-    glEnd();
+    Mesh mesh;
+    mesh.setData(vertices, sizeof(vertices), GL_DYNAMIC_DRAW);
+    mesh.setAttribute(0, 3, GL_FLOAT, 6 * sizeof(float), (void*)0);
+    mesh.setAttribute(1, 3, GL_FLOAT, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+    mesh.setDrawMode(GL_TRIANGLES, 3);
+
+    glm::mat4 projection = projectionStack.getTopMatrix();
+    glm::mat4 modelView = modelViewStack.getTopMatrix();
+
+    drawMesh(mesh, *g_shaderProgram, [&](const ShaderProgram& prog) {
+        prog.setUniform("projection", projection);
+        prog.setUniform("modelView", modelView);
+        prog.setUniform("objectColor", color);
+        prog.setUniform("useVertexColor", 1.0f);
+    });
 
     modelViewStack.matPop();
     glDisable(GL_BLEND);
@@ -227,30 +244,57 @@ void Player::draw(const GameState &gameState) {
         int currentTime = glutGet(GLUT_ELAPSED_TIME);
         float timeSinceDeath = static_cast<float>(currentTime - deathStartTime) * 0.001f;
 
-        if (timeSinceDeath < 1.2f) {
+        if (timeSinceDeath < 1.2f && g_shaderProgram) {
             glEnable(GL_BLEND);
             glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 
             float explosionSize = 0.2f * (1.0f + timeSinceDeath * 3.0f);
             float alpha = 1.0f - timeSinceDeath * 0.83f;
 
-            // M = T(pos - camera) * S(explosionSize)
-            
             modelViewStack.matPush();
             modelViewStack.translate(currentPosition.x, currentPosition.y, 0.0f);
             modelViewStack.scale(explosionSize, explosionSize, 1.0f);
 
-            glBegin(GL_TRIANGLE_FAN);
-            glColor4f(1.0f, 0.9f, 0.0f, alpha * 0.8f);
-            glVertex3f(0.0f, 0.0f, 0.0f); // 중심(로컬 원점)
+            // TRIANGLE_FAN을 TRIANGLES로 변환
+            const int N = 20;
+            std::vector<float> vertices;
+            vertices.reserve((N * 3) * 6);
 
-            glColor4f(1.0f, 0.5f, 0.0f, 0.0f);
-            for (int i = 0; i <= 20; ++i) {
-                float angle = static_cast<float>(i) * 2.0f * std::numbers::pi_v<float> / 20.0f;
-                // 로컬 단위 원 좌표, 변환은 모델 행렬이 담당
-                glVertex3f(std::cos(angle), std::sin(angle), 0.0f);
+            glm::vec3 centerColor(1.0f, 0.9f, 0.0f);
+            glm::vec3 edgeColor(1.0f, 0.5f, 0.0f);
+
+            for (int i = 0; i < N; ++i) {
+                float angle1 = static_cast<float>(i) * 2.0f * std::numbers::pi_v<float> / static_cast<float>(N);
+                float angle2 = static_cast<float>(i + 1) * 2.0f * std::numbers::pi_v<float> / static_cast<float>(N);
+
+                // 중심점
+                vertices.push_back(0.0f); vertices.push_back(0.0f); vertices.push_back(0.0f);
+                vertices.push_back(centerColor.r); vertices.push_back(centerColor.g); vertices.push_back(centerColor.b);
+
+                // 첫 번째 가장자리 점
+                vertices.push_back(std::cos(angle1)); vertices.push_back(std::sin(angle1)); vertices.push_back(0.0f);
+                vertices.push_back(edgeColor.r); vertices.push_back(edgeColor.g); vertices.push_back(edgeColor.b);
+
+                // 두 번째 가장자리 점
+                vertices.push_back(std::cos(angle2)); vertices.push_back(std::sin(angle2)); vertices.push_back(0.0f);
+                vertices.push_back(edgeColor.r); vertices.push_back(edgeColor.g); vertices.push_back(edgeColor.b);
             }
-            glEnd();
+
+            Mesh mesh;
+            mesh.setData(vertices.data(), vertices.size() * sizeof(float), GL_DYNAMIC_DRAW);
+            mesh.setAttribute(0, 3, GL_FLOAT, 6 * sizeof(float), (void*)0);
+            mesh.setAttribute(1, 3, GL_FLOAT, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+            mesh.setDrawMode(GL_TRIANGLES, N * 3);
+
+            glm::mat4 projection = projectionStack.getTopMatrix();
+            glm::mat4 modelView = modelViewStack.getTopMatrix();
+
+            drawMesh(mesh, *g_shaderProgram, [&](const ShaderProgram& prog) {
+                prog.setUniform("projection", projection);
+                prog.setUniform("modelView", modelView);
+                prog.setUniform("objectColor", centerColor);
+                prog.setUniform("useVertexColor", 1.0f);
+            });
 
             modelViewStack.matPop();
             glDisable(GL_BLEND);
