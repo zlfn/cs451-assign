@@ -119,7 +119,7 @@ void display() {
     if (currentProjMethod == TOP_PARALLEL) {
         projection = glm::ortho(-SCALE, SCALE, -SCALE, SCALE, -5.0f, 5.0f);
     } else {
-        projection = glm::frustum(-1.0f, 1.0f, -1.0f, 1.0f, 0.5f, 20.0f);
+        projection = glm::frustum(-0.2f, 0.2f, -0.2f, 0.2f, 0.1f, 20.0f);
     }
     projectionStack.matMul(projection);
 

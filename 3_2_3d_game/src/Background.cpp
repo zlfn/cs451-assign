@@ -149,9 +149,10 @@ void Background::draw(const GameState &gameState) {
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glEnable(GL_POINT_SMOOTH);
 
-    for (auto &star : stars) {
-        star.draw(gameState);
-    }
+    // 별 그리기 비활성화 (성능 문제)
+    // for (auto &star : stars) {
+    //     star.draw(gameState);
+    // }
 
     drawWorldBorder();
 }
