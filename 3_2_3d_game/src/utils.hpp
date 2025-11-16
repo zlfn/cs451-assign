@@ -14,6 +14,8 @@
 #include <queue>
 #include <utility>
 #include <map>
+#include <memory>
+#include "graphics.hpp"
 
 extern std::random_device rd;
 extern std::mt19937 gen;
@@ -42,9 +44,6 @@ concept Map01Fn = requires {
 } && approxEqual(F{}(0.0f), 0.0f) && approxEqual(F{}(1.0f), 1.0f);
 
 using Indices = std::vector<unsigned int>;
-
-// Forward declaration
-class Mesh;
 
 struct ThreeDObj {
     std::vector<glm::vec3> baseVertices;
