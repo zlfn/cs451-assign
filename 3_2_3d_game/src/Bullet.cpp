@@ -60,19 +60,19 @@ void EnemyBullet::draw(const GameState &gameState) {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 
-    glPushMatrix();
-    glTranslatef(currentPosition.x, currentPosition.y, 0.0f);
-    glScalef(BASE_SCALE, BASE_SCALE, BASE_SCALE);
+    modelViewStack.matPush();
+    modelViewStack.translate(currentPosition.x, currentPosition.y, 0.0f);
+    modelViewStack.scale(BASE_SCALE, BASE_SCALE, BASE_SCALE);
 
     enemyBulletObj.draw("Sphere");
 
-    glScalef(SONIC_RELATIVE_SCALE, SONIC_RELATIVE_SCALE, SONIC_RELATIVE_SCALE);
-    glRotatef(ROTATION_DEG, 0.0, 0.0, 1.0);
-    glTranslatef(5.0f, 0.0f, 0.0f);
-    glRotatef(90, 0.0, 1.0, 0.0);
+    modelViewStack.scale(SONIC_RELATIVE_SCALE, SONIC_RELATIVE_SCALE, SONIC_RELATIVE_SCALE);
+    modelViewStack.rotate(ROTATION_DEG, 0.0, 0.0, 1.0);
+    modelViewStack.translate(5.0f, 0.0f, 0.0f);
+    modelViewStack.rotate(90, 0.0, 1.0, 0.0);
     enemyBulletSonicObj.draw("Sphere");
 
-    glPopMatrix();
+    modelViewStack.matPop();
 
     glDisable(GL_BLEND);
 }
@@ -112,14 +112,14 @@ void PlayerBullet::draw(const GameState &gameState) {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 
-    glPushMatrix();
-    glTranslatef(currentPosition.x, currentPosition.y, 0.0f);
-    glScalef(SCALE, SCALE, SCALE);
-    glRotatef(-90.0f, 0.0f, 1.0f, 0.0f);
+    modelViewStack.matPush();
+    modelViewStack.translate(currentPosition.x, currentPosition.y, 0.0f);
+    modelViewStack.scale(SCALE, SCALE, SCALE);
+    modelViewStack.rotate(-90.0f, 0.0f, 1.0f, 0.0f);
 
     playerBulletObj.draw("Sphere");
 
-    glPopMatrix();
+    modelViewStack.matPop();
 
     glDisable(GL_BLEND);
 }

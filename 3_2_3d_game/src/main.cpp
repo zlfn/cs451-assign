@@ -12,6 +12,9 @@ GameState::GameState(int h, int bh)
       bossObject2(glm::fvec2(-0.5f, 0.6f), 2), bossHealthBarObject(glm::fvec2(0.0f, 0.0f)),
       heartsObject(glm::fvec2(0.0f, 0.0f)) {}
 
+MatrixStack modelViewStack;
+MatrixStack projectionStack;
+
 enum ProjMethod { DIAG_PERSPECTIVE, TOP_PERSPECTIVE, TOP_PARALLEL };
 ProjMethod currentProjMethod = DIAG_PERSPECTIVE;
 int keyPressDelay = 0;
@@ -99,7 +102,6 @@ void display() {
         ? -0.5f : smoothProjZDistChange(); // 뷰 공간(View Space)에서의 목표 Z 거리
 
     // 참고: 플레이어와 뷰의 거리가 SCALE/2가 되어야 TOP_PERSPECTIVE -> TOP_PARALLEL 변환 시에 위화감이 없다.
-
     const float ANGLE_RAD = (float)(CAMERA_ANGLE_X_DEG * (std::numbers::pi / 180.0f));
     
     // Y 보정값
@@ -111,31 +113,31 @@ void display() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     // 3D 투영
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
+    projectionStack.loadIdentity();
+    glm::mat4 projection;
     if (currentProjMethod == TOP_PARALLEL) {
-        glOrtho(-SCALE, SCALE, -SCALE, SCALE, -5.0f, 5.0f);
+        projection = glm::ortho(-SCALE, SCALE, -SCALE, SCALE, -5.0f, 5.0f);
     } else {
-        glFrustum(-1.0f, 1.0f, -1.0f, 1.0f, 0.5f, 20.0f);
+        projection = glm::frustum(-1.0f, 1.0f, -1.0f, 1.0f, 0.5f, 20.0f);
     }
+    projectionStack.matMul(projection);
 
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
+    modelViewStack.loadIdentity();
 
     // Draw skybox first without camera translation (only rotation)
-    glPushMatrix();
-    glRotatef(-CAMERA_ANGLE_X_DEG, 1.0f, 0.0f, 0.0f);
+    modelViewStack.matPush();
+    modelViewStack.rotate(-CAMERA_ANGLE_X_DEG, 1.0f, 0.0f, 0.0f);
     gameState.skyboxObject.draw(gameState);
-    glPopMatrix();
+    modelViewStack.matPop();
 
     // Now apply full camera transform for other objects
-    glPushMatrix();
+    modelViewStack.matPush();
 
     glm::fvec2 &cbo = gameState.cameraBaseOffset;
-    glRotatef(-CAMERA_ANGLE_X_DEG, 1.0f, 0.0f, 0.0f); // perspective view
-    glScalef(SCALE, SCALE, SCALE);
-    glTranslatef(-cbo.x, -cbo.y + Y_COMPENSATION, Z_TRANSLATE);
-    glTranslatef(-gameState.cameraShakeOffset.x, -gameState.cameraShakeOffset.y, 0.0f);
+    modelViewStack.rotate(-CAMERA_ANGLE_X_DEG, 1.0f, 0.0f, 0.0f); // perspective view
+    modelViewStack.scale(SCALE, SCALE, SCALE);
+    modelViewStack.translate(-cbo.x, -cbo.y + Y_COMPENSATION, Z_TRANSLATE);
+    modelViewStack.translate(-gameState.cameraShakeOffset.x, -gameState.cameraShakeOffset.y, 0.0f);
     gameState.backgroundObject.draw(gameState);
     for (auto &particle : gameState.trailParticles) {
         particle.draw(gameState);
@@ -150,16 +152,13 @@ void display() {
     gameState.bossObject2.draw(gameState);
     gameState.playerObject.draw(gameState);
 
-    glPopMatrix(); // 3D 뷰 매트릭스 제거
+    modelViewStack.matPop(); // 3D 뷰 매트릭스 제거
 
     // 2D 투영
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    glOrtho(-1.0, 1.0, -1.0, 1.0, -1.0, 1.0);
+    projectionStack.loadIdentity();
+    projectionStack.matMul(glm::ortho(-1.0, 1.0, -1.0, 1.0, -1.0, 1.0));
 
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-
+    modelViewStack.loadIdentity();
     gameState.bossHealthBarObject.draw(gameState);
     gameState.heartsObject.draw(gameState);
 

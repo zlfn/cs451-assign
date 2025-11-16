@@ -20,9 +20,9 @@ void TrailParticle::draw(const GameState &) {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 
-    glPushMatrix();
-    glTranslatef(position.x, position.y, 0.0f);
-    glScalef(size, size, 1.0f);
+    modelViewStack.matPush();
+    modelViewStack.translate(position.x, position.y, 0.0f);
+    modelViewStack.scale(size, size, 1.0f);
 
     // 중심이 밝은 원 그리기
     glBegin(GL_TRIANGLE_FAN);
@@ -40,6 +40,6 @@ void TrailParticle::draw(const GameState &) {
     }
     glEnd();
 
-    glPopMatrix();
+    modelViewStack.matPop();
     glDisable(GL_BLEND);
 }

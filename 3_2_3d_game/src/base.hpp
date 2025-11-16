@@ -23,6 +23,9 @@ struct GameState;
 struct EnemyBullet;
 struct BossMove;
 
+extern MatrixStack modelViewStack;
+extern MatrixStack projectionStack;
+
 using BulletVec = std::vector<EnemyBullet>;
 using BulletPattern = std::function<BulletVec(GameState &, int, int)>;
 using PatternEntry = std::pair<BulletPattern, int>; // {패턴함수, 시작시각(ms)}

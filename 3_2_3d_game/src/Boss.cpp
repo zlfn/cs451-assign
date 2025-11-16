@@ -69,13 +69,13 @@ void Boss::startDeathAnimation(int currentTime) {
 void bossDrawPropeller(const std::string objName, const float DT, const float speed) {
     const float SCALE = 1.5;
     glm::vec3 ct = bossObj.objCenterMap[objName];
-    glPushMatrix();
-    glTranslatef(ct.x, ct.y, ct.z);
-    glRotatef(DT * 360.0 * speed, 0.0, 1.0, 0.0);
-    glScalef(SCALE, SCALE, SCALE);
-    glTranslatef(-ct.x, -ct.y, -ct.z);
+    modelViewStack.matPush();
+    modelViewStack.translate(ct.x, ct.y, ct.z);
+    modelViewStack.rotate(DT * 360.0 * speed, 0.0, 1.0, 0.0);
+    modelViewStack.scale(SCALE, SCALE, SCALE);
+    modelViewStack.translate(-ct.x, -ct.y, -ct.z);
     bossObj.draw(objName);
-    glPopMatrix();
+    modelViewStack.matPop();
 }
 
 // 보스 그리기
@@ -87,12 +87,10 @@ void Boss::draw(const GameState &gameState) {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    glPushMatrix();
-    glTranslatef(currentPosition.x, currentPosition.y, 0.f);
-  
-    glScalef(SIZE, SIZE, SIZE);
-
-    glRotatef(90.0, 1.0, 0.0, 0.0);
+    modelViewStack.matPush();
+    modelViewStack.translate(currentPosition.x, currentPosition.y, 0.f);
+    modelViewStack.scale(SIZE, SIZE, SIZE);
+    modelViewStack.rotate(90.0, 1.0, 0.0, 0.0);
     if (isDying) {
         bossObj.separate(0.001);
         bossObj.drawAll();
@@ -108,7 +106,7 @@ void Boss::draw(const GameState &gameState) {
         bossDrawPropeller("Rotor_BR", DT, -3.0);
     }
 
-    glPopMatrix();
+    modelViewStack.matPop();
     glDisable(GL_BLEND);
 }
 
