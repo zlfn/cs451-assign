@@ -13,11 +13,7 @@
 #include <numbers>
 #include <vector>
 #include <complex>
-#include "collision.hpp"
 #include "utils.hpp"
-
-#define FPS 60
-#define TIMER_INTERVAL (1000 / FPS)
 
 // 그릴 수 있는 객체의 인터페이스
 struct Drawable {
