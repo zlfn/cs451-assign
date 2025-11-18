@@ -12,81 +12,6 @@ GLuint VAO;
 GLuint VBO;
 GLuint EBO;
 
-// 셰이더 소스 수정
-const char *pointVertexShaderSrc = R"(
-#version 450 core
-
-struct Complex {
-    float re;
-    float im;
-};
-
-layout(std430, binding = 1) readonly buffer HeightData {
-    Complex height[];
-};
-
-uniform int uGridSize;
-uniform float uHeightScale;
-
-out float vHeight;
-
-void main() {
-    int N   = uGridSize;
-    int idx = gl_VertexID;   // 0 .. N*N-1
-
-    int x = idx % N;
-    int y = idx / N;
-
-    // [-1, 1] 범위로 정규화한 평면 좌표 (XY plane)
-    float fx = (float(x) / float(N - 1)) * 2.0 - 1.0;
-    float fy = (float(y) / float(N - 1)) * 2.0 - 1.0;
-
-    float h = height[idx].re * uHeightScale;
-
-    // 예전이랑 동일: 평면은 XY, 높이는 Z
-    vec3 pos = vec3(fx, fy, h);
-
-    float angle = -1.2; // ~70도
-    mat4 rotation = mat4(
-        1.0, 0.0,        0.0,        0.0,
-        0.0, cos(angle), -sin(angle), 0.0,
-        0.0, sin(angle),  cos(angle), 0.0,
-        0.0, 0.0,        0.0,        1.0
-    );
-
-    gl_Position = rotation * vec4(pos, 1.0);
-    gl_PointSize = 3.0;
-
-    vHeight = h;
-}
-)";
-
-const char *pointFragmentShaderSrc = R"(
-#version 450 core
-
-in float vHeight;
-out vec4 FragColor;
-
-// 높이 값을 컬러로 매핑
-vec3 heightToColor(float t) {
-    float value = (t * 0.5) + 0.5; // -1~1 -> 0~1 (대충)
-
-    vec3 low  = vec3(0.0, 0.0, 1.0);  // 파랑
-    vec3 mid  = vec3(0.0, 1.0, 0.0);  // 초록
-    vec3 high = vec3(1.0, 0.0, 0.0);  // 빨강
-
-    vec3 color = mix(low, mid, value * 2.0);
-    if (value > 0.5) {
-        color = mix(mid, high, (value - 0.5) * 2.0);
-    }
-    return color;
-}
-
-void main() {
-    FragColor = vec4(heightToColor(vHeight * 100.0), 1.0);
-}
-)";
-
 // 셰이더 컴파일
 GLuint createPointShaderProgram() {
     GLint success = GL_FALSE;
@@ -94,7 +19,7 @@ GLuint createPointShaderProgram() {
     GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
     GLuint prog = glCreateProgram();
 
-    glShaderSource(vs, 1, &pointVertexShaderSrc, nullptr);
+    glShaderSource(vs, 1, &shaders::OCEAN_VERT_SHADER, nullptr);
     glCompileShader(vs);
     glGetShaderiv(vs, GL_COMPILE_STATUS, &success);
     if (!success) {
@@ -103,7 +28,7 @@ GLuint createPointShaderProgram() {
         std::cerr << "Point Vertex Shader Compile Failure:\n" << log << '\n';
     }
 
-    glShaderSource(fs, 1, &pointFragmentShaderSrc, nullptr);
+    glShaderSource(fs, 1, &shaders::OCEAN_FRAG_SHADER, nullptr);
     glCompileShader(fs);
     glGetShaderiv(fs, GL_COMPILE_STATUS, &success);
     if (!success) {

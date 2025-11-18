@@ -1,6 +1,7 @@
 #include "base.hpp"
 #include "utils.hpp"
 #include <cmath>
+#include "shaders/shaders.hpp"
 
 ThreeDObj::ThreeDObj(const std::string &FILE_PATH, const glm::fvec3 &color)
     : objectColor(color) // 기본은 흰색
@@ -206,281 +207,6 @@ void calcWaveField(float t) {
     }
 }
 
-std::string ifftCSH = R"(
-#version 450
-
-// cpp의 struct와 동일
-struct Complex {
-    float re;
-    float im;
-};
-
-uniform int uGridSize;    // 반드시 32라고 가정 (shared[32], local_size_x = 32와 일치)
-uniform float uCurrTime;
-
-// 워크그룹당 32개의 쓰레드 = 한 행(row) 전체를 담당
-layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
-
-// SSBO 데이터
-layout(std430, binding = 0) readonly buffer BaseData { Complex base[]; };
-layout(std430, binding = 1) writeonly buffer CurrData { Complex curr[]; };
-
-// 한 행을 워크그룹 내 공유 메모리에 올려서 계산
-shared Complex rowShared[32];
-
-// 복소수 연산 헬퍼
-Complex c_add(Complex a, Complex b) {
-    Complex r;
-    r.re = a.re + b.re;
-    r.im = a.im + b.im;
-    return r;
-}
-
-Complex c_sub(Complex a, Complex b) {
-    Complex r;
-    r.re = a.re - b.re;
-    r.im = a.im - b.im;
-    return r;
-}
-
-Complex c_mul(Complex a, Complex b) {
-    Complex r;
-    r.re = a.re * b.re - a.im * b.im;
-    r.im = a.re * b.im + a.im * b.re;
-    return r;
-}
-
-// x의 하위 log2N 비트를 뒤집는 bit-reversal
-uint bit_reverse(uint x, uint log2N) {
-    uint r = 0u;
-    for (uint i = 0u; i < log2N; ++i) {
-        r = (r << 1u) | (x & 1u);
-        x >>= 1u;
-    }
-    return r;
-}
-
-void main() {
-    // 한 워크그룹 = 한 행(row)
-    uint row = gl_WorkGroupID.x;       // 0 .. uGridSize-1
-    uint col = gl_LocalInvocationID.x; // 0 .. 31
-
-    uint N = uint(uGridSize);          // 그리드 크기 (32로 가정)
-    if (col >= N) {
-        return;
-    }
-
-    // 2D -> 1D 인덱스 변환
-    uint idx1D = row * N + col;
-
-    // global -> shared 로 한 행 전체 로딩
-    rowShared[col] = base[idx1D];
-    barrier(); // 워크그룹 내 모든 쓰레드 동기화
-
-    // 여기부터 1D iFFT (radix-2 DIT)
-    // N=32라면 log2N=5
-    const uint LOG2N = 5u; // uGridSize가 항상 32라고 가정
-
-    uint tid = col;
-
-    // bit-reversal
-    {
-        uint j = bit_reverse(tid, LOG2N);
-        // j < N 조건도 추가해서 범위 보호
-        if (tid < j && j < N) {
-            Complex tmp = rowShared[tid];
-            rowShared[tid] = rowShared[j];
-            rowShared[j] = tmp;
-        }
-        barrier();
-    }
-
-    // 스테이지별 버터플라이 루프
-    for (uint s = 1u; s <= LOG2N; ++s) {
-        uint m    = 1u << s;   // 이번 스테이지에서 묶는 블록 크기 (2,4,8,...,N)
-        uint mh = m >> 1u;   // 블록 절반 길이
-
-        uint blockIndex  = tid / m;  // 몇 번째 블록인지
-        uint insideIndex = tid % m;  // 블록 안에서 몇 번째인지 (0..m-1)
-
-        if (insideIndex < mh) {
-            uint i0 = blockIndex * m + insideIndex;
-            uint i1 = i0 + mh;
-
-            // 혹시 N보다 크지 않도록 방어
-            if (i1 < N) {
-                Complex u = rowShared[i0];
-                Complex v = rowShared[i1];
-
-                // iFFT에서는 twiddle = exp(+2π i k / m)
-                float k  = float(insideIndex);
-                float mm = float(m);
-                float angle = 2.0 * 3.14159265358979323846 * k / mm;
-
-                Complex w;
-                w.re = cos(angle);
-                w.im = sin(angle);
-
-                Complex t = c_mul(v, w);
-
-                rowShared[i0] = c_add(u, t);
-                rowShared[i1] = c_sub(u, t);
-            }
-        }
-
-        // 스테이지 끝날 때마다 동기화
-        barrier();
-    }
-
-    // iFFT 스케일링 (1/N 곱하기)
-    Complex val = rowShared[tid];
-    float invN = 1.0 / float(N);
-    val.re *= invN;
-    val.im *= invN;
-    rowShared[tid] = val;
-
-    barrier();
-
-    // 결과를 shared에서 global로 다시 저장
-    curr[idx1D] = rowShared[col];
-}
-)";
-
-std::string ifftCSV = R"(
-#version 450
-
-// cpp의 struct와 동일
-struct Complex {
-    float re;
-    float im;
-};
-
-uniform int uGridSize; // 반드시 32라고 가정
-
-// 워크그룹당 32개의 쓰레드 = 한 열(column) 전체를 담당
-layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
-
-// SSBO 데이터
-// 가로 방향 iFFT 결과를 input으로 사용한다고 가정
-layout(std430, binding = 0) readonly buffer InData  { Complex inData[];  };
-layout(std430, binding = 1) writeonly buffer OutData { Complex outData[]; };
-
-// 한 열을 워크그룹 내 공유 메모리에 올려서 계산
-shared Complex colShared[32];
-
-// 복소수 연산 헬퍼
-
-Complex c_add(Complex a, Complex b) {
-    Complex r;
-    r.re = a.re + b.re;
-    r.im = a.im + b.im;
-    return r;
-}
-
-Complex c_sub(Complex a, Complex b) {
-    Complex r;
-    r.re = a.re - b.re;
-    r.im = a.im - b.im;
-    return r;
-}
-
-Complex c_mul(Complex a, Complex b) {
-    Complex r;
-    r.re = a.re * b.re - a.im * b.im;
-    r.im = a.re * b.im + a.im * b.re;
-    return r;
-}
-
-// x의 하위 log2N 비트를 뒤집는 bit-reversal
-uint bit_reverse(uint x, uint log2N) {
-    uint r = 0u;
-    for (uint i = 0u; i < log2N; ++i) {
-        r = (r << 1u) | (x & 1u);
-        x >>= 1u;
-    }
-    return r;
-}
-
-void main() {
-    uint N = uint(uGridSize);          // 32라고 가정
-    uint col = gl_WorkGroupID.x;       // 열 인덱스 0 .. N-1
-    uint row = gl_LocalInvocationID.x; // 열 안에서 y 인덱스 0 .. 31
-
-    if (row >= N) {
-        return;
-    }
-
-    // 2D -> 1D 인덱스 변환 (row-major: idx = y * width + x)
-    uint idx1D = row * N + col;
-
-    // global -> shared 로 한 열 전체 로딩
-    colShared[row] = inData[idx1D];
-    barrier(); // 워크그룹 내 모든 쓰레드 동기화
-
-    // 1D iFFT (radix-2 DIT
-    const uint LOG2N = 5u; // N=32일 때 log2N=5
-    uint tid = row;
-
-    // bit-reversal
-    {
-        uint j = bit_reverse(tid, LOG2N);
-        if (tid < j && j < N) {
-            Complex tmp = colShared[tid];
-            colShared[tid] = colShared[j];
-            colShared[j] = tmp;
-        }
-        barrier();
-    }
-
-    // 2단계: 스테이지별 버터플라이 루프
-    for (uint s = 1u; s <= LOG2N; ++s) {
-        uint m    = 1u << s;   // 이번 스테이지에서 묶는 블록 크기 (2,4,8,...,N)
-        uint mh = m >> 1u;   // 블록 절반 길이
-
-        uint blockIndex  = tid / m;  // 몇 번째 블록인지
-        uint insideIndex = tid % m;  // 블록 안에서 몇 번째인지 (0..m-1)
-
-        if (insideIndex < mh) {
-            uint i0 = blockIndex * m + insideIndex;
-            uint i1 = i0 + mh;
-
-            if (i1 < N) {
-                Complex u = colShared[i0];
-                Complex v = colShared[i1];
-
-                // iFFT: twiddle = exp(+2π i k / m)
-                float k  = float(insideIndex);
-                float mm = float(m);
-                float angle = 2.0 * 3.14159265358979323846 * k / mm;
-
-                Complex w;
-                w.re = cos(angle);
-                w.im = sin(angle);
-
-                Complex t = c_mul(v, w);
-
-                colShared[i0] = c_add(u, t);
-                colShared[i1] = c_sub(u, t);
-            }
-        }
-
-        barrier();
-    }
-
-    // iFFT 스케일링 (1/N 곱하기)
-    Complex val = colShared[tid];
-    float invN = 1.0 / float(N);
-    val.re *= invN;
-    val.im *= invN;
-    colShared[tid] = val;
-
-    barrier();
-
-    // 4) 결과를 shared에서 global로 다시 저장
-    outData[idx1D] = colShared[row];
-}
-)";
-
 GLuint gComputeProgramH = 0; // horizontal
 GLuint gComputeProgramV = 0; // vertical
 
@@ -496,14 +222,14 @@ GLuint compileShader(GLenum type, const std::string &src) {
     glCompileShader(shader);
 
     // 에러 체크
-    GLint success;
+    GLint success = false;
     glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
     if (!success) {
-        GLint logLen;
+        GLint logLen = 0;
         glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &logLen);
         std::string log(logLen, '\0');
         glGetShaderInfoLog(shader, logLen, nullptr, log.data());
-        std::cerr << "[Shader Compile Error]\n" << log << std::endl;
+        std::cerr << "[Shader Compile Error]\n" << log << '\n';
         throw std::runtime_error("Shader compilation failed");
     }
 
@@ -519,14 +245,14 @@ GLuint linkProgram(const std::vector<GLuint> &shaders) {
     glLinkProgram(program);
 
     // 에러 체크
-    GLint success;
+    GLint success = false;
     glGetProgramiv(program, GL_LINK_STATUS, &success);
     if (!success) {
-        GLint logLen;
+        GLint logLen = 0;
         glGetProgramiv(program, GL_INFO_LOG_LENGTH, &logLen);
         std::string log(logLen, '\0');
         glGetProgramInfoLog(program, logLen, nullptr, log.data());
-        std::cerr << "[Program Link Error]\n" << log << std::endl;
+        std::cerr << "[Program Link Error]\n" << log << '\n';
         throw std::runtime_error("Program linking failed");
     }
 
@@ -539,8 +265,8 @@ GLuint linkProgram(const std::vector<GLuint> &shaders) {
 
 void initComputeShader() {
     // 가로 / 세로 셰이더를 각각 컴파일 & 링크
-    GLuint csh = compileShader(GL_COMPUTE_SHADER, ifftCSH); // horizontal
-    GLuint csv = compileShader(GL_COMPUTE_SHADER, ifftCSV); // vertical
+    GLuint csh = compileShader(GL_COMPUTE_SHADER, shaders::IFFT_HORI_COMP_SHADER); // horizontal
+    GLuint csv = compileShader(GL_COMPUTE_SHADER, shaders::IFFT_VERT_COMP_SHADER); // vertical
 
     {
         std::vector<GLuint> shaderList;
