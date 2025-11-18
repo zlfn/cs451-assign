@@ -1,5 +1,6 @@
 ﻿#include "base.hpp"
 #include "utils.hpp"
+#include "shaders/shaders.hpp"
 
 // 전역 변수
 std::random_device rd;
@@ -11,62 +12,6 @@ GLuint VAO;
 GLuint VBO;
 GLuint EBO;
 
-// 셰이더 소스 수정
-const char *vertexShaderSource = R"(
-#version 330 core
-
-layout (location = 0) in vec3 aPos;
-layout (location = 1) in float aHeight;
-out float vHeight;
-
-void main() {
-    // Scale height to make waves visible
-    vec3 pos = vec3(aPos.xy, aHeight * 5.0f);
-
-    // Apply a static rotation around the X-axis for a better viewing angle
-    float angle = -1.2f; // ~70 degrees
-    mat4 rotation = mat4(
-        1.0, 0.0, 0.0, 0.0,
-        0.0, cos(angle), -sin(angle), 0.0,
-        0.0, sin(angle), cos(angle), 0.0,
-        0.0, 0.0, 0.0, 1.0
-    );
-
-    gl_Position = rotation * vec4(pos, 1.0);
-    
-    vHeight = aHeight;
-}
-)";
-
-const char *fragmentShaderSource = R"(
-#version 330 core
-
-in float vHeight; // 정점 셰이더에서 전달받은 높이
-out vec4 FragColor;
-
-// 높이 값(t)을 색상(Red-Green-Blue)으로 매핑하는 함수
-vec3 heightToColor(float t) {
-    // 높이 값을 -1 ~ 1 범위에서 0 ~ 1 범위로 정규화 (범위는 데이터에 맞게 조절)
-    float value = (t * 0.5) + 0.5;
-
-    // 간단한 Jet 컬러맵 (Blue -> Green -> Red)
-    vec3 low = vec3(0.0, 0.0, 1.0);  // Blue (낮음)
-    vec3 mid = vec3(0.0, 1.0, 0.0);  // Green (중간)
-    vec3 high = vec3(1.0, 0.0, 0.0); // Red (높음)
-    
-    vec3 color = mix(low, mid, value * 2.0);
-    if (value > 0.5) {
-        color = mix(mid, high, (value - 0.5) * 2.0);
-    }
-    return color;
-}
-
-void main() {
-    // 높이 값에 따라 색상 결정
-    FragColor = vec4(heightToColor(vHeight*100), 1.0);
-}
-)";
-
 // 셰이더 컴파일
 GLuint createShaderProgram() {
     GLint success = false;
@@ -75,7 +20,7 @@ GLuint createShaderProgram() {
     GLuint program = glCreateProgram();
 
     // 정점 셰이더 컴파일
-    glShaderSource(vertexShader, 1, &vertexShaderSource, nullptr);
+    glShaderSource(vertexShader, 1, &shaders::OCEAN_VERT_SHADER, nullptr);
     glCompileShader(vertexShader);
     glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success); // 오류 검사
     if (!success) {
@@ -85,12 +30,12 @@ GLuint createShaderProgram() {
     }
 
     // 프래그먼트 셰이더 컴파일
-    glShaderSource(fragmentShader, 1, &fragmentShaderSource, nullptr);
+    glShaderSource(fragmentShader, 1, &shaders::OCEAN_FRAG_SHADER, nullptr);
     glCompileShader(fragmentShader);
     glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success); // 오류 검사
     if (!success) {
         char infoLog[512];
-        glGetShaderInfoLog(fragmentShader, 512, NULL, infoLog);
+        glGetShaderInfoLog(fragmentShader, 512, nullptr, infoLog);
         std::cerr << "Fragment Shader Compile Failure:\n" << infoLog << '\n';
     }
 
@@ -240,9 +185,9 @@ int main(int argc, char **argv) {
         return -1;
     }
 
-    // OpenGL 3.3 Core Profile 설정
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    // OpenGL 4.6 Core Profile 설정
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 #ifdef __APPLE__
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
