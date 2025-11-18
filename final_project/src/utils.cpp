@@ -1,6 +1,7 @@
 #include "base.hpp"
 #include "utils.hpp"
 #include <cmath>
+#include "shaders/shaders.hpp"
 
 ThreeDObj::ThreeDObj(const std::string &FILE_PATH, const glm::fvec3 &color)
     : objectColor(color) // 기본은 흰색
@@ -106,7 +107,7 @@ int getRandomRange(int a, int b) {
     return static_cast<int>(dist(gen));
 }
 
-///////////// CPU VERSION /////////////
+//////////////// GPU ////////////////
 
 glm::vec2 w = {1.0, 0.0}; // Wind direction
 
@@ -206,86 +207,152 @@ void calcWaveField(float t) {
     }
 }
 
-void iFFT_1D_inplace(std::complex<float> data[GRID_SIZE]) {
-    // Bit-reversal permutation
-    for (unsigned int i = 0; i < GRID_SIZE; i++) {
-        unsigned int rev = 0;
-        unsigned int temp_i = i;
-        int num_bits = static_cast<int>(log2(GRID_SIZE));
-        for (int j = 0; j < num_bits; j++) {
-            rev = (rev << 1) | (temp_i & 1);
-            temp_i >>= 1;
-        }
-        if (rev > i) {
-            std::swap(data[i], data[rev]);
-        }
+GLuint gComputeProgramH = 0; // horizontal
+GLuint gComputeProgramV = 0; // vertical
+
+GLuint gBaseSSBO = 0; // initHeight (고정 스펙트럼)
+GLuint gTempSSBO = 0; // 가로 패스 결과
+GLuint gCurrSSBO = 0; // 세로 패스 결과 (최종 height)
+
+GLuint compileShader(GLenum type, const std::string &src) {
+    GLuint shader = glCreateShader(type);
+
+    const char *csrc = src.c_str();
+    glShaderSource(shader, 1, &csrc, nullptr);
+    glCompileShader(shader);
+
+    // 에러 체크
+    GLint success = false;
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        GLint logLen = 0;
+        glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &logLen);
+        std::string log(logLen, '\0');
+        glGetShaderInfoLog(shader, logLen, nullptr, log.data());
+        std::cerr << "[Shader Compile Error]\n" << log << '\n';
+        throw std::runtime_error("Shader compilation failed");
     }
 
-    // Cooley-Tukey FFT algorithm (Radix-2)
-    for (int len = 2; len <= GRID_SIZE; len <<= 1) {
-        int m = len / 2;
-        std::complex<float> W_len =
-            std::exp(std::complex<float>(0.0, 2.0 * std::numbers::pi_v<float> / len));
-        for (int k = 0; k < GRID_SIZE; k += len) {
-            std::complex<float> W = 1.0;
-            for (int j = 0; j < m; j++) {
-                std::complex<float> T = W * data[k + j + m];
-                std::complex<float> U = data[k + j];
-
-                data[k + j] = U + T;
-                data[k + j + m] = U - T;
-
-                W = W * W_len;
-            }
-        }
-    }
+    return shader;
 }
 
-void iFFT() {
-    // 가로줄 iFFT
-    for (unsigned i = 0; i < GRID_SIZE; i++) {
-        iFFT_1D_inplace(currentHeight[i]);
+GLuint linkProgram(const std::vector<GLuint> &shaders) {
+    GLuint program = glCreateProgram();
+    for (auto s : shaders) {
+        glAttachShader(program, s);
     }
 
-    // 세로줄 iFFT
-    std::complex<float> temp_col[GRID_SIZE];
-    for (unsigned j = 0; j < GRID_SIZE; j++) { // j번째 세로줄
-        for (unsigned i = 0; i < GRID_SIZE; i++) {
-            temp_col[i] = currentHeight[i][j];
-        }
+    glLinkProgram(program);
 
-        iFFT_1D_inplace(temp_col);
-
-        for (unsigned i = 0; i < GRID_SIZE; i++) {
-            currentHeight[i][j] = temp_col[i];
-        }
+    // 에러 체크
+    GLint success = false;
+    glGetProgramiv(program, GL_LINK_STATUS, &success);
+    if (!success) {
+        GLint logLen = 0;
+        glGetProgramiv(program, GL_INFO_LOG_LENGTH, &logLen);
+        std::string log(logLen, '\0');
+        glGetProgramInfoLog(program, logLen, nullptr, log.data());
+        std::cerr << "[Program Link Error]\n" << log << '\n';
+        throw std::runtime_error("Program linking failed");
     }
 
-    // 정규화
-    float scale = 1.0f / (float)(GRID_SIZE * GRID_SIZE);
-    for (unsigned i = 0; i < GRID_SIZE; i++) {
-        for (unsigned j = 0; j < GRID_SIZE; j++) {
-            currentHeight[i][j] *= scale;
-        }
-    }
+    // 셰이더는 프로그램에 들어갔으면 지워도 됨
+    for (auto s : shaders)
+        glDeleteShader(s);
+
+    return program;
 }
 
-/*
-int waveMain() {
-    initSpectra();
+void initComputeShader() {
+    // 가로 / 세로 셰이더를 각각 컴파일 & 링크
+    GLuint csh = compileShader(GL_COMPUTE_SHADER, shaders::IFFT_HORI_COMP_SHADER); // horizontal
+    GLuint csv = compileShader(GL_COMPUTE_SHADER, shaders::IFFT_VERT_COMP_SHADER); // vertical
 
-    float time = 0.0f;
-    while (true) {
-        time += 0.016f; // 60FPS
-        calcWaveField(time);
-
-        iFFT();
-        // currentHeight[i][j].real이 (i, j)에서의 파도 높이
-        std::cout << currentHeight[0][0] << std::endl;
+    {
+        std::vector<GLuint> shaderList;
+        shaderList.push_back(csh);
+        gComputeProgramH = linkProgram(shaderList); // 가로 패스용 프로그램
+    }
+    {
+        std::vector<GLuint> shaderList;
+        shaderList.push_back(csv);
+        gComputeProgramV = linkProgram(shaderList); // 세로 패스용 프로그램
     }
 
-    return 0;
+    // CPU 쪽 2D 그리드 -> 1D 배열로 변환
+    std::vector<Complex> dataGrid2D(GRID_SIZE * GRID_SIZE);
+
+    for (int y = 0; y < GRID_SIZE; y++) {
+        for (int x = 0; x < GRID_SIZE; x++) {
+            dataGrid2D[y * GRID_SIZE + x].re = initHeight[y][x].real();
+            dataGrid2D[y * GRID_SIZE + x].im = initHeight[y][x].imag();
+        }
+    }
+
+    // initHeight -> gBaseSSBO (고정 입력 스펙트럼)
+    glGenBuffers(1, &gBaseSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, gBaseSSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, dataGrid2D.size() * sizeof(Complex), dataGrid2D.data(),
+                 GL_STATIC_DRAW);
+
+    // 가로 패스 결과용 temp 버퍼
+    glGenBuffers(1, &gTempSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, gTempSSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, dataGrid2D.size() * sizeof(Complex), nullptr,
+                 GL_DYNAMIC_COPY);
+
+    // 세로 패스 최종 결과 버퍼
+    glGenBuffers(1, &gCurrSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, gCurrSSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, dataGrid2D.size() * sizeof(Complex), nullptr,
+                 GL_DYNAMIC_COPY);
+
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 }
-*/
+
+void runIFFTCompute(float time) {
+    // CPU 스펙트럼 H(k, t) 업데이트
+    calcWaveField(time); // currentHeight[i][j] = H(k, t)
+
+    // currentHeight를 gBaseSSBO에 업로드 (H(k, t) -> SSBO)
+    static std::vector<Complex> dataGrid2D(GRID_SIZE * GRID_SIZE);
+
+    for (int y = 0; y < GRID_SIZE; ++y) {
+        for (int x = 0; x < GRID_SIZE; ++x) {
+            int idx = y * GRID_SIZE + x;
+            dataGrid2D[idx].re = currentHeight[y][x].real();
+            dataGrid2D[idx].im = currentHeight[y][x].imag();
+        }
+    }
+
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, gBaseSSBO);
+    glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, dataGrid2D.size() * sizeof(Complex),
+                    dataGrid2D.data());
+
+    // 가로 방향 iFFT
+    glUseProgram(gComputeProgramH);
+
+    GLint gs_loc_h = glGetUniformLocation(gComputeProgramH, "uGridSize");
+    glUniform1i(gs_loc_h, GRID_SIZE);
+    // uCurrTime은 이제 필요 없음 (calcWaveField에서 이미 반영했으니까)
+
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, gBaseSSBO); // 입력: H(k, t)
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, gTempSSBO); // 출력: 가로 iFFT
+
+    glDispatchCompute(GRID_SIZE, 1, 1);
+    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+
+    // 세로 방향 iFFT
+    glUseProgram(gComputeProgramV);
+
+    GLint gs_loc_v = glGetUniformLocation(gComputeProgramV, "uGridSize");
+    glUniform1i(gs_loc_v, GRID_SIZE);
+
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, gTempSSBO); // 입력: 가로 iFFT 결과
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, gCurrSSBO); // 출력: 최종 2D iFFT
+
+    glDispatchCompute(GRID_SIZE, 1, 1);
+    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+}
 
 ///////////////////////////////////////

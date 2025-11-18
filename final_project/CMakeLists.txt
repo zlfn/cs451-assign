@@ -5,6 +5,8 @@ include(cmake/ShaderToHeader.cmake)
 file(GLOB SHADER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/shaders/*.vert
     ${CMAKE_CURRENT_SOURCE_DIR}/src/shaders/*.frag
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/shaders/*.comp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/shaders/*.glsl
 )
 
 # Generate shader header - only at build time with dependency tracking

@@ -8,6 +8,8 @@ include(${CMAKE_CURRENT_LIST_DIR}/ShaderToHeader.cmake)
 file(GLOB SHADER_FILES_LIST
     ${SHADER_DIR}/*.vert
     ${SHADER_DIR}/*.frag
+    ${SHADER_DIR}/*.comp
+    ${SHADER_DIR}/*.glsl
 )
 
 message(STATUS "SHADER_FILES_LIST: ${SHADER_FILES_LIST}")

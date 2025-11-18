@@ -8,3 +8,6 @@ win-x64-msvc/include/glm/gtx/* linguist-vendored=true
 win-x64-msvc/include/glm/simd/* linguist-vendored=true
 win-x64-msvc/lib/* linguist-vendored=true
 
+# Treat .comp files as GLSL
+*.comp linguist-language=GLSL
+

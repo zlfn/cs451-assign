@@ -1,0 +1,132 @@
+#version 450
+
+// cpp의 struct와 동일
+struct Complex {
+    float re;
+    float im;
+};
+
+uniform int uGridSize; // 반드시 32라고 가정
+
+// 워크그룹당 32개의 쓰레드 = 한 열(column) 전체를 담당
+layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
+
+// SSBO 데이터
+// 가로 방향 iFFT 결과를 input으로 사용한다고 가정
+layout(std430, binding = 0) readonly buffer InData  { Complex inData[];  };
+layout(std430, binding = 1) writeonly buffer OutData { Complex outData[]; };
+
+// 한 열을 워크그룹 내 공유 메모리에 올려서 계산
+shared Complex colShared[32];
+
+// 복소수 연산 헬퍼
+
+Complex c_add(Complex a, Complex b) {
+    Complex r;
+    r.re = a.re + b.re;
+    r.im = a.im + b.im;
+    return r;
+}
+
+Complex c_sub(Complex a, Complex b) {
+    Complex r;
+    r.re = a.re - b.re;
+    r.im = a.im - b.im;
+    return r;
+}
+
+Complex c_mul(Complex a, Complex b) {
+    Complex r;
+    r.re = a.re * b.re - a.im * b.im;
+    r.im = a.re * b.im + a.im * b.re;
+    return r;
+}
+
+// x의 하위 log2N 비트를 뒤집는 bit-reversal
+uint bit_reverse(uint x, uint log2N) {
+    uint r = 0u;
+    for (uint i = 0u; i < log2N; ++i) {
+        r = (r << 1u) | (x & 1u);
+        x >>= 1u;
+    }
+    return r;
+}
+
+void main() {
+    uint N = uint(uGridSize);          // 32라고 가정
+    uint col = gl_WorkGroupID.x;       // 열 인덱스 0 .. N-1
+    uint row = gl_LocalInvocationID.x; // 열 안에서 y 인덱스 0 .. 31
+
+    if (row >= N) {
+        return;
+    }
+
+    // 2D -> 1D 인덱스 변환 (row-major: idx = y * width + x)
+    uint idx1D = row * N + col;
+
+    // global -> shared 로 한 열 전체 로딩
+    colShared[row] = inData[idx1D];
+    barrier(); // 워크그룹 내 모든 쓰레드 동기화
+
+    // 1D iFFT (radix-2 DIT
+    const uint LOG2N = 5u; // N=32일 때 log2N=5
+    uint tid = row;
+
+    // bit-reversal
+    {
+        uint j = bit_reverse(tid, LOG2N);
+        if (tid < j && j < N) {
+            Complex tmp = colShared[tid];
+            colShared[tid] = colShared[j];
+            colShared[j] = tmp;
+        }
+        barrier();
+    }
+
+    // 2단계: 스테이지별 버터플라이 루프
+    for (uint s = 1u; s <= LOG2N; ++s) {
+        uint m    = 1u << s;   // 이번 스테이지에서 묶는 블록 크기 (2,4,8,...,N)
+        uint mh = m >> 1u;   // 블록 절반 길이
+
+        uint blockIndex  = tid / m;  // 몇 번째 블록인지
+        uint insideIndex = tid % m;  // 블록 안에서 몇 번째인지 (0..m-1)
+
+        if (insideIndex < mh) {
+            uint i0 = blockIndex * m + insideIndex;
+            uint i1 = i0 + mh;
+
+            if (i1 < N) {
+                Complex u = colShared[i0];
+                Complex v = colShared[i1];
+
+                // iFFT: twiddle = exp(+2π i k / m)
+                float k  = float(insideIndex);
+                float mm = float(m);
+                float angle = 2.0 * 3.14159265358979323846 * k / mm;
+
+                Complex w;
+                w.re = cos(angle);
+                w.im = sin(angle);
+
+                Complex t = c_mul(v, w);
+
+                colShared[i0] = c_add(u, t);
+                colShared[i1] = c_sub(u, t);
+            }
+        }
+
+        barrier();
+    }
+
+    // iFFT 스케일링 (1/N 곱하기)
+    Complex val = colShared[tid];
+    float invN = 1.0 / float(N);
+    val.re *= invN;
+    val.im *= invN;
+    colShared[tid] = val;
+
+    barrier();
+
+    // 4) 결과를 shared에서 global로 다시 저장
+    outData[idx1D] = colShared[row];
+}
