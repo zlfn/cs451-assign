@@ -316,8 +316,8 @@ void Mesh::bind() const {
 
 // Draw functions
 
-void draw(const Mesh& mesh, const ShaderProgram& shader,
-          const std::function<void(const ShaderProgram&)>& setupUniforms) {
+void drawMesh(const Mesh& mesh, const ShaderProgram& shader,
+              const std::function<void(const ShaderProgram&)>& setupUniforms) {
     shader.use();
 
     if (setupUniforms) {

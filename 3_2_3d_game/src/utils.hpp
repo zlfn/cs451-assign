@@ -14,6 +14,8 @@
 #include <queue>
 #include <utility>
 #include <map>
+#include <memory>
+#include "graphics.hpp"
 
 extern std::random_device rd;
 extern std::mt19937 gen;
@@ -48,6 +50,7 @@ struct ThreeDObj {
     std::map<std::string, Indices> objIndicesMap;
     std::map<std::string, glm::vec3> objCenterMap;
     std::map<std::string, glm::vec3> objTranslationMap;
+    std::map<std::string, std::unique_ptr<Mesh>> objMeshMap;
     glm::vec3 objectColor;
 
     ThreeDObj(const std::string &FILE_PATH, const glm::fvec3 &color = glm::fvec3(1.0f, 1.0f, 1.0f));
@@ -55,7 +58,7 @@ struct ThreeDObj {
     void getObjFile(const std::string &FILE_PATH);
     void setColor(const glm::vec3 &color);
     void draw(const std::string objName);
-    
+
     void drawAll();
     void separate(float separation_step);
     void splitObjectByZPlane(const std::string &objName, float z_plane = 0.0f);
@@ -65,7 +68,12 @@ struct ThreeDObj {
     glm::vec3 calculateCenter(const Indices &indices);
     void findConnectedComponents(Indices &all_indices, const std::string &objName,
                                  const std::string &suffix);
+    void createMesh(const std::string &objName);
 };
+
+// 셰이더 프로그램 (전역, main.cpp에서 초기화됨)
+class ShaderProgram;
+extern ShaderProgram* g_shaderProgram;
 
 struct MatrixStack {
     std::vector<glm::mat4x4> stack;

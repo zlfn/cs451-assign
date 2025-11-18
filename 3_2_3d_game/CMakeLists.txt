@@ -2,6 +2,7 @@
 add_gl_executable_single_file(3_2_3d_game src/main.cpp)
 
 target_sources(3_2_3d_game PRIVATE
+    src/graphics.cpp
     src/TrailParticle.cpp
     src/Bullet.cpp
     src/BulletPattern.cpp

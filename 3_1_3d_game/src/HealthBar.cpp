@@ -35,8 +35,8 @@ void PlayerHealthBar::draw(const GameState &gameState) {
         if (i < currentHealth) {
             // 활성 체력 - 밝은 주황색
             float intensity =
-                0.8f + 0.2f * std::sinf(static_cast<float>(glutGet(GLUT_ELAPSED_TIME)) * 0.003f +
-                                        static_cast<float>(i) * 0.5f);
+                0.8f + 0.2f * std::sin(static_cast<float>(glutGet(GLUT_ELAPSED_TIME)) * 0.003f +
+                                       static_cast<float>(i) * 0.5f);
             color = glm::fvec4(1.0f, 0.5f * intensity, 0.1f, 0.9f);
         } else {
             // 잃은 체력 - 어두운 회색

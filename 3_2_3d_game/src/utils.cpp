@@ -1,5 +1,6 @@
 #include "base.hpp"
 #include "utils.hpp"
+#include "graphics.hpp"
 
 MatrixStack::MatrixStack() { stack.push_back(glm::identity<glm::mat4x4>()); }
 
@@ -18,7 +19,9 @@ void MatrixStack::translate(float x, float y, float z) {
 }
 
 void MatrixStack::rotate(float angle, float x, float y, float z) {
-    stack.back() = glm::rotate(stack.back(), angle, glm::vec3(x, y, z));
+    // angle은 degree로 받아서 radian으로 변환 (glRotatef와 호환)
+    float radians = glm::radians(angle);
+    stack.back() = glm::rotate(stack.back(), radians, glm::vec3(x, y, z));
 }
 
 void MatrixStack::scale(float x, float y, float z) {
@@ -93,43 +96,79 @@ void ThreeDObj::getObjFile(const std::string &FILE_PATH) {
               << " objects from " << FILE_PATH << std::endl;
 }
 
-void ThreeDObj::setColor(const glm::vec3 &color) { objectColor = color; }
+void ThreeDObj::setColor(const glm::vec3 &color) {
+    objectColor = color;
+    objMeshMap.clear(); // color 변경 시 모든 Mesh 재생성 필요
+}
 
-void ThreeDObj::draw(const std::string objName) {
-    if (baseVertices.empty() || objIndicesMap.empty()) {
-        return;
-    }
-
+void ThreeDObj::createMesh(const std::string &objName) {
     Indices indices;
     try {
-        indices = objIndicesMap.at(objName); // .at()는 없는 키일 때 예외 처리해줘서 좋음
-    } catch (const std::out_of_range &oor) {
-        std::cerr << "Error: there is no object named " << objName << std::endl;
+        indices = objIndicesMap.at(objName);
+    } catch (const std::out_of_range &) {
         return;
     }
 
-    // 객체의 누적된 이동량 가져오기
+    std::vector<float> vertexData;
+    vertexData.reserve(indices.size() * 6);
+
+    for (unsigned int index : indices) {
+        const glm::vec3 &vertex = baseVertices[index];
+        vertexData.push_back(vertex.x);
+        vertexData.push_back(vertex.y);
+        vertexData.push_back(vertex.z);
+        vertexData.push_back(objectColor.x);
+        vertexData.push_back(objectColor.y);
+        vertexData.push_back(objectColor.z);
+    }
+
+    auto mesh = std::make_unique<Mesh>();
+    mesh->setData(vertexData.data(), vertexData.size() * sizeof(float), GL_STATIC_DRAW);
+    mesh->setAttribute(0, 3, GL_FLOAT, 6 * sizeof(float), (void*)0);
+    mesh->setAttribute(1, 3, GL_FLOAT, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+    mesh->setDrawMode(GL_TRIANGLES, (GLsizei)indices.size());
+
+    objMeshMap[objName] = std::move(mesh);
+}
+
+void ThreeDObj::draw(const std::string objName) {
+    if (!g_shaderProgram || baseVertices.empty() || objIndicesMap.empty()) {
+        return;
+    }
+
+    // Mesh가 없으면 생성
+    if (objMeshMap.find(objName) == objMeshMap.end()) {
+        createMesh(objName);
+    }
+    if (objMeshMap.find(objName) == objMeshMap.end()) {
+        std::cerr << "Error: Object '" << objName << "' not found\n";
+        return;
+    }
+
+    // Translation 적용
     glm::vec3 translation(0.0f);
     if (objTranslationMap.find(objName) != objTranslationMap.end()) {
         translation = objTranslationMap.at(objName);
     }
 
+    modelViewStack.matPush();
+    modelViewStack.translate(translation.x, translation.y, translation.z);
+
+    glm::mat4 projection = projectionStack.getTopMatrix();
+    glm::mat4 modelView = modelViewStack.getTopMatrix();
+
     glLineWidth(1.0f);
-    glColor3f(objectColor.x, objectColor.y, objectColor.z);
-
-    // 삼각형 와이어프레임 그리기
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-    glBegin(GL_TRIANGLES);
-    {
-        for (unsigned int index : indices) {
-            const glm::vec3 &vertex = baseVertices[index];
 
-            glVertex3f(vertex.x + translation.x, vertex.y + translation.y,
-                       vertex.z + translation.z);
-        }
-    }
-    glEnd();
+    drawMesh(*objMeshMap[objName], *g_shaderProgram, [&](const ShaderProgram& prog) {
+        prog.setUniform("projection", projection);
+        prog.setUniform("modelView", modelView);
+        prog.setUniform("objectColor", objectColor);
+        prog.setUniform("useVertexColor", 1.0f);
+    });
+
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    modelViewStack.matPop();
 }
 
 void ThreeDObj::drawAll() {
@@ -499,8 +538,44 @@ int getRandomRange(int a, int b) {
     return static_cast<int>(dist(gen));
 }
 
+// 셰이더 기반 사각형 그리기 (Glow 효과는 생략)
 void drawRectWithGlow(float x, float y, float width, float height, glm::fvec4 color, float glowSize,
                       float zDepth) {
+    if (!g_shaderProgram) return;
+
+    float halfW = width / 2.0f;
+    float halfH = height / 2.0f;
+
+    // 정점 데이터 (2 triangles = 6 vertices)
+    float vertices[] = {
+        // Triangle 1
+        x - halfW, y - halfH, zDepth,  color.r, color.g, color.b,
+        x + halfW, y - halfH, zDepth,  color.r, color.g, color.b,
+        x + halfW, y + halfH, zDepth,  color.r, color.g, color.b,
+
+        // Triangle 2
+        x + halfW, y + halfH, zDepth,  color.r, color.g, color.b,
+        x - halfW, y + halfH, zDepth,  color.r, color.g, color.b,
+        x - halfW, y - halfH, zDepth,  color.r, color.g, color.b
+    };
+
+    Mesh mesh;
+    mesh.setData(vertices, sizeof(vertices), GL_DYNAMIC_DRAW);
+    mesh.setAttribute(0, 3, GL_FLOAT, 6 * sizeof(float), (void*)0);
+    mesh.setAttribute(1, 3, GL_FLOAT, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+    mesh.setDrawMode(GL_TRIANGLES, 6);
+
+    glm::mat4 projection = projectionStack.getTopMatrix();
+    glm::mat4 modelView = modelViewStack.getTopMatrix();
+
+    drawMesh(mesh, *g_shaderProgram, [&](const ShaderProgram& prog) {
+        prog.setUniform("projection", projection);
+        prog.setUniform("modelView", modelView);
+        prog.setUniform("objectColor", glm::vec3(color.r, color.g, color.b));
+        prog.setUniform("useVertexColor", 1.0f);
+    });
+
+    /* === 기존 코드 (주석 처리) ===
     float halfW = width / 2.0f;
     float halfH = height / 2.0f;
 
@@ -590,4 +665,5 @@ void drawRectWithGlow(float x, float y, float width, float height, glm::fvec4 co
     glVertex3f(x + halfW, y + halfH, zDepth);
     glVertex3f(x - halfW, y + halfH, zDepth);
     glEnd();
+    */
 }
