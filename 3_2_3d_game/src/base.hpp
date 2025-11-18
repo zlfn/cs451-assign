@@ -216,10 +216,13 @@ struct BossHealthBar : Drawable {
 
 struct Background : Drawable, Updatable {
     int lastUpdateTime;
+    std::unique_ptr<Mesh> borderMesh;
 
     Background();
     bool update(int currentTime, GameState &gameState) override;
     void draw(const GameState &gameState) override;
+private:
+    void createBorderMesh();
 };
 
 struct GameState {
