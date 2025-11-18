@@ -12,48 +12,68 @@ GLuint VBO;
 GLuint EBO;
 
 // 셰이더 소스 수정
-const char *vertexShaderSource = R"(
-#version 330 core
+const char *pointVertexShaderSrc = R"(
+#version 450 core
 
-layout (location = 0) in vec3 aPos;
-layout (location = 1) in float aHeight;
+struct Complex {
+    float re;
+    float im;
+};
+
+layout(std430, binding = 1) readonly buffer HeightData {
+    Complex height[];
+};
+
+uniform int uGridSize;
+uniform float uHeightScale;
+
 out float vHeight;
 
 void main() {
-    // Scale height to make waves visible
-    vec3 pos = vec3(aPos.xy, aHeight * 5.0f);
+    int N   = uGridSize;
+    int idx = gl_VertexID;   // 0 .. N*N-1
 
-    // Apply a static rotation around the X-axis for a better viewing angle
-    float angle = -1.2f; // ~70 degrees
+    int x = idx % N;
+    int y = idx / N;
+
+    // [-1, 1] 범위로 정규화한 평면 좌표 (XY plane)
+    float fx = (float(x) / float(N - 1)) * 2.0 - 1.0;
+    float fy = (float(y) / float(N - 1)) * 2.0 - 1.0;
+
+    float h = height[idx].re * uHeightScale;
+
+    // 예전이랑 동일: 평면은 XY, 높이는 Z
+    vec3 pos = vec3(fx, fy, h);
+
+    float angle = -1.2; // ~70도
     mat4 rotation = mat4(
-        1.0, 0.0, 0.0, 0.0,
+        1.0, 0.0,        0.0,        0.0,
         0.0, cos(angle), -sin(angle), 0.0,
-        0.0, sin(angle), cos(angle), 0.0,
-        0.0, 0.0, 0.0, 1.0
+        0.0, sin(angle),  cos(angle), 0.0,
+        0.0, 0.0,        0.0,        1.0
     );
 
     gl_Position = rotation * vec4(pos, 1.0);
-    
-    vHeight = aHeight;
+    gl_PointSize = 3.0;
+
+    vHeight = h;
 }
 )";
 
-const char *fragmentShaderSource = R"(
-#version 330 core
+const char *pointFragmentShaderSrc = R"(
+#version 450 core
 
-in float vHeight; // 정점 셰이더에서 전달받은 높이
+in float vHeight;
 out vec4 FragColor;
 
-// 높이 값(t)을 색상(Red-Green-Blue)으로 매핑하는 함수
+// 높이 값을 컬러로 매핑
 vec3 heightToColor(float t) {
-    // 높이 값을 -1 ~ 1 범위에서 0 ~ 1 범위로 정규화 (범위는 데이터에 맞게 조절)
-    float value = (t * 0.5) + 0.5;
+    float value = (t * 0.5) + 0.5; // -1~1 -> 0~1 (대충)
 
-    // 간단한 Jet 컬러맵 (Blue -> Green -> Red)
-    vec3 low = vec3(0.0, 0.0, 1.0);  // Blue (낮음)
-    vec3 mid = vec3(0.0, 1.0, 0.0);  // Green (중간)
-    vec3 high = vec3(1.0, 0.0, 0.0); // Red (높음)
-    
+    vec3 low  = vec3(0.0, 0.0, 1.0);  // 파랑
+    vec3 mid  = vec3(0.0, 1.0, 0.0);  // 초록
+    vec3 high = vec3(1.0, 0.0, 0.0);  // 빨강
+
     vec3 color = mix(low, mid, value * 2.0);
     if (value > 0.5) {
         color = mix(mid, high, (value - 0.5) * 2.0);
@@ -62,119 +82,48 @@ vec3 heightToColor(float t) {
 }
 
 void main() {
-    // 높이 값에 따라 색상 결정
-    FragColor = vec4(heightToColor(vHeight*100), 1.0);
+    FragColor = vec4(heightToColor(vHeight * 100.0), 1.0);
 }
 )";
 
 // 셰이더 컴파일
-GLuint createShaderProgram() {
-    GLint success = false;
-    GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
-    GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-    GLuint program = glCreateProgram();
+GLuint createPointShaderProgram() {
+    GLint success = GL_FALSE;
+    GLuint vs = glCreateShader(GL_VERTEX_SHADER);
+    GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
+    GLuint prog = glCreateProgram();
 
-    // 정점 셰이더 컴파일
-    glShaderSource(vertexShader, 1, &vertexShaderSource, nullptr);
-    glCompileShader(vertexShader);
-    glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success); // 오류 검사
+    glShaderSource(vs, 1, &pointVertexShaderSrc, nullptr);
+    glCompileShader(vs);
+    glGetShaderiv(vs, GL_COMPILE_STATUS, &success);
     if (!success) {
-        char infoLog[512];
-        glGetShaderInfoLog(vertexShader, 512, nullptr, infoLog);
-        std::cerr << "Vertex Shader Compile Failure:\n" << infoLog << '\n';
+        char log[512];
+        glGetShaderInfoLog(vs, 512, nullptr, log);
+        std::cerr << "Point Vertex Shader Compile Failure:\n" << log << '\n';
     }
 
-    // 프래그먼트 셰이더 컴파일
-    glShaderSource(fragmentShader, 1, &fragmentShaderSource, nullptr);
-    glCompileShader(fragmentShader);
-    glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success); // 오류 검사
+    glShaderSource(fs, 1, &pointFragmentShaderSrc, nullptr);
+    glCompileShader(fs);
+    glGetShaderiv(fs, GL_COMPILE_STATUS, &success);
     if (!success) {
-        char infoLog[512];
-        glGetShaderInfoLog(fragmentShader, 512, NULL, infoLog);
-        std::cerr << "Fragment Shader Compile Failure:\n" << infoLog << '\n';
+        char log[512];
+        glGetShaderInfoLog(fs, 512, nullptr, log);
+        std::cerr << "Point Fragment Shader Compile Failure:\n" << log << '\n';
     }
 
-    // 셰이더 프로그램 링크
-    glAttachShader(program, vertexShader);
-    glAttachShader(program, fragmentShader);
-    glLinkProgram(program);
-    glGetProgramiv(program, GL_LINK_STATUS, &success); // 링크 오류 검사
+    glAttachShader(prog, vs);
+    glAttachShader(prog, fs);
+    glLinkProgram(prog);
+    glGetProgramiv(prog, GL_LINK_STATUS, &success);
     if (!success) {
-        char infoLog[512];
-        glGetProgramInfoLog(program, 512, nullptr, infoLog);
-        std::cerr << "Shader Program Link Failure:\n" << infoLog << '\n';
+        char log[512];
+        glGetProgramInfoLog(prog, 512, nullptr, log);
+        std::cerr << "Point Shader Program Link Failure:\n" << log << '\n';
     }
 
-    // 컴파일 & 링크 후 개별 shader 객체는 삭제
-    glDeleteShader(vertexShader);
-    glDeleteShader(fragmentShader);
-
-    return program;
-}
-
-void init() {
-    glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
-    shaderProgram = createShaderProgram();
-
-    glGenVertexArrays(1, &VAO);
-    glGenBuffers(1, &VBO);
-    glGenBuffers(1, &EBO);
-
-    glBindVertexArray(VAO);
-
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, GRID_SIZE * GRID_SIZE * 4 * sizeof(float), nullptr,
-                 GL_DYNAMIC_DRAW);
-
-    // Vertex attributes
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)0);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, 4 * sizeof(float),
-                          (void *)(3 * sizeof(float)));
-    glEnableVertexAttribArray(1);
-
-    // Create and bind EBO with indices for a grid mesh
-    std::vector<unsigned int> indices;
-    indices.reserve((GRID_SIZE - 1) * (GRID_SIZE - 1) * 6);
-    for (int i = 0; i < GRID_SIZE - 1; ++i) {
-        for (int j = 0; j < GRID_SIZE - 1; ++j) {
-            unsigned int v0 = i * GRID_SIZE + j;
-            unsigned int v1 = i * GRID_SIZE + j + 1;
-            unsigned int v2 = (i + 1) * GRID_SIZE + j;
-            unsigned int v3 = (i + 1) * GRID_SIZE + j + 1;
-            // Triangle 1
-            indices.push_back(v0);
-            indices.push_back(v2);
-            indices.push_back(v1);
-            // Triangle 2
-            indices.push_back(v1);
-            indices.push_back(v2);
-            indices.push_back(v3);
-        }
-    }
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int),
-                 indices.data(), GL_STATIC_DRAW);
-
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
-}
-
-void display(GLFWwindow* window) {
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    glUseProgram(shaderProgram);
-    glBindVertexArray(VAO);
-
-    // Draw wireframe mesh
-    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-    glDrawElements(GL_TRIANGLES, (GRID_SIZE - 1) * (GRID_SIZE - 1) * 6, GL_UNSIGNED_INT, 0);
-    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL); // Reset for other potential draws
-
-    glBindVertexArray(0);
-    glUseProgram(0);
-
-    glfwSwapBuffers(window);
+    glDeleteShader(vs);
+    glDeleteShader(fs);
+    return prog;
 }
 
 float timeScale = 0.5f;
@@ -182,36 +131,32 @@ float lastFrameTime = 0.0f;
 // 정점 데이터를 담을 벡터 (전역으로 두거나 timer 내에서 매번 생성)
 std::vector<float> vertices;
 
-void updateWaves() {
-    float currentTime = glfwGetTime() * timeScale;
-    calcWaveField(currentTime);
-    iFFT();
+GLuint gPointVAO = 0;
+GLuint gPointProgram = 0;
 
-    // currentHeight[i][j].real이 (i, j)에서의 파도 높이
+void initPointDraw() {
+    glGenVertexArrays(1, &gPointVAO);
+    glBindVertexArray(gPointVAO);
+    gPointProgram = createPointShaderProgram();
+    glBindVertexArray(0);
+}
 
-    // VBO 업데이트 로직
-    vertices.clear();
-    vertices.reserve(GRID_SIZE * GRID_SIZE * 4); // 메모리 재할당 방지
+void drawIFFTPoints() {
+    glUseProgram(gPointProgram);
+    glBindVertexArray(gPointVAO);
 
-    for (int i = 0; i < GRID_SIZE; ++i) {
-        for (int j = 0; j < GRID_SIZE; ++j) {
-            // 그리드 좌표 (j, i)를 NDC 좌표 (-1 ~ 1)로 매핑
-            float x = (j / (float)(GRID_SIZE - 1)) * 2.0f - 1.0f;
-            float y = (i / (float)(GRID_SIZE - 1)) * 2.0f - 1.0f;
-            float z = 0.0f; // 2D 시각화이므로 z=0
-            float height = currentHeight[i][j].real();
+    // SSBO 바인딩 (vertex shader에서 binding = 1)
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, gCurrSSBO);
 
-            vertices.push_back(x);
-            vertices.push_back(y);
-            vertices.push_back(z);
-            vertices.push_back(height); // 높이 값을 추가 속성으로 전달
-        }
-    }
+    GLint locGrid = glGetUniformLocation(gPointProgram, "uGridSize");
+    GLint locScale = glGetUniformLocation(gPointProgram, "uHeightScale");
+    glUniform1i(locGrid, GRID_SIZE);
+    glUniform1f(locScale, 1.0f);
 
-    // VBO 데이터 업데이트
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, vertices.size() * sizeof(float), vertices.data());
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glDrawArrays(GL_POINTS, 0, GRID_SIZE * GRID_SIZE);
+
+    glBindVertexArray(0);
+    glUseProgram(0);
 }
 
 void framebufferSizeCallback(GLFWwindow* window, int width, int height) {
@@ -230,6 +175,16 @@ void cleanup() {
     glDeleteBuffers(1, &VBO);
     glDeleteBuffers(1, &EBO);
     glDeleteProgram(shaderProgram);
+
+    glDeleteVertexArrays(1, &gPointVAO);
+    glDeleteProgram(gPointProgram);
+
+    glDeleteBuffers(1, &gBaseSSBO);
+    glDeleteBuffers(1, &gTempSSBO);
+    glDeleteBuffers(1, &gCurrSSBO);
+    glDeleteProgram(gComputeProgramH);
+    glDeleteProgram(gComputeProgramV);
+
     std::cout << "Freed All Resources." << '\n';
 }
 
@@ -240,9 +195,9 @@ int main(int argc, char **argv) {
         return -1;
     }
 
-    // OpenGL 3.3 Core Profile 설정
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    // OpenGL 4.5 Core Profile 설정
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 #ifdef __APPLE__
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
@@ -264,19 +219,19 @@ int main(int argc, char **argv) {
         glfwTerminate();
         return -1;
     }
-
-    glEnable(GL_DEPTH_TEST); // 3D 렌더링을 위한 깊이 테스트 활성화
+    
+    glEnable(GL_DEPTH_TEST);
     std::cout << "Using OpenGL " << glGetString(GL_VERSION) << '\n';
 
-    // 콜백 함수 설정
     glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
     glfwSetKeyCallback(window, keyCallback);
-
-    // VSync 활성화 (60 FPS로 제한)
     glfwSwapInterval(1);
 
-    init(); // 셰이더, VBO/VAO 생성
-    initSpectra(); // spectrum 초기화
+    glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
+
+    initSpectra();       // 스펙트럼 초기화 (기존 그대로)
+    initComputeShader(); // <-- compute 셰이더 & gBaseSSBO/gTempSSBO/gCurrSSBO 준비
+    initPointDraw();     // <-- point 렌더링 셰이더 + VAO 준비
 
     lastFrameTime = glfwGetTime();
 
@@ -284,9 +239,18 @@ int main(int argc, char **argv) {
     while (!glfwWindowShouldClose(window)) {
         double currentFrameTime = glfwGetTime();
         double deltaTime = currentFrameTime - lastFrameTime;
+        lastFrameTime = currentFrameTime;
 
-        updateWaves();
-        display(window);
+        float currentTime = (float) currentFrameTime * timeScale;
+
+        // 1) GPU에서 iFFT 돌려서 gCurrSSBO 채우기
+        runIFFTCompute(currentTime);
+
+        // 2) 화면 클리어 + 렌더 + 버퍼 스왑
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        drawIFFTPoints();
+        glfwSwapBuffers(window);
+
         glfwPollEvents();
     }
 

@@ -106,7 +106,7 @@ int getRandomRange(int a, int b) {
     return static_cast<int>(dist(gen));
 }
 
-///////////// CPU VERSION /////////////
+//////////////// GPU ////////////////
 
 glm::vec2 w = {1.0, 0.0}; // Wind direction
 
@@ -206,86 +206,427 @@ void calcWaveField(float t) {
     }
 }
 
-void iFFT_1D_inplace(std::complex<float> data[GRID_SIZE]) {
-    // Bit-reversal permutation
-    for (unsigned int i = 0; i < GRID_SIZE; i++) {
-        unsigned int rev = 0;
-        unsigned int temp_i = i;
-        int num_bits = static_cast<int>(log2(GRID_SIZE));
-        for (int j = 0; j < num_bits; j++) {
-            rev = (rev << 1) | (temp_i & 1);
-            temp_i >>= 1;
-        }
-        if (rev > i) {
-            std::swap(data[i], data[rev]);
-        }
+std::string ifftCSH = R"(
+#version 450
+
+// cpp의 struct와 동일
+struct Complex {
+    float re;
+    float im;
+};
+
+uniform int uGridSize;    // 반드시 32라고 가정 (shared[32], local_size_x = 32와 일치)
+uniform float uCurrTime;
+
+// 워크그룹당 32개의 쓰레드 = 한 행(row) 전체를 담당
+layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
+
+// SSBO 데이터
+layout(std430, binding = 0) readonly buffer BaseData { Complex base[]; };
+layout(std430, binding = 1) writeonly buffer CurrData { Complex curr[]; };
+
+// 한 행을 워크그룹 내 공유 메모리에 올려서 계산
+shared Complex rowShared[32];
+
+// 복소수 연산 헬퍼
+Complex c_add(Complex a, Complex b) {
+    Complex r;
+    r.re = a.re + b.re;
+    r.im = a.im + b.im;
+    return r;
+}
+
+Complex c_sub(Complex a, Complex b) {
+    Complex r;
+    r.re = a.re - b.re;
+    r.im = a.im - b.im;
+    return r;
+}
+
+Complex c_mul(Complex a, Complex b) {
+    Complex r;
+    r.re = a.re * b.re - a.im * b.im;
+    r.im = a.re * b.im + a.im * b.re;
+    return r;
+}
+
+// x의 하위 log2N 비트를 뒤집는 bit-reversal
+uint bit_reverse(uint x, uint log2N) {
+    uint r = 0u;
+    for (uint i = 0u; i < log2N; ++i) {
+        r = (r << 1u) | (x & 1u);
+        x >>= 1u;
+    }
+    return r;
+}
+
+void main() {
+    // 한 워크그룹 = 한 행(row)
+    uint row = gl_WorkGroupID.x;       // 0 .. uGridSize-1
+    uint col = gl_LocalInvocationID.x; // 0 .. 31
+
+    uint N = uint(uGridSize);          // 그리드 크기 (32로 가정)
+    if (col >= N) {
+        return;
     }
 
-    // Cooley-Tukey FFT algorithm (Radix-2)
-    for (int len = 2; len <= GRID_SIZE; len <<= 1) {
-        int m = len / 2;
-        std::complex<float> W_len =
-            std::exp(std::complex<float>(0.0, 2.0 * std::numbers::pi_v<float> / len));
-        for (int k = 0; k < GRID_SIZE; k += len) {
-            std::complex<float> W = 1.0;
-            for (int j = 0; j < m; j++) {
-                std::complex<float> T = W * data[k + j + m];
-                std::complex<float> U = data[k + j];
+    // 2D -> 1D 인덱스 변환
+    uint idx1D = row * N + col;
 
-                data[k + j] = U + T;
-                data[k + j + m] = U - T;
+    // global -> shared 로 한 행 전체 로딩
+    rowShared[col] = base[idx1D];
+    barrier(); // 워크그룹 내 모든 쓰레드 동기화
 
-                W = W * W_len;
+    // 여기부터 1D iFFT (radix-2 DIT)
+    // N=32라면 log2N=5
+    const uint LOG2N = 5u; // uGridSize가 항상 32라고 가정
+
+    uint tid = col;
+
+    // bit-reversal
+    {
+        uint j = bit_reverse(tid, LOG2N);
+        // j < N 조건도 추가해서 범위 보호
+        if (tid < j && j < N) {
+            Complex tmp = rowShared[tid];
+            rowShared[tid] = rowShared[j];
+            rowShared[j] = tmp;
+        }
+        barrier();
+    }
+
+    // 스테이지별 버터플라이 루프
+    for (uint s = 1u; s <= LOG2N; ++s) {
+        uint m    = 1u << s;   // 이번 스테이지에서 묶는 블록 크기 (2,4,8,...,N)
+        uint mh = m >> 1u;   // 블록 절반 길이
+
+        uint blockIndex  = tid / m;  // 몇 번째 블록인지
+        uint insideIndex = tid % m;  // 블록 안에서 몇 번째인지 (0..m-1)
+
+        if (insideIndex < mh) {
+            uint i0 = blockIndex * m + insideIndex;
+            uint i1 = i0 + mh;
+
+            // 혹시 N보다 크지 않도록 방어
+            if (i1 < N) {
+                Complex u = rowShared[i0];
+                Complex v = rowShared[i1];
+
+                // iFFT에서는 twiddle = exp(+2π i k / m)
+                float k  = float(insideIndex);
+                float mm = float(m);
+                float angle = 2.0 * 3.14159265358979323846 * k / mm;
+
+                Complex w;
+                w.re = cos(angle);
+                w.im = sin(angle);
+
+                Complex t = c_mul(v, w);
+
+                rowShared[i0] = c_add(u, t);
+                rowShared[i1] = c_sub(u, t);
             }
         }
+
+        // 스테이지 끝날 때마다 동기화
+        barrier();
     }
+
+    // iFFT 스케일링 (1/N 곱하기)
+    Complex val = rowShared[tid];
+    float invN = 1.0 / float(N);
+    val.re *= invN;
+    val.im *= invN;
+    rowShared[tid] = val;
+
+    barrier();
+
+    // 결과를 shared에서 global로 다시 저장
+    curr[idx1D] = rowShared[col];
+}
+)";
+
+std::string ifftCSV = R"(
+#version 450
+
+// cpp의 struct와 동일
+struct Complex {
+    float re;
+    float im;
+};
+
+uniform int uGridSize; // 반드시 32라고 가정
+
+// 워크그룹당 32개의 쓰레드 = 한 열(column) 전체를 담당
+layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
+
+// SSBO 데이터
+// 가로 방향 iFFT 결과를 input으로 사용한다고 가정
+layout(std430, binding = 0) readonly buffer InData  { Complex inData[];  };
+layout(std430, binding = 1) writeonly buffer OutData { Complex outData[]; };
+
+// 한 열을 워크그룹 내 공유 메모리에 올려서 계산
+shared Complex colShared[32];
+
+// 복소수 연산 헬퍼
+
+Complex c_add(Complex a, Complex b) {
+    Complex r;
+    r.re = a.re + b.re;
+    r.im = a.im + b.im;
+    return r;
 }
 
-void iFFT() {
-    // 가로줄 iFFT
-    for (unsigned i = 0; i < GRID_SIZE; i++) {
-        iFFT_1D_inplace(currentHeight[i]);
-    }
-
-    // 세로줄 iFFT
-    std::complex<float> temp_col[GRID_SIZE];
-    for (unsigned j = 0; j < GRID_SIZE; j++) { // j번째 세로줄
-        for (unsigned i = 0; i < GRID_SIZE; i++) {
-            temp_col[i] = currentHeight[i][j];
-        }
-
-        iFFT_1D_inplace(temp_col);
-
-        for (unsigned i = 0; i < GRID_SIZE; i++) {
-            currentHeight[i][j] = temp_col[i];
-        }
-    }
-
-    // 정규화
-    float scale = 1.0f / (float)(GRID_SIZE * GRID_SIZE);
-    for (unsigned i = 0; i < GRID_SIZE; i++) {
-        for (unsigned j = 0; j < GRID_SIZE; j++) {
-            currentHeight[i][j] *= scale;
-        }
-    }
+Complex c_sub(Complex a, Complex b) {
+    Complex r;
+    r.re = a.re - b.re;
+    r.im = a.im - b.im;
+    return r;
 }
 
-/*
-int waveMain() {
-    initSpectra();
+Complex c_mul(Complex a, Complex b) {
+    Complex r;
+    r.re = a.re * b.re - a.im * b.im;
+    r.im = a.re * b.im + a.im * b.re;
+    return r;
+}
 
-    float time = 0.0f;
-    while (true) {
-        time += 0.016f; // 60FPS
-        calcWaveField(time);
+// x의 하위 log2N 비트를 뒤집는 bit-reversal
+uint bit_reverse(uint x, uint log2N) {
+    uint r = 0u;
+    for (uint i = 0u; i < log2N; ++i) {
+        r = (r << 1u) | (x & 1u);
+        x >>= 1u;
+    }
+    return r;
+}
 
-        iFFT();
-        // currentHeight[i][j].real이 (i, j)에서의 파도 높이
-        std::cout << currentHeight[0][0] << std::endl;
+void main() {
+    uint N = uint(uGridSize);          // 32라고 가정
+    uint col = gl_WorkGroupID.x;       // 열 인덱스 0 .. N-1
+    uint row = gl_LocalInvocationID.x; // 열 안에서 y 인덱스 0 .. 31
+
+    if (row >= N) {
+        return;
     }
 
-    return 0;
+    // 2D -> 1D 인덱스 변환 (row-major: idx = y * width + x)
+    uint idx1D = row * N + col;
+
+    // global -> shared 로 한 열 전체 로딩
+    colShared[row] = inData[idx1D];
+    barrier(); // 워크그룹 내 모든 쓰레드 동기화
+
+    // 1D iFFT (radix-2 DIT
+    const uint LOG2N = 5u; // N=32일 때 log2N=5
+    uint tid = row;
+
+    // bit-reversal
+    {
+        uint j = bit_reverse(tid, LOG2N);
+        if (tid < j && j < N) {
+            Complex tmp = colShared[tid];
+            colShared[tid] = colShared[j];
+            colShared[j] = tmp;
+        }
+        barrier();
+    }
+
+    // 2단계: 스테이지별 버터플라이 루프
+    for (uint s = 1u; s <= LOG2N; ++s) {
+        uint m    = 1u << s;   // 이번 스테이지에서 묶는 블록 크기 (2,4,8,...,N)
+        uint mh = m >> 1u;   // 블록 절반 길이
+
+        uint blockIndex  = tid / m;  // 몇 번째 블록인지
+        uint insideIndex = tid % m;  // 블록 안에서 몇 번째인지 (0..m-1)
+
+        if (insideIndex < mh) {
+            uint i0 = blockIndex * m + insideIndex;
+            uint i1 = i0 + mh;
+
+            if (i1 < N) {
+                Complex u = colShared[i0];
+                Complex v = colShared[i1];
+
+                // iFFT: twiddle = exp(+2π i k / m)
+                float k  = float(insideIndex);
+                float mm = float(m);
+                float angle = 2.0 * 3.14159265358979323846 * k / mm;
+
+                Complex w;
+                w.re = cos(angle);
+                w.im = sin(angle);
+
+                Complex t = c_mul(v, w);
+
+                colShared[i0] = c_add(u, t);
+                colShared[i1] = c_sub(u, t);
+            }
+        }
+
+        barrier();
+    }
+
+    // iFFT 스케일링 (1/N 곱하기)
+    Complex val = colShared[tid];
+    float invN = 1.0 / float(N);
+    val.re *= invN;
+    val.im *= invN;
+    colShared[tid] = val;
+
+    barrier();
+
+    // 4) 결과를 shared에서 global로 다시 저장
+    outData[idx1D] = colShared[row];
 }
-*/
+)";
+
+GLuint gComputeProgramH = 0; // horizontal
+GLuint gComputeProgramV = 0; // vertical
+
+GLuint gBaseSSBO = 0; // initHeight (고정 스펙트럼)
+GLuint gTempSSBO = 0; // 가로 패스 결과
+GLuint gCurrSSBO = 0; // 세로 패스 결과 (최종 height)
+
+GLuint compileShader(GLenum type, const std::string &src) {
+    GLuint shader = glCreateShader(type);
+
+    const char *csrc = src.c_str();
+    glShaderSource(shader, 1, &csrc, nullptr);
+    glCompileShader(shader);
+
+    // 에러 체크
+    GLint success;
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        GLint logLen;
+        glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &logLen);
+        std::string log(logLen, '\0');
+        glGetShaderInfoLog(shader, logLen, nullptr, log.data());
+        std::cerr << "[Shader Compile Error]\n" << log << std::endl;
+        throw std::runtime_error("Shader compilation failed");
+    }
+
+    return shader;
+}
+
+GLuint linkProgram(const std::vector<GLuint> &shaders) {
+    GLuint program = glCreateProgram();
+    for (auto s : shaders) {
+        glAttachShader(program, s);
+    }
+
+    glLinkProgram(program);
+
+    // 에러 체크
+    GLint success;
+    glGetProgramiv(program, GL_LINK_STATUS, &success);
+    if (!success) {
+        GLint logLen;
+        glGetProgramiv(program, GL_INFO_LOG_LENGTH, &logLen);
+        std::string log(logLen, '\0');
+        glGetProgramInfoLog(program, logLen, nullptr, log.data());
+        std::cerr << "[Program Link Error]\n" << log << std::endl;
+        throw std::runtime_error("Program linking failed");
+    }
+
+    // 셰이더는 프로그램에 들어갔으면 지워도 됨
+    for (auto s : shaders)
+        glDeleteShader(s);
+
+    return program;
+}
+
+void initComputeShader() {
+    // 가로 / 세로 셰이더를 각각 컴파일 & 링크
+    GLuint csh = compileShader(GL_COMPUTE_SHADER, ifftCSH); // horizontal
+    GLuint csv = compileShader(GL_COMPUTE_SHADER, ifftCSV); // vertical
+
+    {
+        std::vector<GLuint> shaderList;
+        shaderList.push_back(csh);
+        gComputeProgramH = linkProgram(shaderList); // 가로 패스용 프로그램
+    }
+    {
+        std::vector<GLuint> shaderList;
+        shaderList.push_back(csv);
+        gComputeProgramV = linkProgram(shaderList); // 세로 패스용 프로그램
+    }
+
+    // CPU 쪽 2D 그리드 -> 1D 배열로 변환
+    std::vector<Complex> dataGrid2D(GRID_SIZE * GRID_SIZE);
+
+    for (int y = 0; y < GRID_SIZE; y++) {
+        for (int x = 0; x < GRID_SIZE; x++) {
+            dataGrid2D[y * GRID_SIZE + x].re = initHeight[y][x].real();
+            dataGrid2D[y * GRID_SIZE + x].im = initHeight[y][x].imag();
+        }
+    }
+
+    // initHeight -> gBaseSSBO (고정 입력 스펙트럼)
+    glGenBuffers(1, &gBaseSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, gBaseSSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, dataGrid2D.size() * sizeof(Complex), dataGrid2D.data(),
+                 GL_STATIC_DRAW);
+
+    // 가로 패스 결과용 temp 버퍼
+    glGenBuffers(1, &gTempSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, gTempSSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, dataGrid2D.size() * sizeof(Complex), nullptr,
+                 GL_DYNAMIC_COPY);
+
+    // 세로 패스 최종 결과 버퍼
+    glGenBuffers(1, &gCurrSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, gCurrSSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, dataGrid2D.size() * sizeof(Complex), nullptr,
+                 GL_DYNAMIC_COPY);
+
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+}
+
+void runIFFTCompute(float time) {
+    // CPU 스펙트럼 H(k, t) 업데이트
+    calcWaveField(time); // currentHeight[i][j] = H(k, t)
+
+    // currentHeight를 gBaseSSBO에 업로드 (H(k, t) -> SSBO)
+    static std::vector<Complex> dataGrid2D(GRID_SIZE * GRID_SIZE);
+
+    for (int y = 0; y < GRID_SIZE; ++y) {
+        for (int x = 0; x < GRID_SIZE; ++x) {
+            int idx = y * GRID_SIZE + x;
+            dataGrid2D[idx].re = currentHeight[y][x].real();
+            dataGrid2D[idx].im = currentHeight[y][x].imag();
+        }
+    }
+
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, gBaseSSBO);
+    glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, dataGrid2D.size() * sizeof(Complex),
+                    dataGrid2D.data());
+
+    // 가로 방향 iFFT
+    glUseProgram(gComputeProgramH);
+
+    GLint gs_loc_h = glGetUniformLocation(gComputeProgramH, "uGridSize");
+    glUniform1i(gs_loc_h, GRID_SIZE);
+    // uCurrTime은 이제 필요 없음 (calcWaveField에서 이미 반영했으니까)
+
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, gBaseSSBO); // 입력: H(k, t)
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, gTempSSBO); // 출력: 가로 iFFT
+
+    glDispatchCompute(GRID_SIZE, 1, 1);
+    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+
+    // 세로 방향 iFFT
+    glUseProgram(gComputeProgramV);
+
+    GLint gs_loc_v = glGetUniformLocation(gComputeProgramV, "uGridSize");
+    glUniform1i(gs_loc_v, GRID_SIZE);
+
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, gTempSSBO); // 입력: 가로 iFFT 결과
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, gCurrSSBO); // 출력: 최종 2D iFFT
+
+    glDispatchCompute(GRID_SIZE, 1, 1);
+    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+}
 
 ///////////////////////////////////////

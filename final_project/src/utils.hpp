@@ -34,5 +34,21 @@ struct ThreeDObj {
 
 extern std::complex<float> currentHeight[GRID_SIZE][GRID_SIZE];
 void initSpectra();
-void calcWaveField(float t);
-void iFFT();
+
+// GPU
+extern GLuint gComputeProgramH;
+extern GLuint gComputeProgramV;
+
+extern GLuint gBaseSSBO;
+extern GLuint gTempSSBO;
+extern GLuint gCurrSSBO;
+
+struct Complex {
+    float re;
+    float im;
+};
+
+void initComputeShader();
+void runIFFTCompute(float time);
+GLuint compileShader(GLenum type, const std::string &src);
+GLuint linkProgram(const std::vector<GLuint> &shaders);
