@@ -1,5 +1,6 @@
-﻿#include "base.hpp"
+#include "base.hpp"
 #include "utils.hpp"
+#include "shaders/shaders.hpp"
 
 // 전역 변수
 std::random_device rd;
@@ -229,9 +230,9 @@ int main(int argc, char **argv) {
 
     glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
 
-    initSpectra();       // 스펙트럼 초기화 (기존 그대로)
-    initComputeShader(); // <-- compute 셰이더 & gBaseSSBO/gTempSSBO/gCurrSSBO 준비
-    initPointDraw();     // <-- point 렌더링 셰이더 + VAO 준비
+    initSpectra();       // 스펙트럼 초기화
+    initComputeShader(); // compute 셰이더 & gBaseSSBO/gTempSSBO/gCurrSSBO 준비
+    initPointDraw();     // point 렌더링 셰이더 + VAO 준비
 
     lastFrameTime = glfwGetTime();
 
@@ -243,10 +244,10 @@ int main(int argc, char **argv) {
 
         float currentTime = (float) currentFrameTime * timeScale;
 
-        // 1) GPU에서 iFFT 돌려서 gCurrSSBO 채우기
+        // GPU에서 iFFT 돌려서 gCurrSSBO 채우기
         runIFFTCompute(currentTime);
 
-        // 2) 화면 클리어 + 렌더 + 버퍼 스왑
+        // 화면 클리어 + 렌더 + 버퍼 스왑
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         drawIFFTPoints();
         glfwSwapBuffers(window);
