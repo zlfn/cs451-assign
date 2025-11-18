@@ -302,14 +302,8 @@ void initShaders() {
 int main(int argc, char **argv) {
     glutInit(&argc, argv);
 
-    // Core Profile 설정 (macOS GLUT에서는 지원하지 않음)
-    #ifndef __APPLE__
-    glutInitContextVersion(3, 3);
-    glutInitContextProfile(GLUT_CORE_PROFILE);
-    #endif
-
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
-    glutInitWindowSize(800, 800);
+    glutInitWindowSize(1400, 1400);
     glutCreateWindow("CSED451 Assn 3");
 
     GLenum err = glewInit();

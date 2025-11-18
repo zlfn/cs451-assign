@@ -247,7 +247,7 @@ void drawMesh(const Mesh& mesh, const ShaderProgram& shader,
 namespace ShaderSources {
     // Vertex Shader: Projection * ModelView * position
     inline const char* vertexShaderSource = R"(
-        #version 330 core
+        #version 430 core
         layout(location = 0) in vec3 position;
         layout(location = 1) in vec3 color;
 
@@ -264,7 +264,7 @@ namespace ShaderSources {
 
     // Fragment Shader: 고정된 색상 또는 vertex color 사용
     inline const char* fragmentShaderSource = R"(
-        #version 330 core
+        #version 430 core
         in vec3 fragColor;
         out vec4 color;
 

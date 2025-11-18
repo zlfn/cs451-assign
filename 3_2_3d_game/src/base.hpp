@@ -214,23 +214,10 @@ struct BossHealthBar : Drawable {
     void draw(const GameState &gameState) override;
 };
 
-struct Star : Drawable, Updatable {
-    glm::fvec2 position;
-    float speed;
-    float size;
-    float brightness;
-
-    Star(glm::fvec2 pos, float spd, float sz, float br);
-    bool update(int deltaTime, GameState & /*gameState*/) override;
-    void draw(const GameState &) override;
-};
 struct Background : Drawable, Updatable {
-    std::vector<Star> stars;
     int lastUpdateTime;
 
     Background();
-
-    void initializeStars();
     bool update(int currentTime, GameState &gameState) override;
     void draw(const GameState &gameState) override;
 };
