@@ -30,7 +30,9 @@ struct ThreeDObj {
     void draw(const std::string objName);
 };
 
-#define GRID_SIZE 32
+const unsigned int GRID_SIZE = 32;  // IFFT resolution
+const unsigned int RENDER_GRID_SIZE = GRID_SIZE * 8;  // High-res rendering mesh
+const float HEIGHT_SCALE = 2.0f;
 
 extern std::complex<float> currentHeight[GRID_SIZE][GRID_SIZE];
 void initSpectra();

@@ -58,28 +58,78 @@ float lastFrameTime = 0.0f;
 std::vector<float> vertices;
 
 GLuint gPointVAO = 0;
+GLuint gPointEBO = 0;
 GLuint gPointProgram = 0;
+
+// Camera state - shoreline view
+glm::vec3 cameraPos = glm::vec3(0.0f, 0.2f, 1.5f);  // A bit higher and further back
+glm::vec3 cameraTarget = glm::vec3(0.0f, 0.0f, 0.0f);  // Look at center of ocean
+glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
+float cameraSpeed = 1.0f;
 
 void initPointDraw() {
     glGenVertexArrays(1, &gPointVAO);
     glBindVertexArray(gPointVAO);
+
+    // Create index buffer for high-resolution triangle mesh
+    std::vector<GLuint> indices;
+    for (int y = 0; y < RENDER_GRID_SIZE - 1; y++) {
+        for (int x = 0; x < RENDER_GRID_SIZE - 1; x++) {
+            int topLeft = y * RENDER_GRID_SIZE + x;
+            int topRight = topLeft + 1;
+            int bottomLeft = (y + 1) * RENDER_GRID_SIZE + x;
+            int bottomRight = bottomLeft + 1;
+
+            // First triangle
+            indices.push_back(topLeft);
+            indices.push_back(bottomLeft);
+            indices.push_back(topRight);
+
+            // Second triangle
+            indices.push_back(topRight);
+            indices.push_back(bottomLeft);
+            indices.push_back(bottomRight);
+        }
+    }
+
+    glGenBuffers(1, &gPointEBO);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gPointEBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(GLuint), indices.data(), GL_STATIC_DRAW);
+
     gPointProgram = createPointShaderProgram();
     glBindVertexArray(0);
 }
 
-void drawIFFTPoints() {
+void drawIFFTPoints(float currentTime, int windowWidth, int windowHeight) {
     glUseProgram(gPointProgram);
     glBindVertexArray(gPointVAO);
 
     // SSBO 바인딩 (vertex shader에서 binding = 1)
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, gCurrSSBO);
 
-    GLint locGrid = glGetUniformLocation(gPointProgram, "uGridSize");
+    // Grid and scale uniforms
+    GLint locIFFTGrid = glGetUniformLocation(gPointProgram, "uIFFTGridSize");
+    GLint locRenderGrid = glGetUniformLocation(gPointProgram, "uRenderGridSize");
     GLint locScale = glGetUniformLocation(gPointProgram, "uHeightScale");
-    glUniform1i(locGrid, GRID_SIZE);
-    glUniform1f(locScale, 1.0f);
+    glUniform1i(locIFFTGrid, GRID_SIZE);
+    glUniform1i(locRenderGrid, RENDER_GRID_SIZE);
+    glUniform1f(locScale, HEIGHT_SCALE);
 
-    glDrawArrays(GL_POINTS, 0, GRID_SIZE * GRID_SIZE);
+    // View matrix (looking at ocean from angle)
+    glm::mat4 view = glm::lookAt(cameraPos, cameraTarget, cameraUp);
+    GLint locView = glGetUniformLocation(gPointProgram, "uView");
+    glUniformMatrix4fv(locView, 1, GL_FALSE, &view[0][0]);
+
+    // Projection matrix - narrower FOV to hide edges
+    float aspect = (float)windowWidth / (float)windowHeight;
+    glm::mat4 projection = glm::perspective(glm::radians(30.0f), aspect, 0.1f, 100.0f);
+    GLint locProjection = glGetUniformLocation(gPointProgram, "uProjection");
+    glUniformMatrix4fv(locProjection, 1, GL_FALSE, &projection[0][0]);
+
+    // Draw filled triangles
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    int numIndices = (RENDER_GRID_SIZE - 1) * (RENDER_GRID_SIZE - 1) * 6;
+    glDrawElements(GL_TRIANGLES, numIndices, GL_UNSIGNED_INT, 0);
 
     glBindVertexArray(0);
     glUseProgram(0);
@@ -103,6 +153,7 @@ void cleanup() {
     glDeleteProgram(shaderProgram);
 
     glDeleteVertexArrays(1, &gPointVAO);
+    glDeleteBuffers(1, &gPointEBO);
     glDeleteProgram(gPointProgram);
 
     glDeleteBuffers(1, &gBaseSSBO);
@@ -172,9 +223,13 @@ int main(int argc, char **argv) {
         // GPU에서 iFFT 돌려서 gCurrSSBO 채우기
         runIFFTCompute(currentTime);
 
+        // Get window size for aspect ratio
+        int windowWidth, windowHeight;
+        glfwGetFramebufferSize(window, &windowWidth, &windowHeight);
+
         // 화면 클리어 + 렌더 + 버퍼 스왑
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        drawIFFTPoints();
+        drawIFFTPoints(currentTime, windowWidth, windowHeight);
         glfwSwapBuffers(window);
 
         glfwPollEvents();
