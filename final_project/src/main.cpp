@@ -181,7 +181,7 @@ int main(int argc, char **argv) {
 #endif
 
     // 윈도우 생성
-    GLFWwindow* window = glfwCreateWindow(800, 600, "CSED451 Final Project", nullptr, nullptr);
+    GLFWwindow* window = glfwCreateWindow(1600, 1200, "CSED451 Final Project", nullptr, nullptr);
     if (!window) {
         std::cerr << "Failed to create GLFW window\n";
         glfwTerminate();
