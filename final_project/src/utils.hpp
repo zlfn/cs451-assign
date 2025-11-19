@@ -11,28 +11,13 @@
 #include <vector>
 #include <map>
 
-extern std::random_device rd;
-extern std::mt19937 gen;
-extern std::uniform_real_distribution<float> dist;
+// Rendering Mesh resolution factor
+// Higher Smooth factor provides more smooth wave. But requires higher GPU spec.
+const unsigned int SMOOTH_FACTOR = 4;
 
-using Indices = std::vector<unsigned int>;
-
-struct ThreeDObj {
-    std::vector<glm::vec3> baseVertices;
-    std::map<std::string, Indices> objIndicesMap;
-    std::map<std::string, glm::vec3> objCenterMap;
-    glm::vec3 objectColor;
-
-    ThreeDObj(const std::string &FILE_PATH, const glm::fvec3 &color = glm::fvec3(1.0f, 1.0f, 1.0f));
-
-    void getObjFile(const std::string &FILE_PATH);
-    void setColor(const glm::vec3 &color);
-    void draw(const std::string objName);
-};
-
-const unsigned int GRID_SIZE = 32;  // IFFT resolution
-const unsigned int RENDER_GRID_SIZE = GRID_SIZE * 8;  // High-res rendering mesh
-const float HEIGHT_SCALE = 2.0f;
+const unsigned int GRID_SIZE = 128;  // IFFT resolution
+const unsigned int RENDER_GRID_SIZE = GRID_SIZE * SMOOTH_FACTOR;  // High-res rendering mesh
+const float HEIGHT_SCALE = 20.0f;
 
 extern std::complex<float> currentHeight[GRID_SIZE][GRID_SIZE];
 void initSpectra();

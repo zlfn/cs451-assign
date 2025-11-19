@@ -122,9 +122,31 @@ void drawIFFTPoints(float currentTime, int windowWidth, int windowHeight) {
 
     // Projection matrix - narrower FOV to hide edges
     float aspect = (float)windowWidth / (float)windowHeight;
-    glm::mat4 projection = glm::perspective(glm::radians(30.0f), aspect, 0.1f, 100.0f);
+    glm::mat4 projection = glm::perspective(glm::radians(24.0f), aspect, 0.1f, 100.0f);
     GLint locProjection = glGetUniformLocation(gPointProgram, "uProjection");
     glUniformMatrix4fv(locProjection, 1, GL_FALSE, &projection[0][0]);
+
+    // PBR uniforms
+    GLint locCameraPos = glGetUniformLocation(gPointProgram, "uCameraPos");
+    glUniform3fv(locCameraPos, 1, &cameraPos[0]);
+
+    // Directional light (sun direction) - in front of camera, slightly above
+    glm::vec3 lightDir = glm::normalize(glm::vec3(0.0f, 0.3f, -1.0f));
+    GLint locLightDir = glGetUniformLocation(gPointProgram, "uLightDir");
+    glUniform3fv(locLightDir, 1, &lightDir[0]);
+
+    // Light color (warm sunlight)
+    glm::vec3 lightColor = glm::vec3(1.0f, 0.95f, 0.9f);
+    GLint locLightColor = glGetUniformLocation(gPointProgram, "uLightColor");
+    glUniform3fv(locLightColor, 1, &lightColor[0]);
+
+    // Roughness (water is fairly smooth)
+    GLint locRoughness = glGetUniformLocation(gPointProgram, "uRoughness");
+    glUniform1f(locRoughness, 0.25f);
+
+    // Time for animated effects (foam, turbulence)
+    GLint locTime = glGetUniformLocation(gPointProgram, "uTime");
+    glUniform1f(locTime, currentTime);
 
     // Draw filled triangles
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
