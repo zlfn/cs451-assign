@@ -152,9 +152,9 @@ void main() {
     // Fresnel for environment reflection
     vec3 F_env = fresnelSchlickRoughness(NdotV, F0, uRoughness);
 
-    // Sky/environment colors for reflection (bright sky)
-    vec3 skyColorZenith = vec3(0.5, 0.7, 1.0);
-    vec3 skyColorHorizon = vec3(0.85, 0.9, 1.0);
+    // Sky/environment colors for reflection (gradient from horizon to zenith)
+    vec3 skyColorZenith = vec3(0.4, 0.7, 1.0);    // Bright blue at top
+    vec3 skyColorHorizon = vec3(1.0, 1.0, 1.0);   // White near horizon
 
     // Reflect view vector for environment lookup
     vec3 R = reflect(-V, N);

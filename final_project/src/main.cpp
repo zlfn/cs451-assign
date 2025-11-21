@@ -67,6 +67,10 @@ glm::vec3 cameraTarget = glm::vec3(0.0f, 0.0f, 0.0f);  // Look at center of ocea
 glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
 float cameraSpeed = 1.0f;
 
+// Mouse state for light direction control
+double mouseX = 0.5;  // Normalized [0, 1]
+double mouseY = 0.5;  // Normalized [0, 1]
+
 void initPointDraw() {
     glGenVertexArrays(1, &gPointVAO);
     glBindVertexArray(gPointVAO);
@@ -130,13 +134,19 @@ void drawIFFTPoints(float currentTime, int windowWidth, int windowHeight) {
     GLint locCameraPos = glGetUniformLocation(gPointProgram, "uCameraPos");
     glUniform3fv(locCameraPos, 1, &cameraPos[0]);
 
-    // Directional light (sun direction) - in front of camera, slightly above
-    glm::vec3 lightDir = glm::normalize(glm::vec3(0.0f, 0.3f, -1.0f));
+    // Map mouse position to light direction
+    // mouseY: 0 (top) -> light from above, 1 (bottom) -> light from front
+    // mouseX: 0 (left) -> light from left, 1 (right) -> light from right
+    float x = (mouseX - 0.5f) * 2.0f;  // -1 (left) to +1 (right)
+    float y = 0.3f + (1.0f - mouseY) * 0.7f;  // top: 1.0, bottom: 0.3
+    float z = -0.5f - mouseY * 0.5f;  // top: -0.5, bottom: -1.0
+
+    glm::vec3 lightDir = glm::normalize(glm::vec3(x, y, z));
     GLint locLightDir = glGetUniformLocation(gPointProgram, "uLightDir");
     glUniform3fv(locLightDir, 1, &lightDir[0]);
 
-    // Light color (warm sunlight)
-    glm::vec3 lightColor = glm::vec3(1.0f, 0.95f, 0.9f);
+    // Light color (more yellow sunlight)
+    glm::vec3 lightColor = glm::vec3(1.0f, 0.9f, 0.7f);
     GLint locLightColor = glGetUniformLocation(gPointProgram, "uLightColor");
     glUniform3fv(locLightColor, 1, &lightColor[0]);
 
@@ -165,6 +175,19 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
         glfwSetWindowShouldClose(window, GLFW_TRUE);
     }
+}
+
+void cursorPosCallback(GLFWwindow* window, double xpos, double ypos) {
+    int width, height;
+    glfwGetWindowSize(window, &width, &height);
+
+    // Normalize mouse coordinates to [0, 1]
+    mouseX = xpos / width;
+    mouseY = ypos / height;
+
+    // Clamp to [0, 1]
+    mouseX = glm::clamp(mouseX, 0.0, 1.0);
+    mouseY = glm::clamp(mouseY, 0.0, 1.0);
 }
 
 // 리소스 초기화
@@ -224,6 +247,7 @@ int main(int argc, char **argv) {
 
     glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
     glfwSetKeyCallback(window, keyCallback);
+    glfwSetCursorPosCallback(window, cursorPosCallback);
     glfwSwapInterval(1);
 
     glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
