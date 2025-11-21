@@ -17,7 +17,7 @@ const unsigned int SMOOTH_FACTOR = 4;
 
 const unsigned int GRID_SIZE = 128;  // IFFT resolution
 const unsigned int RENDER_GRID_SIZE = GRID_SIZE * SMOOTH_FACTOR;  // High-res rendering mesh
-const float HEIGHT_SCALE = 20.0f;
+const float HEIGHT_SCALE = 5.0f;
 
 extern std::complex<float> currentHeight[GRID_SIZE][GRID_SIZE];
 void initSpectra();
