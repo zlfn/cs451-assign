@@ -15,7 +15,10 @@ uniform float uHeightScale;
 uniform mat4 uView;
 uniform mat4 uProjection;
 
+out vec3 vWorldPos;
+out vec3 vNormal;
 out float vHeight;
+out vec2 vUV;
 
 // Cubic interpolation weight function (Catmull-Rom)
 float cubicWeight(float x) {
@@ -85,11 +88,25 @@ void main() {
     // Sample height using bicubic interpolation
     float h = bicubicInterpolate(u, v) * uHeightScale;
 
+    // Calculate normal from height gradient
+    float eps = 1.0 / float(uRenderGridSize - 1);
+    float hL = bicubicInterpolate(u - eps, v) * uHeightScale;
+    float hR = bicubicInterpolate(u + eps, v) * uHeightScale;
+    float hD = bicubicInterpolate(u, v - eps) * uHeightScale;
+    float hU = bicubicInterpolate(u, v + eps) * uHeightScale;
+
+    // World space delta (4.0 is the total mesh size)
+    float worldEps = eps * 4.0;
+    vec3 normal = normalize(vec3(hL - hR, 2.0 * worldEps, hD - hU));
+
     // 평면은 XZ (horizontal), 높이는 Y (up)
     vec3 pos = vec3(fx, h, fz);
 
     // Apply view and projection matrices
     gl_Position = uProjection * uView * vec4(pos, 1.0);
 
+    vWorldPos = pos;
+    vNormal = normal;
     vHeight = h;
+    vUV = vec2(u, v);
 }

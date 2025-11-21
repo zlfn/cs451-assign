@@ -9,7 +9,7 @@ struct Complex {
 uniform int uGridSize; // 반드시 32라고 가정
 
 // 워크그룹당 32개의 쓰레드 = 한 열(column) 전체를 담당
-layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = 128, local_size_y = 1, local_size_z = 1) in;
 
 // SSBO 데이터
 // 가로 방향 iFFT 결과를 input으로 사용한다고 가정
@@ -17,7 +17,7 @@ layout(std430, binding = 0) readonly buffer InData  { Complex inData[];  };
 layout(std430, binding = 1) writeonly buffer OutData { Complex outData[]; };
 
 // 한 열을 워크그룹 내 공유 메모리에 올려서 계산
-shared Complex colShared[32];
+shared Complex colShared[128];
 
 // 복소수 연산 헬퍼
 
@@ -69,7 +69,7 @@ void main() {
     barrier(); // 워크그룹 내 모든 쓰레드 동기화
 
     // 1D iFFT (radix-2 DIT
-    const uint LOG2N = 5u; // N=32일 때 log2N=5
+    const uint LOG2N = 7u; // N=32일 때 log2N=5
     uint tid = row;
 
     // bit-reversal
