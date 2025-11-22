@@ -7,11 +7,6 @@ std::random_device rd;
 std::mt19937 gen(rd());
 std::uniform_real_distribution<float> dist(0.0f, 1.0f);
 
-GLuint shaderProgram;
-GLuint VAO;
-GLuint VBO;
-GLuint EBO;
-
 // 셰이더 컴파일
 GLuint createPointShaderProgram() {
     GLint success = GL_FALSE;
@@ -54,8 +49,6 @@ GLuint createPointShaderProgram() {
 
 float timeScale = 0.5f;
 float lastFrameTime = 0.0f;
-// 정점 데이터를 담을 벡터 (전역으로 두거나 timer 내에서 매번 생성)
-std::vector<float> vertices;
 
 GLuint gPointVAO = 0;
 GLuint gPointEBO = 0;
@@ -108,8 +101,10 @@ void drawIFFTPoints(float currentTime, int windowWidth, int windowHeight) {
     glUseProgram(gPointProgram);
     glBindVertexArray(gPointVAO);
 
-    // SSBO 바인딩 (vertex shader에서 binding = 1)
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, gCurrSSBO);
+    // SSBO 바인딩 (vertex shader에서 binding = 0,1,2)
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, gCurrHeightSSBO);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, gCurrDXSSBO);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, gCurrDYSSBO);
 
     // Grid and scale uniforms
     GLint locIFFTGrid = glGetUniformLocation(gPointProgram, "uIFFTGridSize");
@@ -118,6 +113,10 @@ void drawIFFTPoints(float currentTime, int windowWidth, int windowHeight) {
     glUniform1i(locIFFTGrid, GRID_SIZE);
     glUniform1i(locRenderGrid, RENDER_GRID_SIZE);
     glUniform1f(locScale, HEIGHT_SCALE);
+
+    // Lambda (수평 변위 강도)
+    GLint locLambda = glGetUniformLocation(gPointProgram, "uLambda");
+    glUniform1f(locLambda, lambda); // 원하는 값으로 세팅 (0.0 ~ 2.0 정도로 튜닝)
 
     // View matrix (looking at ocean from angle)
     glm::mat4 view = glm::lookAt(cameraPos, cameraTarget, cameraUp);
@@ -135,12 +134,9 @@ void drawIFFTPoints(float currentTime, int windowWidth, int windowHeight) {
     glUniform3fv(locCameraPos, 1, &cameraPos[0]);
 
     // Map mouse position to light direction
-    // mouseY: 0 (top) -> light from above, 1 (bottom) -> light from front
-    // mouseX: 0 (left) -> light from left, 1 (right) -> light from right
-    float x = (mouseX - 0.5f) * 2.0f;  // -1 (left) to +1 (right)
-    float y = 0.3f + (1.0f - mouseY) * 0.7f;  // top: 1.0, bottom: 0.3
-    float z = -0.5f - mouseY * 0.5f;  // top: -0.5, bottom: -1.0
-
+    float x = (mouseX - 0.5f) * 2.0f;        // -1 (left) to +1 (right)
+    float y = 0.3f + (1.0f - mouseY) * 0.7f; // top: 1.0, bottom: 0.3
+    float z = -0.5f - mouseY * 0.5f;         // top: -0.5, bottom: -1.0
     glm::vec3 lightDir = glm::normalize(glm::vec3(x, y, z));
     GLint locLightDir = glGetUniformLocation(gPointProgram, "uLightDir");
     glUniform3fv(locLightDir, 1, &lightDir[0]);
@@ -192,20 +188,21 @@ void cursorPosCallback(GLFWwindow* window, double xpos, double ypos) {
 
 // 리소스 초기화
 void cleanup() {
-    glDeleteVertexArrays(1, &VAO);
-    glDeleteBuffers(1, &VBO);
-    glDeleteBuffers(1, &EBO);
-    glDeleteProgram(shaderProgram);
-
     glDeleteVertexArrays(1, &gPointVAO);
     glDeleteBuffers(1, &gPointEBO);
     glDeleteProgram(gPointProgram);
 
-    glDeleteBuffers(1, &gBaseSSBO);
-    glDeleteBuffers(1, &gTempSSBO);
-    glDeleteBuffers(1, &gCurrSSBO);
-    glDeleteProgram(gComputeProgramH);
-    glDeleteProgram(gComputeProgramV);
+    glDeleteBuffers(1, &gInitSpectrumSSBO);
+    glDeleteBuffers(1, &gInitSpectrumConjSSBO);
+    glDeleteBuffers(1, &gCurrSpectrumSSBO);
+    glDeleteBuffers(1, &gIFFTTempSSBO);
+    glDeleteBuffers(1, &gCurrHeightSSBO);
+    glDeleteBuffers(1, &gCurrDXSSBO);
+    glDeleteBuffers(1, &gCurrDYSSBO);
+
+    glDeleteProgram(gWaveSpectrumCS);
+    glDeleteProgram(gHorizontalIFFTCS);
+    glDeleteProgram(gVerticalIFFTCS);
 
     std::cout << "Freed All Resources." << '\n';
 }
@@ -252,7 +249,7 @@ int main(int argc, char **argv) {
 
     glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
 
-    initSpectra();       // 스펙트럼 초기화
+    initSpectrum();       // 스펙트럼 초기화
     initComputeShader(); // compute 셰이더 & gBaseSSBO/gTempSSBO/gCurrSSBO 준비
     initPointDraw();     // point 렌더링 셰이더 + VAO 준비
 
@@ -266,8 +263,8 @@ int main(int argc, char **argv) {
 
         float currentTime = (float) currentFrameTime * timeScale;
 
-        // GPU에서 iFFT 돌려서 gCurrSSBO 채우기
-        runIFFTCompute(currentTime);
+        // GPU 파이프라인을 실행해서 gCurrHeightSSBO 채우기
+        calcPipeline(currentTime);
 
         // Get window size for aspect ratio
         int windowWidth, windowHeight;
