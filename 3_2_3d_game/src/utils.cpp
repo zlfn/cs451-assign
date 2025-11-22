@@ -157,9 +157,6 @@ void ThreeDObj::draw(const std::string objName) {
     glm::mat4 projection = projectionStack.getTopMatrix();
     glm::mat4 modelView = modelViewStack.getTopMatrix();
 
-    glLineWidth(1.0f);
-    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-
     drawMesh(*objMeshMap[objName], *g_shaderProgram, [&](const ShaderProgram& prog) {
         prog.setUniform("projection", projection);
         prog.setUniform("modelView", modelView);
@@ -167,7 +164,6 @@ void ThreeDObj::draw(const std::string objName) {
         prog.setUniform("useVertexColor", 1.0f);
     });
 
-    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     modelViewStack.matPop();
 }
 

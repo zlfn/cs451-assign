@@ -18,7 +18,12 @@ MatrixStack projectionStack;
 
 enum ProjMethod { DIAG_PERSPECTIVE, TOP_PERSPECTIVE, TOP_PARALLEL };
 ProjMethod currentProjMethod = DIAG_PERSPECTIVE;
-int keyPressDelay = 0;
+
+enum RenderMode { OPAQUE_POLYGON, WIREFRAME, WIREFRAME_HIDDEN_LINE };
+RenderMode currentRenderMode = OPAQUE_POLYGON;
+
+int keyPressDelay = 0;          // For projection method changes ('c' key)
+int renderModeKeyDelay = 0;     // For render mode changes ('e' key)
 
 float playerSpeedBase = 0.00065f;
 bool isCameraShake = false;
@@ -125,11 +130,39 @@ void display() {
 
     modelViewStack.loadIdentity();
 
-    // Draw skybox first without camera translation (only rotation)
-    modelViewStack.matPush();
-    modelViewStack.rotate(-CAMERA_ANGLE_X_DEG, 1.0f, 0.0f, 0.0f);
-    gameState.skyboxObject.draw(gameState);
-    modelViewStack.matPop();
+    // Helper lambda to draw skybox
+    auto drawSkybox = [&]() {
+        modelViewStack.matPush();
+        modelViewStack.rotate(-CAMERA_ANGLE_X_DEG, 1.0f, 0.0f, 0.0f);
+        gameState.skyboxObject.draw(gameState);
+        modelViewStack.matPop();
+    };
+
+    // Set polygon mode and draw skybox based on current render mode
+    if (currentRenderMode == WIREFRAME_HIDDEN_LINE) {
+        // First pass for skybox: depth only
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+        glEnable(GL_POLYGON_OFFSET_FILL);
+        glPolygonOffset(1.0f, 1.0f);
+        drawSkybox();
+        glDisable(GL_POLYGON_OFFSET_FILL);
+        glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+
+        // Second pass for skybox: wireframe
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        glLineWidth(1.5f);
+        drawSkybox();
+    } else {
+        // Normal rendering for skybox
+        if (currentRenderMode == OPAQUE_POLYGON) {
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        } else if (currentRenderMode == WIREFRAME) {
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+            glLineWidth(1.5f);
+        }
+        drawSkybox();
+    }
 
     // Now apply full camera transform for other objects
     modelViewStack.matPush();
@@ -139,25 +172,63 @@ void display() {
     modelViewStack.scale(SCALE, SCALE, SCALE);
     modelViewStack.translate(-cbo.x, -cbo.y + Y_COMPENSATION, Z_TRANSLATE);
     modelViewStack.translate(-gameState.cameraShakeOffset.x, -gameState.cameraShakeOffset.y, 0.0f);
-    gameState.backgroundObject.draw(gameState);
-    for (auto &particle : gameState.trailParticles) {
-        particle.draw(gameState);
+
+    // Helper lambda to draw polygon-based 3D objects (excluding Background which uses GL_LINES)
+    auto drawPolygonObjects = [&]() {
+        for (auto &particle : gameState.trailParticles) {
+            particle.draw(gameState);
+        }
+        for (auto &object : gameState.enemyBulletObjects) {
+            object.draw(gameState);
+        }
+        for (auto &object : gameState.playerBulletObjects) {
+            object.draw(gameState);
+        }
+        gameState.bossObject1.draw(gameState);
+        gameState.bossObject2.draw(gameState);
+        gameState.playerObject.draw(gameState);
+    };
+
+    // Render based on current mode
+    if (currentRenderMode == WIREFRAME_HIDDEN_LINE) {
+        // First pass: Render filled polygons to depth buffer only (no color)
+        // This establishes which surfaces are visible
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE); // Don't write to color buffer
+        glEnable(GL_POLYGON_OFFSET_FILL);
+        glPolygonOffset(1.0f, 1.0f); // Push filled polygons back slightly
+        drawPolygonObjects();
+        glDisable(GL_POLYGON_OFFSET_FILL);
+        glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE); // Re-enable color writing
+
+        // Second pass: Render wireframe with depth test
+        // Only visible edges will be drawn based on depth buffer from first pass
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        glLineWidth(1.5f);
+        drawPolygonObjects();
+
+        // Draw background separately (it uses GL_LINES, not affected by polygon mode)
+        gameState.backgroundObject.draw(gameState);
+    } else {
+        // Normal rendering (OPAQUE_POLYGON or WIREFRAME)
+        if (currentRenderMode == OPAQUE_POLYGON) {
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        } else if (currentRenderMode == WIREFRAME) {
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+            glLineWidth(1.5f);
+        }
+        drawPolygonObjects();
+        gameState.backgroundObject.draw(gameState);
     }
-    for (auto &object : gameState.enemyBulletObjects) {
-        object.draw(gameState);
-    }
-    for (auto &object : gameState.playerBulletObjects) {
-        object.draw(gameState);
-    }
-    gameState.bossObject1.draw(gameState);
-    gameState.bossObject2.draw(gameState);
-    gameState.playerObject.draw(gameState);
 
     modelViewStack.matPop(); // 3D 뷰 매트릭스 제거
 
     // 2D 투영
     projectionStack.loadIdentity();
     projectionStack.matMul(glm::ortho(-1.0, 1.0, -1.0, 1.0, -1.0, 1.0));
+
+    // Always render 2D UI in fill mode
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
     modelViewStack.loadIdentity();
     gameState.bossHealthBarObject.draw(gameState);
@@ -209,6 +280,25 @@ void keyInputUpdate(int dt) {
         case TOP_PARALLEL:
             currentProjMethod = DIAG_PERSPECTIVE;
             std::cout << "\'diagonal perspective\'" << std::endl;
+            break;
+        }
+    }
+
+    if (keyStates['e'] && renderModeKeyDelay + 500 < now) {
+        renderModeKeyDelay = now;
+        std::cout << "Change render mode to ";
+        switch (currentRenderMode) {
+        case OPAQUE_POLYGON:
+            currentRenderMode = WIREFRAME;
+            std::cout << "\'wireframe\'" << std::endl;
+            break;
+        case WIREFRAME:
+            currentRenderMode = WIREFRAME_HIDDEN_LINE;
+            std::cout << "\'wireframe with hidden line removal\'" << std::endl;
+            break;
+        case WIREFRAME_HIDDEN_LINE:
+            currentRenderMode = OPAQUE_POLYGON;
+            std::cout << "\'opaque polygon\'" << std::endl;
             break;
         }
     }
@@ -318,6 +408,7 @@ int main(int argc, char **argv) {
     glEnable(GL_DEPTH_TEST);
 
     keyPressDelay = glutGet(GLUT_ELAPSED_TIME);
+    renderModeKeyDelay = glutGet(GLUT_ELAPSED_TIME);
 
     // Load skybox
     if (!gameState.skyboxObject.load("assets/skybox")) {
