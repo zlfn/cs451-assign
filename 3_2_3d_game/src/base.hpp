@@ -143,6 +143,10 @@ struct Player : Updatable, Drawable, Collidable {
     int bulletCount = 3;
     std::vector<EnergyOrb> energyOrbs;
 
+    // Static mesh for explosion effect (shared across all players)
+    static std::unique_ptr<Mesh> explosionMesh;
+    static void createExplosionMesh();
+
     Player(glm::fvec2 initialPosition);
 
     void updateEnergyOrbs(int currentHealth, int currentTime);

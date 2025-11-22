@@ -5,6 +5,45 @@
 ThreeDObj jetObj = ThreeDObj("assets/jet.obj", glm::fvec3(1.0, 1.0, 0.0));
 ThreeDObj energyOrbObj = ThreeDObj("assets/star.obj", glm::fvec3(0.5, 0.2, 0.1));
 
+// Static mesh for explosion effect
+std::unique_ptr<Mesh> Player::explosionMesh = nullptr;
+
+// Create explosion mesh once and reuse it
+void Player::createExplosionMesh() {
+    if (explosionMesh) return;  // Already created
+
+    const int N = 20;
+    std::vector<float> vertices;
+    vertices.reserve((N * 3) * 6);
+
+    glm::vec3 centerColor(1.0f, 0.9f, 0.0f);
+    glm::vec3 edgeColor(1.0f, 0.5f, 0.0f);
+
+    // Create a circle as triangle fan (converted to triangles)
+    for (int i = 0; i < N; ++i) {
+        float angle1 = static_cast<float>(i) * 2.0f * std::numbers::pi_v<float> / static_cast<float>(N);
+        float angle2 = static_cast<float>(i + 1) * 2.0f * std::numbers::pi_v<float> / static_cast<float>(N);
+
+        // Center point
+        vertices.push_back(0.0f); vertices.push_back(0.0f); vertices.push_back(0.0f);
+        vertices.push_back(centerColor.r); vertices.push_back(centerColor.g); vertices.push_back(centerColor.b);
+
+        // First edge point
+        vertices.push_back(std::cos(angle1)); vertices.push_back(std::sin(angle1)); vertices.push_back(0.0f);
+        vertices.push_back(edgeColor.r); vertices.push_back(edgeColor.g); vertices.push_back(edgeColor.b);
+
+        // Second edge point
+        vertices.push_back(std::cos(angle2)); vertices.push_back(std::sin(angle2)); vertices.push_back(0.0f);
+        vertices.push_back(edgeColor.r); vertices.push_back(edgeColor.g); vertices.push_back(edgeColor.b);
+    }
+
+    explosionMesh = std::make_unique<Mesh>();
+    explosionMesh->setData(vertices.data(), vertices.size() * sizeof(float), GL_STATIC_DRAW);
+    explosionMesh->setAttribute(0, 3, GL_FLOAT, 6 * sizeof(float), (void*)0);
+    explosionMesh->setAttribute(1, 3, GL_FLOAT, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+    explosionMesh->setDrawMode(GL_TRIANGLES, N * 3);
+}
+
 EnergyOrb::EnergyOrb(float startAngle, float radius, float sz, int currentTime)
     : offset(0.0f, 0.0f), angle(startAngle), orbitRadius(radius), size(sz), birthTime(currentTime) {
     updatePosition();
@@ -248,6 +287,11 @@ void Player::draw(const GameState &gameState) {
         float timeSinceDeath = static_cast<float>(currentTime - deathStartTime) * 0.001f;
 
         if (timeSinceDeath < 1.2f && g_shaderProgram) {
+            // Create explosion mesh once if not already created
+            if (!explosionMesh) {
+                createExplosionMesh();
+            }
+
             glEnable(GL_BLEND);
             glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 
@@ -258,41 +302,13 @@ void Player::draw(const GameState &gameState) {
             modelViewStack.translate(currentPosition.x, currentPosition.y, 0.0f);
             modelViewStack.scale(explosionSize, explosionSize, 1.0f);
 
-            // TRIANGLE_FAN을 TRIANGLES로 변환
-            const int N = 20;
-            std::vector<float> vertices;
-            vertices.reserve((N * 3) * 6);
-
             glm::vec3 centerColor(1.0f, 0.9f, 0.0f);
-            glm::vec3 edgeColor(1.0f, 0.5f, 0.0f);
-
-            for (int i = 0; i < N; ++i) {
-                float angle1 = static_cast<float>(i) * 2.0f * std::numbers::pi_v<float> / static_cast<float>(N);
-                float angle2 = static_cast<float>(i + 1) * 2.0f * std::numbers::pi_v<float> / static_cast<float>(N);
-
-                // 중심점
-                vertices.push_back(0.0f); vertices.push_back(0.0f); vertices.push_back(0.0f);
-                vertices.push_back(centerColor.r); vertices.push_back(centerColor.g); vertices.push_back(centerColor.b);
-
-                // 첫 번째 가장자리 점
-                vertices.push_back(std::cos(angle1)); vertices.push_back(std::sin(angle1)); vertices.push_back(0.0f);
-                vertices.push_back(edgeColor.r); vertices.push_back(edgeColor.g); vertices.push_back(edgeColor.b);
-
-                // 두 번째 가장자리 점
-                vertices.push_back(std::cos(angle2)); vertices.push_back(std::sin(angle2)); vertices.push_back(0.0f);
-                vertices.push_back(edgeColor.r); vertices.push_back(edgeColor.g); vertices.push_back(edgeColor.b);
-            }
-
-            Mesh mesh;
-            mesh.setData(vertices.data(), vertices.size() * sizeof(float), GL_DYNAMIC_DRAW);
-            mesh.setAttribute(0, 3, GL_FLOAT, 6 * sizeof(float), (void*)0);
-            mesh.setAttribute(1, 3, GL_FLOAT, 6 * sizeof(float), (void*)(3 * sizeof(float)));
-            mesh.setDrawMode(GL_TRIANGLES, N * 3);
 
             glm::mat4 projection = projectionStack.getTopMatrix();
             glm::mat4 modelView = modelViewStack.getTopMatrix();
 
-            drawMesh(mesh, *g_shaderProgram, [&](const ShaderProgram& prog) {
+            // Reuse static mesh instead of creating new one every frame
+            drawMesh(*explosionMesh, *g_shaderProgram, [&](const ShaderProgram& prog) {
                 prog.setUniform("projection", projection);
                 prog.setUniform("modelView", modelView);
                 prog.setUniform("objectColor", centerColor);
