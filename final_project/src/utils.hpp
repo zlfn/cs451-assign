@@ -19,7 +19,7 @@ const unsigned int RENDER_GRID_SIZE = GRID_SIZE * SMOOTH_FACTOR;  // High-res re
 const float HEIGHT_SCALE = 3.5f;
 const float L_world = 32.0f; // 시뮬레이션 월드 물리적 크기. 여기서는 32m x 32m
 const glm::vec2 w = {0.5, 0.5};    // Wind direction
-const float lambda = 0.1f;
+const float lambda = 5.0f;
 
 void initSpectrum();
 

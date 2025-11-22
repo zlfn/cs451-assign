@@ -40,9 +40,9 @@ std::complex<float> randGaussianComplex() {
 }
 
 float phillipsSpectrum(float kx, float ky) {
-    const float A = 0.5; // amplitude
-    const float Lsqu = 0.25; // L = V^2/g = 0.5
-    const float lsqu = 0.00001; // l = 0.001
+    const float A = 1.0; // amplitude
+    const float Lsqu = 2500.0; // L = V^2/g = 50.0
+    const float lsqu = 0.001; // l = 0.01
 
     float Ksqu = kx * kx + ky * ky;
 
