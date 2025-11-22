@@ -15,6 +15,9 @@ uniform vec3 uLightDir;      // Direction TO light (normalized)
 uniform vec3 uLightColor;
 uniform float uRoughness;
 
+// IBL
+uniform samplerCube uEnvironmentMap;
+
 const float PI = 3.14159265359;
 
 // GGX/Trowbridge-Reitz NDF
@@ -147,19 +150,19 @@ void main() {
     float orenNayar = A + B * cosPhi * sin(alpha) * tan(beta);
     vec3 diffuse = (1 - F) * waterColor / PI * orenNayar;
 
-    /// Environemnt Reflection /////////////////////////////////////////////////
+    /// Environemnt Reflection (IBL) ///////////////////////////////////////////
 
     // Fresnel for environment reflection
     vec3 F_env = fresnelSchlickRoughness(NdotV, F0, uRoughness);
 
-    // Sky/environment colors for reflection (gradient from horizon to zenith)
-    vec3 skyColorZenith = vec3(0.4, 0.7, 1.0);    // Bright blue at top
-    vec3 skyColorHorizon = vec3(1.0, 1.0, 1.0);   // White near horizon
-
     // Reflect view vector for environment lookup
     vec3 R = reflect(-V, N);
-    float skyBlend = smoothstep(-0.1, 0.5, R.y);
-    vec3 envColor = mix(skyColorHorizon, skyColorZenith, skyBlend);
+
+    // Sample environment map with reflection vector
+    // Apply roughness-based mip level for approximate pre-filtered reflection
+    float maxMipLevel = 5.0;  // Adjust based on cubemap mip levels
+    float mipLevel = uRoughness * maxMipLevel;
+    vec3 envColor = textureLod(uEnvironmentMap, R, mipLevel).rgb;
 
     vec3 envReflection = F_env * envColor;
 

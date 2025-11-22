@@ -3,6 +3,14 @@
 #include <cmath>
 #include "shaders/shaders.hpp"
 
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
+
+glm::vec2 w = {1.0, 0.0}; // Wind direction
+
+const float L_world = 32.0f; // 시뮬레이션 월드 물리적 크기. 여기서는 32m x 32m
+
+// 전역 변수로 선언
 std::complex<float> initHeight[GRID_SIZE][GRID_SIZE] = {};
 std::complex<float> initHeightConju[GRID_SIZE][GRID_SIZE] = {};
 
@@ -265,3 +273,156 @@ void calcPipeline(float time) {
 }
 
 ///////////////////////////////////////
+//////////////////////////////////////
+
+// Skybox global variables
+GLuint gSkyboxVAO = 0;
+GLuint gSkyboxVBO = 0;
+GLuint gSkyboxTexture = 0;
+GLuint gSkyboxProgram = 0;
+
+// Skybox vertices (cube centered at origin)
+float skyboxVertices[] = {
+    // positions
+    -1.0f,  1.0f, -1.0f,
+    -1.0f, -1.0f, -1.0f,
+     1.0f, -1.0f, -1.0f,
+     1.0f, -1.0f, -1.0f,
+     1.0f,  1.0f, -1.0f,
+    -1.0f,  1.0f, -1.0f,
+
+    -1.0f, -1.0f,  1.0f,
+    -1.0f, -1.0f, -1.0f,
+    -1.0f,  1.0f, -1.0f,
+    -1.0f,  1.0f, -1.0f,
+    -1.0f,  1.0f,  1.0f,
+    -1.0f, -1.0f,  1.0f,
+
+     1.0f, -1.0f, -1.0f,
+     1.0f, -1.0f,  1.0f,
+     1.0f,  1.0f,  1.0f,
+     1.0f,  1.0f,  1.0f,
+     1.0f,  1.0f, -1.0f,
+     1.0f, -1.0f, -1.0f,
+
+    -1.0f, -1.0f,  1.0f,
+    -1.0f,  1.0f,  1.0f,
+     1.0f,  1.0f,  1.0f,
+     1.0f,  1.0f,  1.0f,
+     1.0f, -1.0f,  1.0f,
+    -1.0f, -1.0f,  1.0f,
+
+    -1.0f,  1.0f, -1.0f,
+     1.0f,  1.0f, -1.0f,
+     1.0f,  1.0f,  1.0f,
+     1.0f,  1.0f,  1.0f,
+    -1.0f,  1.0f,  1.0f,
+    -1.0f,  1.0f, -1.0f,
+
+    -1.0f, -1.0f, -1.0f,
+    -1.0f, -1.0f,  1.0f,
+     1.0f, -1.0f, -1.0f,
+     1.0f, -1.0f, -1.0f,
+    -1.0f, -1.0f,  1.0f,
+     1.0f, -1.0f,  1.0f
+};
+
+GLuint loadCubemap(const std::vector<std::string>& faces) {
+    GLuint textureID;
+    glGenTextures(1, &textureID);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, textureID);
+
+    stbi_set_flip_vertically_on_load(false);
+
+    for (unsigned int i = 0; i < faces.size(); i++) {
+        int width, height, nrChannels;
+        unsigned char *data = stbi_load(faces[i].c_str(), &width, &height, &nrChannels, 0);
+        if (data) {
+            GLenum format = GL_RGB;
+            if (nrChannels == 1)
+                format = GL_RED;
+            else if (nrChannels == 3)
+                format = GL_RGB;
+            else if (nrChannels == 4)
+                format = GL_RGBA;
+
+            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
+                         0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+            stbi_image_free(data);
+            std::cout << "Loaded cubemap face: " << faces[i] << " (" << width << "x" << height << ", " << nrChannels << " channels)\n";
+        } else {
+            std::cerr << "Cubemap texture failed to load at path: " << faces[i] << '\n';
+            std::cerr << "STB Error: " << stbi_failure_reason() << '\n';
+            stbi_image_free(data);
+        }
+    }
+
+    // Generate mipmaps for IBL reflections
+    glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
+
+    // Use trilinear filtering with mipmaps
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+    return textureID;
+}
+
+void initSkybox() {
+    // Create and compile skybox shader program
+    GLuint vs = compileShader(GL_VERTEX_SHADER, shaders::SKYBOX_VERT_SHADER);
+    GLuint fs = compileShader(GL_FRAGMENT_SHADER, shaders::SKYBOX_FRAG_SHADER);
+    gSkyboxProgram = linkProgram({vs, fs});
+
+    // Setup skybox VAO
+    glGenVertexArrays(1, &gSkyboxVAO);
+    glGenBuffers(1, &gSkyboxVBO);
+    glBindVertexArray(gSkyboxVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, gSkyboxVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(skyboxVertices), &skyboxVertices, GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+
+    // Load cubemap textures
+    std::vector<std::string> faces = {
+        "assets/skybox/right.png",   // +X
+        "assets/skybox/left.png",    // -X
+        "assets/skybox/up.png",      // +Y
+        "assets/skybox/down.png",    // -Y
+        "assets/skybox/front.png",   // +Z
+        "assets/skybox/back.png"     // -Z
+    };
+    gSkyboxTexture = loadCubemap(faces);
+
+    glBindVertexArray(0);
+    std::cout << "Skybox initialized\n";
+}
+
+void drawSkybox(const glm::mat4& view, const glm::mat4& projection) {
+    // Draw skybox last with depth function set to GL_LEQUAL
+    glDepthFunc(GL_LEQUAL);
+    glUseProgram(gSkyboxProgram);
+
+    GLint viewLoc = glGetUniformLocation(gSkyboxProgram, "view");
+    GLint projectionLoc = glGetUniformLocation(gSkyboxProgram, "projection");
+
+    glUniformMatrix4fv(viewLoc, 1, GL_FALSE, &view[0][0]);
+    glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, &projection[0][0]);
+
+    glBindVertexArray(gSkyboxVAO);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, gSkyboxTexture);
+    glDrawArrays(GL_TRIANGLES, 0, 36);
+    glBindVertexArray(0);
+    glDepthFunc(GL_LESS); // Reset depth function to default
+    glUseProgram(0);
+}
+
+void cleanupSkybox() {
+    glDeleteVertexArrays(1, &gSkyboxVAO);
+    glDeleteBuffers(1, &gSkyboxVBO);
+    glDeleteTextures(1, &gSkyboxTexture);
+    glDeleteProgram(gSkyboxProgram);
+}
