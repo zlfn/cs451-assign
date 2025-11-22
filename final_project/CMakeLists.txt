@@ -27,6 +27,14 @@ add_custom_command(
 # Add custom target to ensure shader generation runs
 add_custom_target(generate_shaders DEPENDS ${SHADER_HEADER_OUTPUT})
 
+# Copy assets to bin directory (where executable is located)
+add_custom_target(copy_assets ALL
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_CURRENT_SOURCE_DIR}/assets
+        ${CMAKE_BINARY_DIR}/bin/assets
+    COMMENT "Copying assets to bin directory"
+)
+
 # Create final_project executable with GLFW
 add_glfw_executable_single_file(final_project src/main.cpp)
 
@@ -34,8 +42,8 @@ target_sources(final_project PRIVATE
     src/utils.cpp
 )
 
-# Make sure shaders are generated before building
-add_dependencies(final_project generate_shaders)
+# Make sure shaders and assets are ready before building
+add_dependencies(final_project generate_shaders copy_assets)
 
 # Define macro to enable generated shaders
 target_compile_definitions(final_project PRIVATE SHADERS_GENERATED)

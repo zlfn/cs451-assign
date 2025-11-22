@@ -12,6 +12,7 @@ layout(std430, binding = 1) readonly buffer HeightData {
 uniform int uIFFTGridSize;     // IFFT resolution (e.g., 32)
 uniform int uRenderGridSize;   // Render mesh resolution (e.g., 256)
 uniform float uHeightScale;
+uniform mat4 uModel;
 uniform mat4 uView;
 uniform mat4 uProjection;
 
@@ -102,11 +103,15 @@ void main() {
     // 평면은 XZ (horizontal), 높이는 Y (up)
     vec3 pos = vec3(fx, h, fz);
 
-    // Apply view and projection matrices
-    gl_Position = uProjection * uView * vec4(pos, 1.0);
+    // Apply model, view and projection matrices
+    vec4 worldPos = uModel * vec4(pos, 1.0);
+    gl_Position = uProjection * uView * worldPos;
 
-    vWorldPos = pos;
-    vNormal = normal;
+    // Transform normal by model matrix (assuming uniform scaling)
+    vec3 worldNormal = mat3(uModel) * normal;
+
+    vWorldPos = worldPos.xyz;
+    vNormal = worldNormal;
     vHeight = h;
     vUV = vec2(u, v);
 }

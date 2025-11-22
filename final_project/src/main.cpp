@@ -115,6 +115,7 @@ void drawIFFTPoints(float currentTime, int windowWidth, int windowHeight) {
     GLint locIFFTGrid = glGetUniformLocation(gPointProgram, "uIFFTGridSize");
     GLint locRenderGrid = glGetUniformLocation(gPointProgram, "uRenderGridSize");
     GLint locScale = glGetUniformLocation(gPointProgram, "uHeightScale");
+    GLint locModel = glGetUniformLocation(gPointProgram, "uModel");
     glUniform1i(locIFFTGrid, GRID_SIZE);
     glUniform1i(locRenderGrid, RENDER_GRID_SIZE);
     glUniform1f(locScale, HEIGHT_SCALE);
@@ -124,9 +125,9 @@ void drawIFFTPoints(float currentTime, int windowWidth, int windowHeight) {
     GLint locView = glGetUniformLocation(gPointProgram, "uView");
     glUniformMatrix4fv(locView, 1, GL_FALSE, &view[0][0]);
 
-    // Projection matrix - narrower FOV to hide edges
+    // Projection matrix
     float aspect = (float)windowWidth / (float)windowHeight;
-    glm::mat4 projection = glm::perspective(glm::radians(24.0f), aspect, 0.1f, 100.0f);
+    glm::mat4 projection = glm::perspective(glm::radians(75.0f), aspect, 0.1f, 100.0f);
     GLint locProjection = glGetUniformLocation(gPointProgram, "uProjection");
     glUniformMatrix4fv(locProjection, 1, GL_FALSE, &projection[0][0]);
 
@@ -134,14 +135,8 @@ void drawIFFTPoints(float currentTime, int windowWidth, int windowHeight) {
     GLint locCameraPos = glGetUniformLocation(gPointProgram, "uCameraPos");
     glUniform3fv(locCameraPos, 1, &cameraPos[0]);
 
-    // Map mouse position to light direction
-    // mouseY: 0 (top) -> light from above, 1 (bottom) -> light from front
-    // mouseX: 0 (left) -> light from left, 1 (right) -> light from right
-    float x = (mouseX - 0.5f) * 2.0f;  // -1 (left) to +1 (right)
-    float y = 0.3f + (1.0f - mouseY) * 0.7f;  // top: 1.0, bottom: 0.3
-    float z = -0.5f - mouseY * 0.5f;  // top: -0.5, bottom: -1.0
-
-    glm::vec3 lightDir = glm::normalize(glm::vec3(x, y, z));
+    // Light direction: from above camera view direction
+    glm::vec3 lightDir = glm::normalize(glm::vec3(0.0f, 1.3f, -0.7f));
     GLint locLightDir = glGetUniformLocation(gPointProgram, "uLightDir");
     glUniform3fv(locLightDir, 1, &lightDir[0]);
 
@@ -158,10 +153,45 @@ void drawIFFTPoints(float currentTime, int windowWidth, int windowHeight) {
     GLint locTime = glGetUniformLocation(gPointProgram, "uTime");
     glUniform1f(locTime, currentTime);
 
+    // Bind environment map for IBL reflections
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, gSkyboxTexture);
+    GLint locEnvMap = glGetUniformLocation(gPointProgram, "uEnvironmentMap");
+    glUniform1i(locEnvMap, 0);
+
     // Draw filled triangles
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     int numIndices = (RENDER_GRID_SIZE - 1) * (RENDER_GRID_SIZE - 1) * 6;
-    glDrawElements(GL_TRIANGLES, numIndices, GL_UNSIGNED_INT, 0);
+
+    // Draw tiled ocean (5x5 grid centered around camera)
+    const int tileRadius = 2;  // Creates 5x5 grid
+    const float tileSize = 4.0f;  // Ocean mesh size is [-2, 2], so 4.0 total
+
+    // Calculate camera forward vector for back-face culling
+    glm::vec3 cameraForward = glm::normalize(cameraTarget - cameraPos);
+
+    for (int tz = -tileRadius; tz <= tileRadius; tz++) {
+        for (int tx = -tileRadius; tx <= tileRadius; tx++) {
+            // Tile center in world space
+            glm::vec3 tileCenter = glm::vec3(tx * tileSize, 0.0f, tz * tileSize);
+
+            // Vector from camera to tile center
+            glm::vec3 cameraToTile = tileCenter - cameraPos;
+
+            // Skip tiles behind the camera (dot product < 0 means behind)
+            // Use a small margin to avoid clipping tiles at the edge
+            if (glm::dot(cameraToTile, cameraForward) < -tileSize) {
+                continue;
+            }
+
+            // Create model matrix with tile offset
+            glm::mat4 model = glm::translate(glm::mat4(1.0f), tileCenter);
+            glUniformMatrix4fv(locModel, 1, GL_FALSE, &model[0][0]);
+
+            // Draw this tile
+            glDrawElements(GL_TRIANGLES, numIndices, GL_UNSIGNED_INT, 0);
+        }
+    }
 
     glBindVertexArray(0);
     glUseProgram(0);
@@ -206,6 +236,8 @@ void cleanup() {
     glDeleteBuffers(1, &gCurrSSBO);
     glDeleteProgram(gComputeProgramH);
     glDeleteProgram(gComputeProgramV);
+
+    cleanupSkybox();
 
     std::cout << "Freed All Resources." << '\n';
 }
@@ -255,6 +287,7 @@ int main(int argc, char **argv) {
     initSpectra();       // 스펙트럼 초기화
     initComputeShader(); // compute 셰이더 & gBaseSSBO/gTempSSBO/gCurrSSBO 준비
     initPointDraw();     // point 렌더링 셰이더 + VAO 준비
+    initSkybox();        // 스카이박스 초기화
 
     lastFrameTime = glfwGetTime();
 
@@ -275,7 +308,18 @@ int main(int argc, char **argv) {
 
         // 화면 클리어 + 렌더 + 버퍼 스왑
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        // Calculate view and projection matrices (same as in drawIFFTPoints)
+        glm::mat4 view = glm::lookAt(cameraPos, cameraTarget, cameraUp);
+        float aspect = (float)windowWidth / (float)windowHeight;
+        glm::mat4 projection = glm::perspective(glm::radians(75.0f), aspect, 0.1f, 100.0f);
+
+        // Draw skybox first (with depth test modifications inside)
+        drawSkybox(view, projection);
+
+        // Draw ocean
         drawIFFTPoints(currentTime, windowWidth, windowHeight);
+
         glfwSwapBuffers(window);
 
         glfwPollEvents();
