@@ -6,10 +6,6 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
-glm::vec2 w = {1.0, 0.0}; // Wind direction
-
-const float L_world = 32.0f; // 시뮬레이션 월드 물리적 크기. 여기서는 32m x 32m
-
 // 전역 변수로 선언
 std::complex<float> initHeight[GRID_SIZE][GRID_SIZE] = {};
 std::complex<float> initHeightConju[GRID_SIZE][GRID_SIZE] = {};
