@@ -41,8 +41,8 @@ std::complex<float> randGaussianComplex() {
 
 float phillipsSpectrum(float kx, float ky) {
     const float A = 1.0; // amplitude
-    const float Lsqu = 2500.0; // L = V^2/g = 50.0
-    const float lsqu = 0.001; // l = 0.01
+    const float Lsqu = 1600.0; // L = V^2/g = 40.0
+    const float lsqu = 0.01; // l = 0.1
 
     float Ksqu = kx * kx + ky * ky;
 
@@ -51,10 +51,11 @@ float phillipsSpectrum(float kx, float ky) {
         return 0.0f;
     }
 
+    float dot_kw = kx * w.x + ky * w.y;
+    float windFactor = dot_kw * dot_kw / Ksqu; // This is now |k_hat . w_hat|^2
+
     float lowFrequencyDamping = std::exp(-1.0f / (Ksqu * Lsqu));
     float highFrequencyDamping = std::exp(-Ksqu * lsqu);
-    float windFactor = kx * w.x + ky * w.y;
-    windFactor = windFactor * windFactor;
 
     return A * windFactor * lowFrequencyDamping * highFrequencyDamping / (Ksqu * Ksqu);
 }

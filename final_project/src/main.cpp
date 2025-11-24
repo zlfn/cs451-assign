@@ -18,8 +18,8 @@ GLuint createPointShaderProgram() {
     glCompileShader(vs);
     glGetShaderiv(vs, GL_COMPILE_STATUS, &success);
     if (!success) {
-        char log[512];
-        glGetShaderInfoLog(vs, 512, nullptr, log);
+        char log[128];
+        glGetShaderInfoLog(vs, 128, nullptr, log);
         std::cerr << "Point Vertex Shader Compile Failure:\n" << log << '\n';
     }
 
@@ -27,8 +27,8 @@ GLuint createPointShaderProgram() {
     glCompileShader(fs);
     glGetShaderiv(fs, GL_COMPILE_STATUS, &success);
     if (!success) {
-        char log[512];
-        glGetShaderInfoLog(fs, 512, nullptr, log);
+        char log[128];
+        glGetShaderInfoLog(fs, 128, nullptr, log);
         std::cerr << "Point Fragment Shader Compile Failure:\n" << log << '\n';
     }
 
@@ -37,8 +37,8 @@ GLuint createPointShaderProgram() {
     glLinkProgram(prog);
     glGetProgramiv(prog, GL_LINK_STATUS, &success);
     if (!success) {
-        char log[512];
-        glGetProgramInfoLog(prog, 512, nullptr, log);
+        char log[128];
+        glGetProgramInfoLog(prog, 128, nullptr, log);
         std::cerr << "Point Shader Program Link Failure:\n" << log << '\n';
     }
 

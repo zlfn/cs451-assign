@@ -15,10 +15,11 @@ layout(std430, binding = 2) readonly buffer DYData {
     Complex dyData[];
 };
 
-uniform int   uIFFTGridSize;     // IFFT resolution (예: 256)
-uniform int   uRenderGridSize;   // Render mesh resolution (예: 256)
+uniform int   uIFFTGridSize;     // IFFT resolution (예: 128)
+uniform int   uRenderGridSize;   // Render mesh resolution (예: 128)
 uniform float uHeightScale;
 uniform float uLambda;           // 수평 변위 강도 (choppiness 계수 같은 느낌)
+uniform mat4  uModel;
 uniform mat4  uView;
 uniform mat4  uProjection;
 
@@ -112,9 +113,9 @@ void main() {
     // base + 수평 변위(DX,DY)
     vec3 pos = vec3(baseX + dispX, h, baseZ + dispZ);
 
-    gl_Position = uProjection * uView * vec4(pos, 1.0);
+    vWorldPos = (uModel * vec4(pos, 1.0)).xyz;
+    gl_Position = uProjection * uView * vec4(vWorldPos, 1.0);
 
-    vWorldPos = pos;
     vNormal   = normal;
     vHeight   = h;
     vUV       = vec2(u, v);
