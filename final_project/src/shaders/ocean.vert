@@ -5,13 +5,16 @@ struct Complex {
     float im;
 };
 
-layout(std430, binding = 0) readonly buffer HeightData {
-    Complex height[];
+layout(std430, binding = 0) readonly buffer SWEHeightData {
+    float sweHeight[];
 };
-layout(std430, binding = 1) readonly buffer DXData {
+layout(std430, binding = 1) readonly buffer TessenHeightData {
+    Complex tHeight[];
+};
+layout(std430, binding = 2) readonly buffer DXData {
     Complex dxData[];
 };
-layout(std430, binding = 2) readonly buffer DYData {
+layout(std430, binding = 3) readonly buffer DYData {
     Complex dyData[];
 };
 
@@ -22,22 +25,27 @@ uniform float uLambda;           // 수평 변위 강도 (choppiness 계수 같�
 uniform mat4  uModel;
 uniform mat4  uView;
 uniform mat4  uProjection;
+uniform int   uCenterTile;
 
 out vec3 vWorldPos;
 out vec3 vNormal;
 out float vHeight;
 out vec2 vUV;
 
-// IFFT 격자에서 height 샘플 (wrap 포함)
+// 격자에서 tHeight 샘플 (wrap 포함)
 float sampleHeight(int gx, int gy) {
     int N = uIFFTGridSize;
     gx = (gx % N + N) % N; // wrap
     gy = (gy % N + N) % N;
     int idx = gy * N + gx;
-    return height[idx].re;
+    if (uCenterTile == 1) {
+        return sweHeight[idx];
+    } else {
+        return tHeight[idx].re;
+    }
 }
 
-// IFFT 격자에서 DX 샘플 (wrap 포함)
+// 격자에서 DX 샘플 (wrap 포함)
 float sampleDX(int gx, int gy) {
     int N = uIFFTGridSize;
     gx = (gx % N + N) % N;
@@ -46,7 +54,7 @@ float sampleDX(int gx, int gy) {
     return dxData[idx].re;
 }
 
-// IFFT 격자에서 DY 샘플 (wrap 포함)
+// 격자에서 DY 샘플 (wrap 포함)
 // (여기서는 Z방향 수평 변위로 사용)
 float sampleDY(int gx, int gy) {
     int N = uIFFTGridSize;
@@ -81,7 +89,7 @@ void main() {
     int   gx   = int(floor(gx_f));
     int   gy   = int(floor(gy_f));
 
-    // height 샘플
+    // tHeight 샘플
     float h = sampleHeight(gx, gy) * uHeightScale;
 
     // 수평 변위 샘플 (DX, DY) + lambda 적용
@@ -90,7 +98,7 @@ void main() {
 
     // ─────────────────────────────
     // 2. 노멀 계산 (IFFT 격자 기준 차분)
-    //    여기서는 예전처럼 height만으로 계산 (DX/DY는 무시)
+    //    여기서는 예전처럼 tHeight만으로 계산 (DX/DY는 무시)
     // ─────────────────────────────
     float hL = sampleHeight(gx - 1, gy) * uHeightScale;
     float hR = sampleHeight(gx + 1, gy) * uHeightScale;

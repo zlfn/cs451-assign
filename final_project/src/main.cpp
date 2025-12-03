@@ -47,24 +47,70 @@ GLuint createPointShaderProgram() {
     return prog;
 }
 
+GLuint createIslandShaderProgram() {
+    GLint success = GL_FALSE;
+    GLuint vs = glCreateShader(GL_VERTEX_SHADER);
+    GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
+    GLuint prog = glCreateProgram();
+
+    glShaderSource(vs, 1, &shaders::ISLAND_VERT_SHADER, nullptr);
+    glCompileShader(vs);
+    glGetShaderiv(vs, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        char log[128];
+        glGetShaderInfoLog(vs, 128, nullptr, log);
+        std::cerr << "Island Vertex Shader Compile Failure:\n" << log << '\n';
+    }
+
+    glShaderSource(fs, 1, &shaders::ISLAND_FRAG_SHADER, nullptr);
+    glCompileShader(fs);
+    glGetShaderiv(fs, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        char log[128];
+        glGetShaderInfoLog(fs, 128, nullptr, log);
+        std::cerr << "Island Fragment Shader Compile Failure:\n" << log << '\n';
+    }
+
+    glAttachShader(prog, vs);
+    glAttachShader(prog, fs);
+    glLinkProgram(prog);
+    glGetProgramiv(prog, GL_LINK_STATUS, &success);
+    if (!success) {
+        char log[128];
+        glGetProgramInfoLog(prog, 128, nullptr, log);
+        std::cerr << "Island Shader Program Link Failure:\n" << log << '\n';
+    }
+
+    glDeleteShader(vs);
+    glDeleteShader(fs);
+    return prog;
+}
+
 float timeScale = 0.5f;
 float lastFrameTime = 0.0f;
 
 GLuint gPointVAO = 0;
 GLuint gPointEBO = 0;
 GLuint gPointProgram = 0;
+GLuint gIslandProgram = 0;
 
 // Camera state - shoreline view
+/*
 glm::vec3 cameraPos = glm::vec3(0.0f, 0.2f, 1.5f);  // A bit higher and further back
 glm::vec3 cameraTarget = glm::vec3(0.0f, 0.0f, 0.0f);  // Look at center of ocean
 glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
 float cameraSpeed = 1.0f;
+*/
+
+glm::vec3 cameraPos = glm::vec3(2.0f, 2.0f, 2.0f); // 중앙 (X=0.0)의 바닥 레벨 (Y=0.0) 근처
+glm::vec3 cameraTarget = glm::vec3(0.0f, 0.0f, 0.0f);
+glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
 
 // Mouse state for light direction control
 double mouseX = 0.5;  // Normalized [0, 1]
 double mouseY = 0.5;  // Normalized [0, 1]
 
-void initPointDraw() {
+void initProgram() {
     glGenVertexArrays(1, &gPointVAO);
     glBindVertexArray(gPointVAO);
 
@@ -94,23 +140,73 @@ void initPointDraw() {
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(GLuint), indices.data(), GL_STATIC_DRAW);
 
     gPointProgram = createPointShaderProgram();
+    gIslandProgram = createIslandShaderProgram();
     glBindVertexArray(0);
+}
+
+void drawIsland(int windowWidth, int windowHeight) {
+    glUseProgram(gIslandProgram);
+    glBindVertexArray(gPointVAO);
+
+    // SSBO 바인딩
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, gTerrainHeightSSBO);
+
+    // Grid and scale uniforms
+    GLint locGridSize = glGetUniformLocation(gIslandProgram, "uGridSize");
+    GLint locRenderGrid = glGetUniformLocation(gIslandProgram, "uRenderGridSize");
+    GLint locHeightScale = glGetUniformLocation(gIslandProgram, "uHeightScale");
+    GLint locView = glGetUniformLocation(gIslandProgram, "uView");
+    GLint locProjection = glGetUniformLocation(gIslandProgram, "uProjection");
+    GLint locCameraPos = glGetUniformLocation(gIslandProgram, "uCameraPos");
+
+    glUniform1i(locGridSize, GRID_SIZE);
+    glUniform1i(locRenderGrid, RENDER_GRID_SIZE);
+    glUniform1f(locHeightScale, TERRAIN_HEIGHT_SCALE);
+
+    // View matrix (looking at ocean from angle)
+    glm::mat4 view = glm::lookAt(cameraPos, cameraTarget, cameraUp);
+    glUniformMatrix4fv(locView, 1, GL_FALSE, &view[0][0]);
+
+    // Projection matrix
+    float aspect = (float)windowWidth / (float)windowHeight;
+    glm::mat4 projection = glm::perspective(glm::radians(75.0f), aspect, 0.1f, 100.0f);
+    glUniformMatrix4fv(locProjection, 1, GL_FALSE, &projection[0][0]);
+
+    // PBR uniforms
+    glUniform3fv(locCameraPos, 1, &cameraPos[0]);
+
+    // Draw filled triangles
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    int numIndices = (RENDER_GRID_SIZE - 1) * (RENDER_GRID_SIZE - 1) * 6;
+
+    // Draw tiled ocean (5x5 grid centered around camera)
+    const int tileRadius = 0;    // Creates 5x5 grid
+    const float tileSize = 4.0f; // Ocean mesh size is [-2, 2], so 4.0 total
+
+    // Calculate camera forward vector for back-face culling
+    glm::vec3 cameraForward = glm::normalize(cameraTarget - cameraPos);
+    glDrawElements(GL_TRIANGLES, numIndices, GL_UNSIGNED_INT, 0); // Draw this tile
+
+    glBindVertexArray(0);
+    glUseProgram(0);
 }
 
 void drawIFFTPoints(float currentTime, int windowWidth, int windowHeight) {
     glUseProgram(gPointProgram);
     glBindVertexArray(gPointVAO);
 
-    // SSBO 바인딩 (vertex shader에서 binding = 0,1,2)
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, gCurrHeightSSBO);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, gCurrDXSSBO);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, gCurrDYSSBO);
+    // SSBO 바인딩
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, gFinalZSSBO);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, gCurrTessenHeightSSBO);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, gCurrDXSSBO);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, gCurrDYSSBO);
 
     // Grid and scale uniforms
     GLint locIFFTGrid = glGetUniformLocation(gPointProgram, "uIFFTGridSize");
     GLint locRenderGrid = glGetUniformLocation(gPointProgram, "uRenderGridSize");
     GLint locScale = glGetUniformLocation(gPointProgram, "uHeightScale");
     GLint locModel = glGetUniformLocation(gPointProgram, "uModel");
+    GLint locCenterTile = glGetUniformLocation(gPointProgram, "uCenterTile");
     glUniform1i(locIFFTGrid, GRID_SIZE);
     glUniform1i(locRenderGrid, RENDER_GRID_SIZE);
     glUniform1f(locScale, HEIGHT_SCALE);
@@ -174,6 +270,12 @@ void drawIFFTPoints(float currentTime, int windowWidth, int windowHeight) {
             // Tile center in world space
             glm::vec3 tileCenter = glm::vec3(tx * tileSize, 0.0f, tz * tileSize);
 
+            if (tx == 0 && tz == 0) {
+                glUniform1i(locCenterTile, 1);
+            } else {
+                glUniform1i(locCenterTile, 0);
+            }
+
             // Vector from camera to tile center
             glm::vec3 cameraToTile = tileCenter - cameraPos;
 
@@ -229,13 +331,24 @@ void cleanup() {
     glDeleteBuffers(1, &gInitSpectrumConjSSBO);
     glDeleteBuffers(1, &gCurrSpectrumSSBO);
     glDeleteBuffers(1, &gIFFTTempSSBO);
-    glDeleteBuffers(1, &gCurrHeightSSBO);
+    glDeleteBuffers(1, &gCurrTessenHeightSSBO);
     glDeleteBuffers(1, &gCurrDXSSBO);
     glDeleteBuffers(1, &gCurrDYSSBO);
+
+    glDeleteBuffers(1, &gTerrainHeightSSBO);
+    glDeleteBuffers(1, &gSpongeMaskSSBO);
+    glDeleteBuffers(1, &gBlendMaskSSBO);
+    glDeleteBuffers(1, &gFinalZSSBO);
+    glDeleteBuffers(1, &gHeightASSBO);
+    glDeleteBuffers(1, &gVelUASSBO);
+    glDeleteBuffers(1, &gHeightBSSBO);
+    glDeleteBuffers(1, &gVelUBSSBO);
+    glDeleteBuffers(1, &gVelVBSSBO);
 
     glDeleteProgram(gWaveSpectrumCS);
     glDeleteProgram(gHorizontalIFFTCS);
     glDeleteProgram(gVerticalIFFTCS);
+    glDeleteProgram(gPDESolverCS);
 
     cleanupSkybox();
 
@@ -284,9 +397,9 @@ int main(int argc, char **argv) {
 
     glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
 
-    initSpectrum();       // 스펙트럼 초기화
+    initSpectrum();      // 스펙트럼 초기화
     initComputeShader(); // compute 셰이더 & gBaseSSBO/gTempSSBO/gCurrSSBO 준비
-    initPointDraw();     // point 렌더링 셰이더 + VAO 준비
+    initProgram();       // point 렌더링 셰이더 + VAO 준비
     initSkybox();        // 스카이박스 초기화
 
     lastFrameTime = glfwGetTime();
@@ -299,7 +412,7 @@ int main(int argc, char **argv) {
 
         float currentTime = (float) currentFrameTime * timeScale;
 
-        // GPU 파이프라인을 실행해서 gCurrHeightSSBO 채우기
+        // GPU 파이프라인을 실행해서 gCurrTessenHeightSSBO 채우기
         calcPipeline(currentTime);
 
         // Get window size for aspect ratio
@@ -319,6 +432,9 @@ int main(int argc, char **argv) {
 
         // Draw ocean
         drawIFFTPoints(currentTime, windowWidth, windowHeight);
+
+        // draw island
+        drawIsland(windowWidth, windowHeight);
 
         glfwSwapBuffers(window);
 
