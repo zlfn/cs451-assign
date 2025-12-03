@@ -6,15 +6,23 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
-glm::vec2 w = {1.0, 0.0}; // Wind direction
-
-const float L_world = 32.0f; // 시뮬레이션 월드 물리적 크기. 여기서는 32m x 32m
-
 // 전역 변수로 선언
 std::complex<float> initHeight[GRID_SIZE][GRID_SIZE] = {};
 std::complex<float> initHeightConju[GRID_SIZE][GRID_SIZE] = {};
-std::complex<float> currentHeight[GRID_SIZE][GRID_SIZE] = {};
 
+GLuint gWaveSpectrumCS = 0;    // current wave spectrum calculation
+GLuint gHorizontalIFFTCS = 0;  // horizontal iFFT
+GLuint gVerticalIFFTCS = 0;   // vertical iFFT
+
+GLuint gInitSpectrumSSBO = 0;     // initial height
+GLuint gInitSpectrumConjSSBO = 0; // initial height conjugation
+GLuint gCurrSpectrumSSBO = 0;     // current height
+GLuint gIFFTTempSSBO = 0;       // iFFT temp
+GLuint gCurrHeightSSBO = 0;           // 최종 height
+GLuint gCurrDXSSBO = 0;         // D_x
+GLuint gCurrDYSSBO = 0;         // D_y
+
+///////////////// initiate spectrum /////////////////
 std::complex<float> randGaussianComplex() {
     static std::mt19937 gen(std::random_device{}());
     // (0.0, 1.0] 범위. 0을 피하여 log(0) 방지
@@ -32,9 +40,9 @@ std::complex<float> randGaussianComplex() {
 }
 
 float phillipsSpectrum(float kx, float ky) {
-    const float A = 0.5; // amplitude
-    const float Lsqu = 0.25; // L = V^2/g = 0.5
-    const float lsqu = 0.00001; // l = 0.001
+    const float A = 1.0; // amplitude
+    const float Lsqu = 1600.0; // L = V^2/g = 40.0
+    const float lsqu = 0.01; // l = 0.1
 
     float Ksqu = kx * kx + ky * ky;
 
@@ -43,21 +51,16 @@ float phillipsSpectrum(float kx, float ky) {
         return 0.0f;
     }
 
+    float dot_kw = kx * w.x + ky * w.y;
+    float windFactor = dot_kw * dot_kw / Ksqu; // This is now |k_hat . w_hat|^2
+
     float lowFrequencyDamping = std::exp(-1.0f / (Ksqu * Lsqu));
     float highFrequencyDamping = std::exp(-Ksqu * lsqu);
-    float windFactor = kx * w.x + ky * w.y;
-    windFactor = windFactor * windFactor;
 
     return A * windFactor * lowFrequencyDamping * highFrequencyDamping / (Ksqu * Ksqu);
 }
 
-float dispersion(float kx, float ky) {
-    const float g = 9.8f; // gravity constant
-    float k = std::sqrt(kx * kx + ky * ky);
-    return std::sqrt(g * k);
-}
-
-void initSpectra() {
+void initSpectrum() {
     const float normFactor = 1.0f / std::sqrt(2.0f);
 
     for (unsigned i = 0; i < GRID_SIZE; i++) {
@@ -84,32 +87,7 @@ void initSpectra() {
     }
 }
 
-void calcWaveField(float t) {
-    for (unsigned i = 0; i < GRID_SIZE; i++) {
-        for (unsigned j = 0; j < GRID_SIZE; j++) {
-            float kx_idx = (i < GRID_SIZE / 2) ? (float)i : (float)i - (float)GRID_SIZE;
-            float kz_idx = (j < GRID_SIZE / 2) ? (float)j : (float)j - (float)GRID_SIZE;
-
-            float kx_phys = kx_idx * (2.0f * std::numbers::pi_v<float> / L_world);
-            float kz_phys = kz_idx * (2.0f * std::numbers::pi_v<float> / L_world);
-
-            float disp = dispersion(kx_phys, kz_phys); // k로 dispersion 계산
-
-            std::complex<float> z(0.0f, disp * t);
-            std::complex<float> ez = std::exp(z);
-            std::complex<float> ezc = std::conj(ez);
-
-            currentHeight[i][j] = initHeight[i][j] * ez + initHeightConju[i][j] * ezc;
-        }
-    }
-}
-
-GLuint gComputeProgramH = 0; // horizontal
-GLuint gComputeProgramV = 0; // vertical
-
-GLuint gBaseSSBO = 0; // initHeight (고정 스펙트럼)
-GLuint gTempSSBO = 0; // 가로 패스 결과
-GLuint gCurrSSBO = 0; // 세로 패스 결과 (최종 height)
+///////////////// Shader /////////////////
 
 GLuint compileShader(GLenum type, const std::string &src) {
     GLuint shader = glCreateShader(type);
@@ -161,97 +139,137 @@ GLuint linkProgram(const std::vector<GLuint> &shaders) {
 }
 
 void initComputeShader() {
-    // 가로 / 세로 셰이더를 각각 컴파일 & 링크
-    GLuint csh = compileShader(GL_COMPUTE_SHADER, shaders::IFFT_HORI_COMP_SHADER); // horizontal
-    GLuint csv = compileShader(GL_COMPUTE_SHADER, shaders::IFFT_VERT_COMP_SHADER); // vertical
+    GLuint ifftHorCS = compileShader(GL_COMPUTE_SHADER, shaders::IFFT_HORI_COMP_SHADER);
+    GLuint ifftVerCS = compileShader(GL_COMPUTE_SHADER, shaders::IFFT_VERT_COMP_SHADER);
+    GLuint waveSpeCS = compileShader(GL_COMPUTE_SHADER, shaders::WAVE_SPECTRUM_COMP_SHADER);
 
     {
         std::vector<GLuint> shaderList;
-        shaderList.push_back(csh);
-        gComputeProgramH = linkProgram(shaderList); // 가로 패스용 프로그램
+        shaderList.push_back(ifftHorCS);
+        gHorizontalIFFTCS = linkProgram(shaderList);
     }
     {
         std::vector<GLuint> shaderList;
-        shaderList.push_back(csv);
-        gComputeProgramV = linkProgram(shaderList); // 세로 패스용 프로그램
+        shaderList.push_back(ifftVerCS);
+        gVerticalIFFTCS = linkProgram(shaderList);
+    }
+    {
+        std::vector<GLuint> shaderList;
+        shaderList.push_back(waveSpeCS);
+        gWaveSpectrumCS = linkProgram(shaderList);
     }
 
     // CPU 쪽 2D 그리드 -> 1D 배열로 변환
     std::vector<Complex> dataGrid2D(GRID_SIZE * GRID_SIZE);
 
+    // gInitHeightSSBO
     for (int y = 0; y < GRID_SIZE; y++) {
         for (int x = 0; x < GRID_SIZE; x++) {
             dataGrid2D[y * GRID_SIZE + x].re = initHeight[y][x].real();
             dataGrid2D[y * GRID_SIZE + x].im = initHeight[y][x].imag();
         }
     }
-
-    // initHeight -> gBaseSSBO (고정 입력 스펙트럼)
-    glGenBuffers(1, &gBaseSSBO);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, gBaseSSBO);
+    glGenBuffers(1, &gInitSpectrumSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, gInitSpectrumSSBO);
     glBufferData(GL_SHADER_STORAGE_BUFFER, dataGrid2D.size() * sizeof(Complex), dataGrid2D.data(),
                  GL_STATIC_DRAW);
 
-    // 가로 패스 결과용 temp 버퍼
-    glGenBuffers(1, &gTempSSBO);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, gTempSSBO);
+    // gInitHeightConjSSBO
+    for (int y = 0; y < GRID_SIZE; y++) {
+        for (int x = 0; x < GRID_SIZE; x++) {
+            dataGrid2D[y * GRID_SIZE + x].re = initHeightConju[y][x].real();
+            dataGrid2D[y * GRID_SIZE + x].im = initHeightConju[y][x].imag();
+        }
+    }
+    glGenBuffers(1, &gInitSpectrumConjSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, gInitSpectrumConjSSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, dataGrid2D.size() * sizeof(Complex), dataGrid2D.data(),
+                 GL_STATIC_DRAW);
+
+    // gIFFTTempSSBO, 
+    glGenBuffers(1, &gCurrSpectrumSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, gCurrSpectrumSSBO);
     glBufferData(GL_SHADER_STORAGE_BUFFER, dataGrid2D.size() * sizeof(Complex), nullptr,
                  GL_DYNAMIC_COPY);
-
-    // 세로 패스 최종 결과 버퍼
-    glGenBuffers(1, &gCurrSSBO);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, gCurrSSBO);
+    glGenBuffers(1, &gIFFTTempSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, gIFFTTempSSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, dataGrid2D.size() * sizeof(Complex), nullptr,
+                 GL_DYNAMIC_COPY);
+    glGenBuffers(1, &gCurrHeightSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, gCurrHeightSSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, dataGrid2D.size() * sizeof(Complex), nullptr,
+                 GL_DYNAMIC_COPY);
+    glGenBuffers(1, &gCurrDXSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, gCurrDXSSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, dataGrid2D.size() * sizeof(Complex), nullptr,
+                 GL_DYNAMIC_COPY);
+    glGenBuffers(1, &gCurrDYSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, gCurrDYSSBO);
     glBufferData(GL_SHADER_STORAGE_BUFFER, dataGrid2D.size() * sizeof(Complex), nullptr,
                  GL_DYNAMIC_COPY);
 
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 }
 
-void runIFFTCompute(float time) {
-    // CPU 스펙트럼 H(k, t) 업데이트
-    calcWaveField(time); // currentHeight[i][j] = H(k, t)
+void calcCurrentSpectum(float time) {
+    glUseProgram(gWaveSpectrumCS);
 
-    // currentHeight를 gBaseSSBO에 업로드 (H(k, t) -> SSBO)
-    static std::vector<Complex> dataGrid2D(GRID_SIZE * GRID_SIZE);
+    // uniforms
+    GLint locTime = glGetUniformLocation(gWaveSpectrumCS, "uTime");
+    GLint locLWorld = glGetUniformLocation(gWaveSpectrumCS, "uLWorld");
+    GLint locGridSize = glGetUniformLocation(gWaveSpectrumCS, "uGridSize");
 
-    for (int y = 0; y < GRID_SIZE; ++y) {
-        for (int x = 0; x < GRID_SIZE; ++x) {
-            int idx = y * GRID_SIZE + x;
-            dataGrid2D[idx].re = currentHeight[y][x].real();
-            dataGrid2D[idx].im = currentHeight[y][x].imag();
-        }
-    }
+    glUniform1f(locTime, time);
+    glUniform1f(locLWorld, L_world);
+    glUniform1i(locGridSize, GRID_SIZE);
 
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, gBaseSSBO);
-    glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, dataGrid2D.size() * sizeof(Complex),
-                    dataGrid2D.data());
+    // SSBO 바인딩
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, gInitSpectrumSSBO);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, gInitSpectrumConjSSBO);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, gCurrSpectrumSSBO);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, gCurrDXSSBO);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, gCurrDYSSBO);
 
+    // dispatch
+    glDispatchCompute(GRID_SIZE, 1, 1);
+
+    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+}
+
+void calcIFFT(GLuint baseSSBO, GLuint resultSSBO) {
     // 가로 방향 iFFT
-    glUseProgram(gComputeProgramH);
+    glUseProgram(gHorizontalIFFTCS);
 
-    GLint gs_loc_h = glGetUniformLocation(gComputeProgramH, "uGridSize");
+    GLint gs_loc_h = glGetUniformLocation(gHorizontalIFFTCS, "uGridSize");
     glUniform1i(gs_loc_h, GRID_SIZE);
-    // uCurrTime은 이제 필요 없음 (calcWaveField에서 이미 반영했으니까)
 
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, gBaseSSBO); // 입력: H(k, t)
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, gTempSSBO); // 출력: 가로 iFFT
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, baseSSBO);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, gIFFTTempSSBO);
 
     glDispatchCompute(GRID_SIZE, 1, 1);
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
     // 세로 방향 iFFT
-    glUseProgram(gComputeProgramV);
+    glUseProgram(gVerticalIFFTCS);
 
-    GLint gs_loc_v = glGetUniformLocation(gComputeProgramV, "uGridSize");
+    GLint gs_loc_v = glGetUniformLocation(gVerticalIFFTCS, "uGridSize");
     glUniform1i(gs_loc_v, GRID_SIZE);
 
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, gTempSSBO); // 입력: 가로 iFFT 결과
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, gCurrSSBO); // 출력: 최종 2D iFFT
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, gIFFTTempSSBO);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, resultSSBO);
 
     glDispatchCompute(GRID_SIZE, 1, 1);
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 }
 
+void calcPipeline(float time) {
+    calcCurrentSpectum(time);
+    calcIFFT(gCurrSpectrumSSBO, gCurrHeightSSBO);
+    calcIFFT(gCurrDXSSBO, gCurrDXSSBO);
+    calcIFFT(gCurrDYSSBO, gCurrDYSSBO);
+}
+
+///////////////////////////////////////
 //////////////////////////////////////
 
 // Skybox global variables

@@ -14,21 +14,27 @@
 // Rendering Mesh resolution factor
 // Higher Smooth factor provides more smooth wave. But requires higher GPU spec.
 const unsigned int SMOOTH_FACTOR = 1;
-
-const unsigned int GRID_SIZE = 128;  // IFFT resolution
+const unsigned int GRID_SIZE = 128; // IFFT resolution
 const unsigned int RENDER_GRID_SIZE = GRID_SIZE * SMOOTH_FACTOR;  // High-res rendering mesh
-const float HEIGHT_SCALE = 3.5f;
+const float HEIGHT_SCALE = 4.0f;
+const float L_world = 64.0f; // 시뮬레이션 월드 물리적 크기. 여기서는 32m x 32m
+const glm::vec2 w = glm::normalize(glm::vec2(0.5, 0.5));    // Wind direction, MUST be normalized
+const float lambda = 15.0f;
 
-extern std::complex<float> currentHeight[GRID_SIZE][GRID_SIZE];
-void initSpectra();
+void initSpectrum();
 
 // GPU
-extern GLuint gComputeProgramH;
-extern GLuint gComputeProgramV;
+extern GLuint gWaveSpectrumCS;      // current wave spectrum calculation
+extern GLuint gHorizontalIFFTCS;    // horizontal iFFT
+extern GLuint gVerticalIFFTCS;      // vertical iFFT
 
-extern GLuint gBaseSSBO;
-extern GLuint gTempSSBO;
-extern GLuint gCurrSSBO;
+extern GLuint gInitSpectrumSSBO;    // initial height
+extern GLuint gInitSpectrumConjSSBO;// initial height conjugation
+extern GLuint gCurrSpectrumSSBO;    // current height
+extern GLuint gIFFTTempSSBO;        // iFFT temp
+extern GLuint gCurrHeightSSBO;      // 최종 height
+extern GLuint gCurrDXSSBO;          // D_x
+extern GLuint gCurrDYSSBO;          // D_y
 
 struct Complex {
     float re;
@@ -36,9 +42,9 @@ struct Complex {
 };
 
 void initComputeShader();
-void runIFFTCompute(float time);
 GLuint compileShader(GLenum type, const std::string &src);
 GLuint linkProgram(const std::vector<GLuint> &shaders);
+void calcPipeline(float time);
 
 // Skybox
 extern GLuint gSkyboxVAO;

@@ -1,0 +1,96 @@
+#version 450
+
+layout(local_size_x = 128) in;
+
+// 복소수 곱
+vec2 complexMul(vec2 a, vec2 b) {
+    return vec2(
+        a.x * b.x - a.y * b.y, // real
+        a.x * b.y + a.y * b.x  // imag
+    );
+}
+
+// dispersion
+float dispersion(float kx, float ky) {
+    const float g = 9.8; // 중력 가속도
+    float k = length(vec2(kx, ky));
+    return sqrt(g * k);
+}
+
+// SSBO
+layout(std430, binding = 0) buffer InitSpectrumBuffer { // InitSpectrum
+    vec2 InitSpectrum[];
+};
+layout(std430, binding = 1) buffer InitSpectrumConjuBuffer { // initSpectrumConju
+    vec2 initSpectrumConju[];
+};
+layout(std430, binding = 2) buffer CurrentSpectrumBuffer { // currentSpectrum (출력값)
+    vec2 currentSpectrum[];
+};
+layout(std430, binding = 3) buffer DxSpectrumBuffer { // D_x(k,t)
+    vec2 dxSpectrum[];
+};
+layout(std430, binding = 4) buffer DySpectrumBuffer { // D_y(k,t)
+    vec2 dySpectrum[];
+};
+
+// uniforms
+layout(location = 0) uniform float uTime;    // t
+layout(location = 1) uniform float uLWorld;  // world coords.에서 patch length
+layout(location = 2) uniform int uGridSize;  // GRID_SIZE
+
+void main() {
+    uint gid = gl_GlobalInvocationID.x; // 1D global index
+
+    uint N   = uint(uGridSize);
+    uint N2  = N * N;
+    if (gid >= N2)
+        return;
+
+    // 1D index -> (i, j)
+    uint i = gid / N; // row
+    uint j = gid % N; // col
+
+    uint idx = i * N + j; // row-major
+
+    // FFT index를 -N/2 ~ N/2 - 1로 바꾸기
+    float kx_idx = (i < N / 2u) ? float(i) : float(i) - float(N);
+    float kz_idx = (j < N / 2u) ? float(j) : float(j) - float(N);
+
+    // wave number
+    const float PI = 3.14159265359;
+    float kx_phys = kx_idx * (2.0 * PI / uLWorld);
+    float kz_phys = kz_idx * (2.0 * PI / uLWorld);
+
+    // dispersion relation
+    float w  = dispersion(kx_phys, kz_phys);
+    float wt = w * uTime;
+
+    vec2 ez  = vec2(cos(wt), sin(wt)); // e^{iωt}
+    vec2 ezc = vec2(ez.x, -ez.y);      // conj(e^{iωt}) = e^{-iωt}
+
+    vec2 h0    = InitSpectrum[idx];
+    vec2 h0con = initSpectrumConju[idx];
+
+    vec2 term1 = complexMul(h0, ez);
+    vec2 term2 = complexMul(h0con, ezc);
+
+    vec2 h = term1 + term2;
+    currentSpectrum[idx] = h;
+
+    // Dx, Dy
+    float kLen = length(vec2(kx_phys, kz_phys));
+    if (kLen < 1e-6) {
+        dxSpectrum[idx] = vec2(0.0);
+        dySpectrum[idx] = vec2(0.0);
+    } else {
+        float nx = kx_phys / kLen;
+        float nz = kz_phys / kLen;
+
+        vec2 ih = vec2(-h.y, h.x); // i * h = (-h.im, h.re)
+
+        dxSpectrum[idx] = nx * ih;
+        dySpectrum[idx] = nz * ih;
+    }
+
+}

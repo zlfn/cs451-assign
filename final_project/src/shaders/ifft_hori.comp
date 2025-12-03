@@ -6,10 +6,10 @@ struct Complex {
     float im;
 };
 
-uniform int uGridSize;    // 반드시 32라고 가정 (shared[32], local_size_x = 32와 일치)
+uniform int uGridSize;    // 반드시 128라고 가정 (shared[128], local_size_x = 128와 일치)
 uniform float uCurrTime;
 
-// 워크그룹당 32개의 쓰레드 = 한 행(row) 전체를 담당
+// 워크그룹당 128개의 쓰레드 = 한 행(row) 전체를 담당
 layout(local_size_x = 128, local_size_y = 1, local_size_z = 1) in;
 
 // SSBO 데이터
