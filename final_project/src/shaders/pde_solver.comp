@@ -4,7 +4,7 @@ layout (local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 
 // --- 상수 및 설정 ---
 const int N_SIZE = 128;
-const float L_SIZE = 200.0;
+const float L_SIZE = 64.0;
 const float DX = L_SIZE / float(N_SIZE);
 const float G = 9.81;
 
@@ -23,37 +23,37 @@ layout(std430, binding = 0) readonly buffer TerrainBuffer {
 layout(std430, binding = 1) readonly buffer TessendorfWaveBuffer { 
     vec2 TessendorfEta[]; 
 };
-layout(std430, binding = 5) readonly buffer BlendingMaskBuffer { 
+layout(std430, binding = 2) readonly buffer BlendingMaskBuffer { 
     float AlphaMask[]; 
 };
-layout(std430, binding = 6) readonly buffer SpongeMaskBuffer { 
+layout(std430, binding = 3) readonly buffer SpongeMaskBuffer { 
     float Sponge[]; 
 };
 
 // [Input] 이전 프레임 상태 (Read Only) - 호스트 코드에서 Ping-Pong 필요
-layout(std430, binding = 2) readonly buffer StateHeightIn { 
+layout(std430, binding = 4) readonly buffer StateHeightIn { 
     float h_in[]; 
 };
-layout(std430, binding = 3) readonly buffer StateVelocityUIn { 
+layout(std430, binding = 5) readonly buffer StateVelocityUIn { 
     float u_in[]; 
 };
-layout(std430, binding = 4) readonly buffer StateVelocityVIn { 
+layout(std430, binding = 6) readonly buffer StateVelocityVIn { 
     float v_in[]; 
 };
 
 // [Output] 현재 프레임 상태 (Write Only)
-layout(std430, binding = 8) writeonly buffer StateHeightOut { 
+layout(std430, binding = 7) writeonly buffer StateHeightOut { 
     float h_out[]; 
 };
-layout(std430, binding = 9) writeonly buffer StateVelocityUOut { 
+layout(std430, binding = 8) writeonly buffer StateVelocityUOut { 
     float u_out[]; 
 };
-layout(std430, binding = 10) writeonly buffer StateVelocityVOut { 
+layout(std430, binding = 9) writeonly buffer StateVelocityVOut { 
     float v_out[]; 
 };
 
 // [Output] 렌더링용 최종 높이
-layout(std430, binding = 7) writeonly buffer FinalZBuffer { 
+layout(std430, binding = 10) writeonly buffer FinalZBuffer { 
     float FinalZ[]; 
 };
 

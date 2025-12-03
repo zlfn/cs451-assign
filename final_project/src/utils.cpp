@@ -187,7 +187,7 @@ void initComputeShader() {
     {
         std::vector<GLuint> shaderList;
         shaderList.push_back(pdeSolvCS);
-        pdeSolvCS = linkProgram(shaderList);
+        gPDESolverCS = linkProgram(shaderList);
     }
 
     // CPU 쪽 2D 그리드 1D로 변환
