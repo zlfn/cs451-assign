@@ -17,6 +17,9 @@ layout(std430, binding = 2) readonly buffer DXData {
 layout(std430, binding = 3) readonly buffer DYData {
     Complex dyData[];
 };
+layout(std430, binding = 4) readonly buffer MaskData {
+    float alphaMask[];
+};
 
 uniform int   uIFFTGridSize;     // IFFT resolution (예: 128)
 uniform int   uRenderGridSize;   // Render mesh resolution (예: 128)
@@ -39,7 +42,11 @@ float sampleHeight(int gx, int gy) {
     gy = (gy % N + N) % N;
     int idx = gy * N + gx;
     if (uCenterTile == 1) {
-        return sweHeight[idx];
+        if (tHeight[idx].re > 0.0) {
+            return sweHeight[idx] / uHeightScale;
+        } else {
+            return sweHeight[idx];
+        }
     } else {
         return tHeight[idx].re;
     }
@@ -62,6 +69,15 @@ float sampleDY(int gx, int gy) {
     gy = (gy % N + N) % N;
     int idx = gy * N + gx;
     return dyData[idx].re;
+}
+
+// 격자에서 Mask 샘플 (wrap 포함)
+float sampleMask(int gx, int gy) {
+    int N = uIFFTGridSize;
+    gx = (gx % N + N) % N;
+    gy = (gy % N + N) % N;
+    int idx = gy * N + gx;
+    return alphaMask[idx];
 }
 
 void main() {
@@ -95,6 +111,13 @@ void main() {
     // 수평 변위 샘플 (DX, DY) + lambda 적용
     float dispX = sampleDX(gx, gy) * uLambda;
     float dispZ = sampleDY(gx, gy) * uLambda;
+
+    // Center Tile인 경우, 섬 근처(mask=0)에서 변위를 제거하여 갭 방지
+    if (uCenterTile == 1) {
+        float mask = sampleMask(gx, gy);
+        dispX *= mask;
+        dispZ *= mask;
+    }
 
     // ─────────────────────────────
     // 2. 노멀 계산 (IFFT 격자 기준 차분)

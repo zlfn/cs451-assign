@@ -65,7 +65,7 @@ std::complex<float> randGaussianComplex() {
 }
 
 float phillipsSpectrum(float kx, float ky) {
-    const float A = 1.0; // amplitude
+    const float A = 2.0; // amplitude
     const float Lsqu = 1600.0; // L = V^2/g = 40.0
     const float lsqu = 0.01; // l = 0.1
 
@@ -244,30 +244,32 @@ void initComputeShader() {
     loadAlphaMask();
     loadSpongeMask();
 
+    std::vector<float> zeroData(GRID_SIZE * GRID_SIZE, 0.0f);
+
     glGenBuffers(1, &gHeightASSBO);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, gHeightASSBO);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, dataGrid2D.size() * sizeof(float), nullptr,
+    glBufferData(GL_SHADER_STORAGE_BUFFER, dataGrid2D.size() * sizeof(float), zeroData.data(),
                  GL_DYNAMIC_COPY);
     glGenBuffers(1, &gVelUASSBO);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, gVelUASSBO);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, dataGrid2D.size() * sizeof(float), nullptr,
+    glBufferData(GL_SHADER_STORAGE_BUFFER, dataGrid2D.size() * sizeof(float), zeroData.data(),
                  GL_DYNAMIC_COPY);
     glGenBuffers(1, &gVelVASSBO);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, gVelVASSBO);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, dataGrid2D.size() * sizeof(float), nullptr,
+    glBufferData(GL_SHADER_STORAGE_BUFFER, dataGrid2D.size() * sizeof(float), zeroData.data(),
                  GL_DYNAMIC_COPY);
 
     glGenBuffers(1, &gHeightBSSBO);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, gHeightBSSBO);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, dataGrid2D.size() * sizeof(float), nullptr,
+    glBufferData(GL_SHADER_STORAGE_BUFFER, dataGrid2D.size() * sizeof(float), zeroData.data(),
                  GL_DYNAMIC_COPY);
     glGenBuffers(1, &gVelUBSSBO);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, gVelUBSSBO);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, dataGrid2D.size() * sizeof(float), nullptr,
+    glBufferData(GL_SHADER_STORAGE_BUFFER, dataGrid2D.size() * sizeof(float), zeroData.data(),
                  GL_DYNAMIC_COPY);
     glGenBuffers(1, &gVelVBSSBO);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, gVelVBSSBO);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, dataGrid2D.size() * sizeof(float), nullptr,
+    glBufferData(GL_SHADER_STORAGE_BUFFER, dataGrid2D.size() * sizeof(float), zeroData.data(),
                  GL_DYNAMIC_COPY);
 
     // final calculation
@@ -333,6 +335,7 @@ void calcIFFT(GLuint baseSSBO, GLuint resultSSBO) {
 ///////////////////////////////////////
 
 void loadTerrainHeight() {
+    stbi_set_flip_vertically_on_load(true);
     int width, height, nrChannels;
     unsigned char *data = stbi_load("assets/terrain.png", &width, &height, &nrChannels, 1);
 
@@ -344,7 +347,7 @@ void loadTerrainHeight() {
     std::vector<float> vertices;
     for (int y = 0; y < std::min((unsigned)height, 4 * GRID_SIZE); y += 4) {
         for (int x = 0; x < std::min((unsigned)width, 8 * GRID_SIZE); x += 8) {
-            float heightValue = (float)data[y * width + x] / 255.0f - 0.35; // 높이 값 추출
+            float heightValue = (float)data[y * width + x] / 255.0f - 0.20; // 높이 값 추출
             vertices.push_back(heightValue * TERRAIN_HEIGHT_SCALE);
         }
     }
@@ -355,15 +358,16 @@ void loadTerrainHeight() {
                  GL_DYNAMIC_COPY);
 
     stbi_image_free(data);
+    stbi_set_flip_vertically_on_load(false);
 }
 
 float calculateAlphaMask(int x, int y, float R1, float R2) {
-    float center = (float)GRID_SIZE / 2.0f;
-    float delta_x = std::abs((float)x - center);
-    float delta_y = std::abs((float)y - center);
+    float radius = (float)GRID_SIZE / 2.0f;
+    float delta_x = std::abs((float)x - radius);
+    float delta_y = std::abs((float)y - radius);
 
     // 정규화된 최대 거리 (0.0 - 1.0)
-    float d_max = std::max(delta_x, delta_y) / center;
+    float d_max = std::sqrt(delta_x * delta_x + delta_y * delta_y) / radius;
 
     // R1과 R2 사이 선형 보간
     if (d_max <= R1) {
@@ -376,8 +380,8 @@ float calculateAlphaMask(int x, int y, float R1, float R2) {
 }
 
 void loadAlphaMask() {
-    const float R1 = 0.5;
-    const float R2 = 0.7;
+    const float R1 = 0.8;
+    const float R2 = 0.9;
 
     std::vector<float> vertices;
     for (int y = 0; y < GRID_SIZE; y++) {
@@ -393,12 +397,12 @@ void loadAlphaMask() {
 }
 
 float calculateSpongeMask(int x, int y, float R_sponge) {
-    float center = (float)GRID_SIZE / 2.0f;
-    float delta_x = std::abs((float)x - center);
-    float delta_y = std::abs((float)y - center);
+    float radius = (float)GRID_SIZE / 2.0f;
+    float delta_x = std::abs((float)x - radius);
+    float delta_y = std::abs((float)y - radius);
 
     // 정규화된 최대 거리 (0.0 - 1.0)
-    float d_max = std::max(delta_x, delta_y) / center;
+    float d_max = std::sqrt(delta_x * delta_x + delta_y * delta_y) / radius;
 
     // R_sponge 경계 내에서는 0
     if (d_max <= R_sponge) {
@@ -409,7 +413,7 @@ float calculateSpongeMask(int x, int y, float R_sponge) {
 }
 
 void loadSpongeMask() {
-    const float R = 0.7;
+    const float R = 0.8;
 
     std::vector<float> vertices;
     for (int y = 0; y < GRID_SIZE; y++) {
@@ -460,7 +464,9 @@ void calcPDE(float dt) {
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 10, gFinalZSSBO);
 
     // dispatch
-    glDispatchCompute(1, 1, 1);
+    GLuint numGroupsX = (GRID_SIZE + 15) / 16;
+    GLuint numGroupsY = (GRID_SIZE + 15) / 16;
+    glDispatchCompute(numGroupsX, numGroupsY, 1);
 
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 }
@@ -468,12 +474,23 @@ void calcPDE(float dt) {
 ///////////////////////////////////////
 
 void calcPipeline(float time) {
-    static float prevTime = 0.0;
+    static float prevTime = time;
+
+    float dt = time - prevTime;
+
+    if (dt > 0.05f) {
+        dt = 0.05f;
+    } else if (dt <= 0.0001f) {
+        prevTime = time;
+        return;
+    }
+
     calcCurrentSpectum(time);
     calcIFFT(gCurrSpectrumSSBO, gCurrTessenHeightSSBO);
     calcIFFT(gCurrDXSSBO, gCurrDXSSBO);
     calcIFFT(gCurrDYSSBO, gCurrDYSSBO);
-    calcPDE(time - prevTime);
+    calcPDE(dt);
+
     prevTime = time;
 }
 

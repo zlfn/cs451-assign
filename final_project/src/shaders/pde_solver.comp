@@ -8,17 +8,16 @@ const float L_SIZE = 64.0;
 const float DX = L_SIZE / float(N_SIZE);
 const float G = 9.81;
 
-// 인공 점성 및 감쇠 (안정성을 위해 조정됨)
-const float VISCOSITY = 0.05; 
-const float RELAXATION_FACTOR = 0.2; 
+// 인공 점성 (안정성을 위해 조정됨)
+const float VISCOSITY = 0.02;
 
 uniform float u_dt;
 
-// --- 버퍼 정의 (Binding 수정: 읽기/쓰기 분리) ---
+// --- 버퍼 정의 ---
 
 // [Input] 지형 및 외부 데이터 (Read Only)
 layout(std430, binding = 0) readonly buffer TerrainBuffer { 
-    float TerrainHeight[]; // 크기: N_SIZE * N_SIZE
+    float TerrainHeight[];
 };
 layout(std430, binding = 1) readonly buffer TessendorfWaveBuffer { 
     vec2 TessendorfEta[]; 
@@ -30,7 +29,7 @@ layout(std430, binding = 3) readonly buffer SpongeMaskBuffer {
     float Sponge[]; 
 };
 
-// [Input] 이전 프레임 상태 (Read Only) - 호스트 코드에서 Ping-Pong 필요
+// [Input] 이전 프레임 상태 (Read Only)
 layout(std430, binding = 4) readonly buffer StateHeightIn { 
     float h_in[]; 
 };
@@ -59,18 +58,13 @@ layout(std430, binding = 10) writeonly buffer FinalZBuffer {
 
 // --- 헬퍼 함수 ---
 
-// 정수형 인덱스 래핑 (안전한 경계 처리)
 int getIndex(int x, int y) {
-    // 음수 처리를 포함한 안전한 모듈러 연산
     int wx = (x % N_SIZE + N_SIZE) % N_SIZE;
     int wy = (y % N_SIZE + N_SIZE) % N_SIZE;
     return wy * N_SIZE + wx;
 }
 
-// 정지 수심 계산 (육지 제외)
 float getRestDepth(int idx) {
-    // TerrainHeight가 음수여야 물이 있음.
-    // 너무 얕으면 시뮬레이션 폭발 가능성이 있어 최소 깊이 클램핑
     return max(0.1, -TerrainHeight[idx]);
 }
 
@@ -82,94 +76,104 @@ void main() {
 
     int currentIdx = getIndex(x, y);
 
-    // 육지 판별: 지형 높이가 해수면(0)보다 높으면 육지
-    bool isLand = TerrainHeight[currentIdx] > 0.0;
-
+    bool isLand = TerrainHeight[currentIdx] > 0.0; // 육지 판별
     if (isLand) {
-        // 육지라면 물 상태를 0으로 초기화하고 종료 (또는 반사 경계 처리)
         h_out[currentIdx] = 0.0;
         u_out[currentIdx] = 0.0;
         v_out[currentIdx] = 0.0;
-        FinalZ[currentIdx] = TerrainHeight[currentIdx];
+        FinalZ[currentIdx] = 0.0;
         return;
     }
 
-    // 1. 현재 상태 읽기 (Input 버퍼에서)
+    // 1. 현재 상태 읽기
     float h_c = h_in[currentIdx];
     float u_c = u_in[currentIdx];
     float v_c = v_in[currentIdx];
 
-    // 2. 인접 인덱스 계산
-    int idx_E = getIndex(x + 1, y);     // East
-    int idx_W = getIndex(x - 1, y);     // West
-    int idx_N = getIndex(x, y + 1);     // North
-    int idx_S = getIndex(x, y - 1);     // South
+    // 2. 인접 인덱스
+    int idx_E = getIndex(x + 1, y);
+    int idx_W = getIndex(x - 1, y);
+    int idx_N = getIndex(x, y + 1);
+    int idx_S = getIndex(x, y - 1);
 
-    // 3. 미분 계산 (공간 도함수)
+    // 1. 속도(u, v) 업데이트를 위한 높이 기울기 (Forward Difference)
+    // u는 (i+0.5) 위치에 있다고 가정 -> h(i+1)과 h(i)를 사용
+    float dh_dx_for_u = (h_in[idx_E] - h_in[currentIdx]) / DX;
+    float dh_dy_for_v = (h_in[idx_N] - h_in[currentIdx]) / DX;
+
+    // 2. 높이(h) 업데이트를 위한 유량(Flux) 기울기 (Backward Difference)
+    // h는 (i) 위치에 있음 -> u(i)와 u(i-1)을 사용
+    // 주의: 유량 = 깊이 * 속도. 깊이(H)도 해당 위치에 맞게 가져와야 함.
     
-    // 높이 기울기 (Gradient of h)
-    float dh_dx = (h_in[idx_E] - h_in[idx_W]) / (2.0 * DX);
-    float dh_dy = (h_in[idx_N] - h_in[idx_S]) / (2.0 * DX);
-
-    // 유량 발산 (Divergence of Flux: d(Hu)/dx + d(Hv)/dy)
-    // H = RestDepth + eta (총 수심)
-    float H_E = getRestDepth(idx_E) + h_in[idx_E];
-    float H_W = getRestDepth(idx_W) + h_in[idx_W];
-    float H_N = getRestDepth(idx_N) + h_in[idx_N];
-    float H_S = getRestDepth(idx_S) + h_in[idx_S];
-
-    float dHu_dx = (H_E * u_in[idx_E] - H_W * u_in[idx_W]) / (2.0 * DX);
-    float dHv_dy = (H_N * v_in[idx_N] - H_S * v_in[idx_S]) / (2.0 * DX);
-
-    // 4. 시간 적분 (Euler Integration)
+    // (u * H)의 Divergence 계산
+    float H_here = max(0.0, getRestDepth(currentIdx) + h_in[currentIdx]);
+    float H_West = max(0.0, getRestDepth(idx_W) + h_in[idx_W]);
+    float H_South = max(0.0, getRestDepth(idx_S) + h_in[idx_S]);
     
-    // 연속 방정식: dh/dt = -div(Hu) + Relaxation
+    // u_in[currentIdx]는 논리적으로 i+0.5, u_in[idx_W]는 i-0.5의 유속이라 가정
+    float flux_u_here = H_here * u_in[currentIdx]; 
+    float flux_u_west = H_West * u_in[idx_W];
+    
+    float flux_v_here = H_here * v_in[currentIdx];
+    float flux_v_south = H_South * v_in[idx_S];
+
+    float dHu_dx = (flux_u_here - flux_u_west) / DX; // Self - Left
+    float dHv_dy = (flux_v_here - flux_v_south) / DX; // Self - Down
+
+    // 3. 시간 적분
     float dh_dt = -(dHu_dx + dHv_dy);
-    
-    // 운동량 방정식 (선형화): du/dt = -g * dh/dx
-    float du_dt = -G * dh_dx;
-    float dv_dt = -G * dh_dy;
+    float du_dt = -G * dh_dx_for_u; // 중력항
+    float dv_dt = -G * dh_dy_for_v;
 
-    // 5. Relaxation (Tessendorf와의 결합)
-    // Tessendorf 파도가 목표값(Target) 역할을 하여 SWE를 서서히 보정
-    float eta_Tess = TessendorfEta[currentIdx].x;
-    dh_dt += RELAXATION_FACTOR * (eta_Tess - h_c); // 이미 시간 스케일이 적용된 팩터라 가정하거나, 아래에서 dt 곱함
-
-    // 값 갱신
+    // 4. 업데이트
     float h_new = h_c + dh_dt * u_dt;
-    float u_new = u_c + du_dt * u_dt;
+    float u_new = u_c + du_dt * u_dt; // 이송항(Advection)은 생략된 상태 (Linearized)
     float v_new = v_c + dv_dt * u_dt;
 
-    // 6. 안정화 (인공 점성 및 감쇠)
-    
-    // Laplacian (Diffusion) 계산
+    // [안전장치] 감쇠 (Damping/Viscosity 대신 마찰 사용)
+    // Staggered Grid는 수치적으로 매우 안정적이므로, 인공 점성(Laplacian)이 거의 필요 없습니다.
+    // 대신 에너지 발산을 막기 위해 단순 마찰(Drag)을 살짝 줍니다.
+    u_new *= 0.999; 
+    v_new *= 0.999;
+
+    // 5. 안정화 (Laplacian Viscosity)
     float lap_h = (h_in[idx_E] + h_in[idx_W] + h_in[idx_N] + h_in[idx_S] - 4.0 * h_c);
     float lap_u = (u_in[idx_E] + u_in[idx_W] + u_in[idx_N] + u_in[idx_S] - 4.0 * u_c);
     float lap_v = (v_in[idx_E] + v_in[idx_W] + v_in[idx_N] + v_in[idx_S] - 4.0 * v_c);
 
-    // 점성은 시간에 비례해야 함 (u_dt 곱하기 필수)
-    h_new += VISCOSITY * lap_h * u_dt; // 높이 확산 (수치적 안정성)
-    u_new += VISCOSITY * lap_u * u_dt; // 운동량 확산 (실제 점성)
+    h_new += VISCOSITY * lap_h * u_dt;
+    u_new += VISCOSITY * lap_u * u_dt;
     v_new += VISCOSITY * lap_v * u_dt;
 
-    // Sponge Layer (경계 감쇠)
-    // 0~1 사이 값인 Sponge 마스크를 사용하여 경계에서 0으로 수렴
-    float damping = clamp(1.0 - Sponge[currentIdx], 0.0, 1.0);
+    // 6. 경계 조건 및 결합 (Coupling with Tessendorf)
+    
+    float eta_Tess = TessendorfEta[currentIdx].x;
+
+    // (1) Sponge Layer: 경계에서 반사되는 파도를 약하게 감쇠
+    // SpongeMask: 0(안쪽) -> 1(바깥쪽 경계)
+    // 0.1 계수를 사용하여 아주 약한 감쇠만 적용 (Python 코드 참조)
+    float spongeVal = Sponge[currentIdx];
+    float damping = 1.0 - (spongeVal * 0.1); 
+    
     h_new *= damping;
     u_new *= damping;
     v_new *= damping;
 
-    // 7. 결과 저장 (Output 버퍼에 쓰기)
+    // (2) Relaxation: Tessendorf 파도 값을 경계 근처에서 강제로 주입
+    // AlphaMask: 0(안쪽) -> 1(바깥쪽 경계)
+    // 바깥쪽으로 갈수록 Tessendorf 값에 가깝게 보정 (에너지 주입)
+    float blendFactor = AlphaMask[currentIdx] * 0.2; // Coupling Strength
+    h_new = mix(h_new, eta_Tess, blendFactor);
+
+    // 7. 결과 저장
     h_out[currentIdx] = h_new;
     u_out[currentIdx] = u_new;
     v_out[currentIdx] = v_new;
 
-    // 8. 최종 Z값 계산 (Rendering용)
-    // AlphaMask: 0이면 순수 SWE, 1이면 순수 Tessendorf
-    float blendVal = AlphaMask[currentIdx];
-    float blended_eta = mix(h_new, eta_Tess, blendVal);
+    // 8. 렌더링용 최종 높이 (Rendering Blending)
+    // 시각적으로는 AlphaMask에 따라 부드럽게 섞어서 보여줌
+    float renderBlend = AlphaMask[currentIdx];
+    float final_h = mix(h_new, eta_Tess, renderBlend);
     
-    // 물 높이(blended_eta)와 지형 높이 중 큰 값을 선택하여 렌더링
-    // 단, 물이 지형보다 낮으면(육지 드러남), 지형 높이를 사용.
-    FinalZ[currentIdx] = max(TerrainHeight[currentIdx], blended_eta);
+    FinalZ[currentIdx] = max(TerrainHeight[currentIdx], final_h);
 }
