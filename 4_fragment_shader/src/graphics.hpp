@@ -8,7 +8,6 @@
 #include <iostream>
 #include <stdexcept>
 #include <functional>
-#include "shaders/shaders.hpp"
 
 // 단일 셰이더 (vertex, fragment 등)
 class Shader {
