@@ -18,6 +18,7 @@
 #include "collision.hpp"
 #include "utils.hpp"
 #include "Skybox.hpp"
+#include "shaders/shaders.hpp"
 
 struct GameState;
 struct EnemyBullet;

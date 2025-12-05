@@ -367,13 +367,13 @@ void initShaders() {
         // Vertex shader 생성
         Shader vertShader = Shader::fromSource(
             Shader::Type::VERTEX,
-            ShaderSources::vertexShaderSource
+            shaders::BASE_VERT_SHADER
         );
 
         // Fragment shader 생성
         Shader fragShader = Shader::fromSource(
             Shader::Type::FRAGMENT,
-            ShaderSources::fragmentShaderSource
+            shaders::BASE_FRAG_SHADER
         );
 
         // 셰이더 프로그램 생성 및 링크
