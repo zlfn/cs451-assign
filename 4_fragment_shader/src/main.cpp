@@ -394,7 +394,7 @@ int main(int argc, char **argv) {
 
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
     glutInitWindowSize(1400, 1400);
-    glutCreateWindow("CSED451 Assn 3");
+    glutCreateWindow("CSED451 Assn 4");
 
     GLenum err = glewInit();
     if (err != GLEW_OK) {
