@@ -1,6 +1,7 @@
 #include "utils.hpp"
 #include "base.hpp"
 #include "graphics.hpp"
+#include "PostProcess.hpp"
 
 std::random_device rd;
 std::mt19937 gen(rd());
@@ -36,6 +37,13 @@ std::unique_ptr<ShaderProgram> programGouraud;
 std::unique_ptr<ShaderProgram> programPhong;
 std::unique_ptr<ShaderProgram> programPhongN;
 std::unique_ptr<ShaderProgram> programSimple;
+std::unique_ptr<ShaderProgram> programMotionBlur;
+
+// Motion blur processor
+MotionBlurProcessor motionBlurProcessor;
+float motionBlurStrength = 0.3f; // Adjustable blur strength (0.0 - 0.5)
+bool motionBlurEnabled = true;
+int motionBlurKeyDelay = 0;
 
 // Global Shader Program Pointer (used by objects)
 ShaderProgram* g_shaderProgram = nullptr;
@@ -120,13 +128,18 @@ void display() {
     const float SCALE = currentProjMethod == DIAG_PERSPECTIVE
         ? 3.0 : smoothProjScaleChange();
     const float CAMERA_ANGLE_X_DEG = currentProjMethod == DIAG_PERSPECTIVE
-        ? 50.0f : smoothProjRotChange(); 
+        ? 50.0f : smoothProjRotChange();
     const float Z_DIST_VIEW = currentProjMethod == DIAG_PERSPECTIVE
-        ? -0.5f : smoothProjZDistChange(); 
+        ? -0.5f : smoothProjZDistChange();
 
     const float ANGLE_RAD = (float)(CAMERA_ANGLE_X_DEG * (std::numbers::pi / 180.0f));
     const float Y_COMPENSATION = (std::tan(ANGLE_RAD) * std::abs(Z_DIST_VIEW)) / SCALE;
     const float Z_TRANSLATE = Z_DIST_VIEW / std::cos(ANGLE_RAD) / SCALE;
+
+    // Begin rendering to FBO if motion blur is enabled
+    if (motionBlurEnabled && motionBlurProcessor.isInitialized()) {
+        motionBlurProcessor.beginScene();
+    }
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -210,6 +223,11 @@ void display() {
     gameState.bossHealthBarObject.draw(gameState);
     gameState.heartsObject.draw(gameState);
 
+    // Apply motion blur post-processing
+    if (motionBlurEnabled && motionBlurProcessor.isInitialized()) {
+        motionBlurProcessor.endSceneAndApply(*programMotionBlur, motionBlurStrength);
+    }
+
     glutSwapBuffers();
     glutPostRedisplay();
 }
@@ -286,6 +304,25 @@ void keyInputUpdate(int dt) {
     if (keyStates[' ']) {
         gameState.playerObject.tryAttack();
     }
+
+    // Toggle motion blur with 'm' key
+    if (keyStates['m'] && motionBlurKeyDelay + 500 < now) {
+        motionBlurKeyDelay = now;
+        motionBlurEnabled = !motionBlurEnabled;
+        std::cout << "Motion blur " << (motionBlurEnabled ? "enabled" : "disabled") << std::endl;
+    }
+
+    // Adjust motion blur strength with '[' and ']' keys
+    if (keyStates['['] && motionBlurKeyDelay + 100 < now) {
+        motionBlurKeyDelay = now;
+        motionBlurStrength = std::max(0.0f, motionBlurStrength - 0.05f);
+        std::cout << "Motion blur strength: " << motionBlurStrength << std::endl;
+    }
+    if (keyStates[']'] && motionBlurKeyDelay + 100 < now) {
+        motionBlurKeyDelay = now;
+        motionBlurStrength = std::min(0.7f, motionBlurStrength + 0.05f);
+        std::cout << "Motion blur strength: " << motionBlurStrength << std::endl;
+    }
 }
 
 void updateOrbitingLight(int currentTime) {
@@ -351,6 +388,9 @@ void timer(int) {
 
 void reshape(int width, int height) {
     glViewport(0, 0, width, height);
+    if (motionBlurProcessor.isInitialized()) {
+        motionBlurProcessor.resize(width, height);
+    }
 }
 
 void initShaders() {
@@ -378,6 +418,12 @@ void initShaders() {
         programPhongN->attachShader(Shader::fromSource(Shader::Type::VERTEX, shaders::PHONG_VERT_SHADER));
         programPhongN->attachShader(Shader::fromSource(Shader::Type::FRAGMENT, shaders::PHONGN_FRAG_SHADER));
         programPhongN->link();
+
+        std::cout << "Loading Motion Blur Shader...\n";
+        programMotionBlur = std::make_unique<ShaderProgram>();
+        programMotionBlur->attachShader(Shader::fromSource(Shader::Type::VERTEX, shaders::MOTIONBLUR_VERT_SHADER));
+        programMotionBlur->attachShader(Shader::fromSource(Shader::Type::FRAGMENT, shaders::MOTIONBLUR_FRAG_SHADER));
+        programMotionBlur->link();
 
         std::cout << "Shaders initialized successfully\n";
     } catch (const std::exception& e) {
@@ -425,6 +471,10 @@ int main(int argc, char **argv) {
     ));
 
     glEnable(GL_DEPTH_TEST);
+
+    // Initialize motion blur processor
+    motionBlurProcessor.init(1400, 1400);
+    motionBlurKeyDelay = glutGet(GLUT_ELAPSED_TIME);
 
     keyPressDelay = glutGet(GLUT_ELAPSED_TIME);
     renderModeKeyDelay = glutGet(GLUT_ELAPSED_TIME);
