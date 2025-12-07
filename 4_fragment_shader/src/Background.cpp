@@ -77,10 +77,12 @@ void Background::draw(const GameState &gameState) {
 
     glm::mat4 projection = projectionStack.getTopMatrix();
     glm::mat4 modelView = modelViewStack.getTopMatrix();
+    glm::mat4 normalMat = modelViewStack.getTopNormal();
 
     drawMesh(*borderMesh, *g_shaderProgram, [&](const ShaderProgram& prog) {
         prog.setUniform("projection", projection);
         prog.setUniform("modelView", modelView);
+        prog.setUniform("normalMatrix", normalMat);
         prog.setUniform("objectColor", glm::vec3(1.0f, 1.0f, 1.0f));
         prog.setUniform("useVertexColor", 1.0f);
     });

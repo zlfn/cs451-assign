@@ -52,6 +52,8 @@ void TrailParticle::createMesh() {
 void TrailParticle::draw(const GameState &) {
     if (!g_shaderProgram || !mesh) return;
 
+    return; // TODO: 산만해서 뺌
+
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 
@@ -61,10 +63,12 @@ void TrailParticle::draw(const GameState &) {
 
     glm::mat4 projection = projectionStack.getTopMatrix();
     glm::mat4 modelView = modelViewStack.getTopMatrix();
+    glm::mat4 normalMat = modelViewStack.getTopNormal();
 
     drawMesh(*mesh, *g_shaderProgram, [&](const ShaderProgram& prog) {
         prog.setUniform("projection", projection);
         prog.setUniform("modelView", modelView);
+        prog.setUniform("normalMatrix", normalMat);
         prog.setUniform("objectColor", color);
         prog.setUniform("useVertexColor", 1.0f);
     });

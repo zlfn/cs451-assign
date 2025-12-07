@@ -1,7 +1,6 @@
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
 #include "Skybox.hpp"
 #include "base.hpp"
+#include "stb_image.h"
 #include <iostream>
 #include <glm/gtc/type_ptr.hpp>
 

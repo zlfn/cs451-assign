@@ -268,3 +268,40 @@ struct CommandExecutor : Updatable {
     void handleKeyPress(char key, GameState &gameState);
     void activateCommand(GameState &gameState);
 };
+
+enum LightType {
+    DIRECTIONAL_LIGHT = 0,
+    POINT_LIGHT = 1
+};
+
+struct LightSource {
+    LightType type;
+
+    glm::fvec3 ambientColor;
+    glm::fvec3 diffuseColor;
+    glm::fvec3 specularColor;
+
+    float intensity;
+    bool enabled = true;
+
+    LightSource(glm::fvec3 ambientColor, glm::fvec3 diffuseColor, glm::fvec3 specularColor,
+                float intensity);
+
+    void setUniforms(Shader &shader);
+};
+
+struct DirectionalLightSource : LightSource {
+    glm::fvec3 direction;
+    
+    DirectionalLightSource(glm::fvec3 ambientColor, glm::fvec3 diffuseColor,
+                           glm::fvec3 specularColor, float intensity, glm::fvec3 direction);
+};
+
+struct PointLightSource : LightSource {
+    glm::fvec3 position;
+    
+    PointLightSource(glm::fvec3 ambientColor, glm::fvec3 diffuseColor, glm::fvec3 specularColor,
+                     float intensity, glm::fvec3 position);
+
+    glm::fvec3 getAttenuation(); // attenuation coefficient
+};

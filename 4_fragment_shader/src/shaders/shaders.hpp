@@ -9,7 +9,8 @@
 #else
     // Pre-build: provide placeholder declarations
     namespace shaders {
-        constexpr const char* BASE_VERT_SHADER = "";
-        constexpr const char* BASE_FRAG_SHADER = "";
+        constexpr const char *GOURAUD_VERT_SHADER = "";
+        constexpr const char *BASE_VERT_SHADER = "";
+        constexpr const char *BASE_FRAG_SHADER = "";
     }
 #endif

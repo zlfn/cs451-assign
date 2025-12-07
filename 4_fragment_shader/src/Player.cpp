@@ -2,8 +2,10 @@
 #include "utils.hpp"
 #include "graphics.hpp"
 
-ThreeDObj jetObj = ThreeDObj("assets/jet.obj", glm::fvec3(1.0, 1.0, 0.0));
-ThreeDObj energyOrbObj = ThreeDObj("assets/star.obj", glm::fvec3(0.5, 0.2, 0.1));
+ThreeDObj jetObj = ThreeDObj("assets/jet.obj", "assets/diffuse_jet.png", "assets/normal_flat.png",
+                             glm::fvec3(1.0, 1.0, 0.0));
+ThreeDObj energyOrbObj = ThreeDObj("assets/star.obj", "assets/diffuse_star.png",
+                                   "assets/normal_flat.png", glm::fvec3(0.5, 0.2, 0.1));
 
 // Static mesh for explosion effect
 std::unique_ptr<Mesh> Player::explosionMesh = nullptr;
@@ -119,10 +121,12 @@ void PlayerFragment::draw(const GameState &) {
 
     glm::mat4 projection = projectionStack.getTopMatrix();
     glm::mat4 modelView = modelViewStack.getTopMatrix();
+    glm::mat4 normalMat = modelViewStack.getTopNormal();
 
     drawMesh(*mesh, *g_shaderProgram, [&](const ShaderProgram& prog) {
         prog.setUniform("projection", projection);
         prog.setUniform("modelView", modelView);
+        prog.setUniform("normalMatrix", normalMat);
         prog.setUniform("objectColor", color);
         prog.setUniform("useVertexColor", 1.0f);
     });

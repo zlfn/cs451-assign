@@ -1,8 +1,11 @@
 #include "base.hpp"
 
-ThreeDObj enemyBulletObj = ThreeDObj("assets/sphere.obj", glm::fvec3(1.0, 0.0, 0.0));
-ThreeDObj enemyBulletSonicObj = ThreeDObj("assets/sonic.obj", glm::fvec3(0.2, 0.5, 0.5));
-ThreeDObj playerBulletObj = ThreeDObj("assets/rice.obj", glm::fvec3(0.3, 0.4, 0.3));
+ThreeDObj enemyBulletObj = ThreeDObj("assets/sphere.obj", "assets/diffuse_white.png",
+                                     "assets/normal_flat.png", glm::fvec3(1.0, 0.0, 0.0));
+ThreeDObj enemyBulletSonicObj = ThreeDObj("assets/sonic.obj", "assets/diffuse_secondary.png",
+                                          "assets/normal_flat.png", glm::fvec3(0.2, 0.5, 0.5));
+ThreeDObj playerBulletObj = ThreeDObj("assets/rice.obj", "assets/diffuse_rice.png",
+                                      "assets/normal_flat.png", glm::fvec3(0.3, 0.4, 0.3));
 
 EnemyBullet::EnemyBullet(glm::fvec2 initialDirection, glm::fvec2 initialPosition, float speed,
                          int initialTime, std::function<float(int, float)> posFunc)

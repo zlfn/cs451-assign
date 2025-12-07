@@ -1,6 +1,7 @@
 #include "base.hpp"
 
-ThreeDObj bossObj = ThreeDObj("assets/drone.obj", glm::fvec3(0.0, 1.0, 0.0));
+ThreeDObj bossObj = ThreeDObj("assets/drone.obj", "assets/diffuse_starship.png",
+                              "assets/normal_flat.png", glm::fvec3(0.0, 1.0, 0.0));
 
 Boss::Boss(glm::fvec2 initialPosition, int id)
     : currentPosition(initialPosition), currentMove(idleBossMove(initialPosition, 0)), bossId(id) {}

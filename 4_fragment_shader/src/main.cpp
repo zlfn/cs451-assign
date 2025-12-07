@@ -19,8 +19,8 @@ MatrixStack projectionStack;
 enum ProjMethod { DIAG_PERSPECTIVE, TOP_PERSPECTIVE, TOP_PARALLEL };
 ProjMethod currentProjMethod = DIAG_PERSPECTIVE;
 
-enum RenderMode { OPAQUE_POLYGON, WIREFRAME, WIREFRAME_HIDDEN_LINE };
-RenderMode currentRenderMode = OPAQUE_POLYGON;
+enum ShadingStyle { GOURAUD, PHONG, PHONG_WITH_NORMAL };
+ShadingStyle currentShadingStyle = GOURAUD;
 
 int keyPressDelay = 0;          // For projection method changes ('c' key)
 int renderModeKeyDelay = 0;     // For render mode changes ('e' key)
@@ -138,31 +138,8 @@ void display() {
         modelViewStack.matPop();
     };
 
-    // Set polygon mode and draw skybox based on current render mode
-    if (currentRenderMode == WIREFRAME_HIDDEN_LINE) {
-        // First pass for skybox: depth only
-        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-        glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
-        glEnable(GL_POLYGON_OFFSET_FILL);
-        glPolygonOffset(1.0f, 1.0f);
-        drawSkybox();
-        glDisable(GL_POLYGON_OFFSET_FILL);
-        glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-
-        // Second pass for skybox: wireframe
-        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-        glLineWidth(1.5f);
-        drawSkybox();
-    } else {
-        // Normal rendering for skybox
-        if (currentRenderMode == OPAQUE_POLYGON) {
-            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-        } else if (currentRenderMode == WIREFRAME) {
-            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-            glLineWidth(1.5f);
-        }
-        drawSkybox();
-    }
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    drawSkybox();
 
     // Now apply full camera transform for other objects
     modelViewStack.matPush();
@@ -189,37 +166,9 @@ void display() {
         gameState.playerObject.draw(gameState);
     };
 
-    // Render based on current mode
-    if (currentRenderMode == WIREFRAME_HIDDEN_LINE) {
-        // First pass: Render filled polygons to depth buffer only (no color)
-        // This establishes which surfaces are visible
-        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-        glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE); // Don't write to color buffer
-        glEnable(GL_POLYGON_OFFSET_FILL);
-        glPolygonOffset(1.0f, 1.0f); // Push filled polygons back slightly
-        drawPolygonObjects();
-        glDisable(GL_POLYGON_OFFSET_FILL);
-        glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE); // Re-enable color writing
-
-        // Second pass: Render wireframe with depth test
-        // Only visible edges will be drawn based on depth buffer from first pass
-        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-        glLineWidth(1.5f);
-        drawPolygonObjects();
-
-        // Draw background separately (it uses GL_LINES, not affected by polygon mode)
-        gameState.backgroundObject.draw(gameState);
-    } else {
-        // Normal rendering (OPAQUE_POLYGON or WIREFRAME)
-        if (currentRenderMode == OPAQUE_POLYGON) {
-            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-        } else if (currentRenderMode == WIREFRAME) {
-            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-            glLineWidth(1.5f);
-        }
-        drawPolygonObjects();
-        gameState.backgroundObject.draw(gameState);
-    }
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    drawPolygonObjects();
+    gameState.backgroundObject.draw(gameState);
 
     modelViewStack.matPop(); // 3D 뷰 매트릭스 제거
 
@@ -286,19 +235,19 @@ void keyInputUpdate(int dt) {
 
     if (keyStates['e'] && renderModeKeyDelay + 500 < now) {
         renderModeKeyDelay = now;
-        std::cout << "Change render mode to ";
-        switch (currentRenderMode) {
-        case OPAQUE_POLYGON:
-            currentRenderMode = WIREFRAME;
-            std::cout << "\'wireframe\'" << std::endl;
+        std::cout << "Change shading style to ";
+        switch (currentShadingStyle) {
+        case GOURAUD:
+            currentShadingStyle = PHONG;
+            std::cout << "\'phong without normal map\'" << std::endl;
             break;
-        case WIREFRAME:
-            currentRenderMode = WIREFRAME_HIDDEN_LINE;
-            std::cout << "\'wireframe with hidden line removal\'" << std::endl;
+        case PHONG:
+            currentShadingStyle = PHONG_WITH_NORMAL;
+            std::cout << "\'phong with normal map\'" << std::endl;
             break;
-        case WIREFRAME_HIDDEN_LINE:
-            currentRenderMode = OPAQUE_POLYGON;
-            std::cout << "\'opaque polygon\'" << std::endl;
+        case PHONG_WITH_NORMAL:
+            currentShadingStyle = GOURAUD;
+            std::cout << "\'gouraud\'" << std::endl;
             break;
         }
     }
@@ -358,7 +307,7 @@ void reshape(int width, int height) {
     glViewport(0, 0, 800, 800);
 }
 
-// Core profile용 셰이더 프로그램 (전역)
+// 전역 셰이더 프로그램
 ShaderProgram* g_shaderProgram = nullptr;
 
 // 셰이더 초기화 함수
@@ -367,7 +316,7 @@ void initShaders() {
         // Vertex shader 생성
         Shader vertShader = Shader::fromSource(
             Shader::Type::VERTEX,
-            shaders::BASE_VERT_SHADER
+            shaders::GOURAUD_VERT_SHADER
         );
 
         // Fragment shader 생성
