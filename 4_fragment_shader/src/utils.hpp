@@ -43,19 +43,40 @@ concept Map01Fn = requires {
     { F{}(1.0f) } -> std::same_as<float>;
 } && approxEqual(F{}(0.0f), 0.0f) && approxEqual(F{}(1.0f), 1.0f);
 
-using Indices = std::vector<unsigned int>;
+struct IndexInfo {
+    unsigned int v_index = 0;
+    unsigned int vt_index = 0;
+    unsigned int vn_index = 0;
+
+    IndexInfo() : v_index(0), vn_index(0) {}
+    IndexInfo(unsigned int v_index, unsigned int vn_index) : v_index(v_index), vn_index(vn_index) {}
+
+    bool operator<(const IndexInfo &other) const {
+        if (v_index != other.v_index) {
+            return v_index < other.v_index;
+        }
+        return vn_index < other.vn_index;
+    }
+};
+using Indices = std::vector<IndexInfo>;
 
 struct ThreeDObj {
     std::vector<glm::vec3> baseVertices;
+    std::vector<glm::vec3> baseNormals;
+    std::vector<glm::vec2> baseTexCoords;
     std::map<std::string, Indices> objIndicesMap;
     std::map<std::string, glm::vec3> objCenterMap;
     std::map<std::string, glm::vec3> objTranslationMap;
     std::map<std::string, std::unique_ptr<Mesh>> objMeshMap;
     glm::vec3 objectColor;
+    GLuint textureID;
+    GLuint normalMapID;
 
-    ThreeDObj(const std::string &FILE_PATH, const glm::fvec3 &color = glm::fvec3(1.0f, 1.0f, 1.0f));
+    ThreeDObj(const std::string &FILE_PATH, const std::string &TEXTURE_PATH,
+              const std::string &NORMAL_PATH, const glm::fvec3 &color = glm::fvec3(1.0f, 1.0f, 1.0f));
 
     void getObjFile(const std::string &FILE_PATH);
+    void getFragInfo(const std::string &TEXTURE_PATH, const std::string &NORMAL_PATH);
     void setColor(const glm::vec3 &color);
     void draw(const std::string objName);
 
@@ -81,6 +102,7 @@ struct MatrixStack {
     void loadIdentity();
     void matMul(glm::mat4x4 m);
     glm::mat4x4 getTopMatrix();
+    glm::mat4x4 getTopNormal();
     void translate(float x, float y, float z);
     void rotate(float angle, float x, float y, float z);
     void scale(float x, float y, float z);

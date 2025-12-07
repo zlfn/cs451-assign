@@ -18,10 +18,12 @@
 #include "collision.hpp"
 #include "utils.hpp"
 #include "Skybox.hpp"
+#include "shaders/shaders.hpp"
 
 struct GameState;
 struct EnemyBullet;
 struct BossMove;
+struct LightSource;
 
 extern MatrixStack modelViewStack;
 extern MatrixStack projectionStack;
@@ -251,6 +253,7 @@ struct GameState {
     std::vector<PlayerBullet> playerBulletObjects;
     std::vector<EnemyBullet> enemyBulletObjects;
     std::vector<TrailParticle> trailParticles;
+    std::vector<std::shared_ptr<LightSource>> lights;
 };
 
 void showVictoryScreen(const GameState &gameState);
@@ -266,4 +269,46 @@ struct CommandExecutor : Updatable {
     bool update(int currentTime, GameState &gameState) override;
     void handleKeyPress(char key, GameState &gameState);
     void activateCommand(GameState &gameState);
+};
+
+enum LightType {
+    DIRECTIONAL_LIGHT = 0,
+    POINT_LIGHT = 1
+};
+
+struct LightSource {
+    LightType type;
+
+    glm::fvec3 ambientColor;
+    glm::fvec3 diffuseColor;
+    glm::fvec3 specularColor;
+
+    float intensity;
+    bool enabled = true;
+
+    LightSource(glm::fvec3 ambientColor, glm::fvec3 diffuseColor, glm::fvec3 specularColor,
+                float intensity);
+
+    virtual ~LightSource() = default;
+
+    virtual void setUniforms(const ShaderProgram &program, int index) const = 0;
+};
+
+struct DirectionalLightSource : LightSource {
+    glm::fvec3 direction;
+    
+    DirectionalLightSource(glm::fvec3 ambientColor, glm::fvec3 diffuseColor,
+                           glm::fvec3 specularColor, float intensity, glm::fvec3 direction);
+
+    void setUniforms(const ShaderProgram &program, int index) const override;
+};
+
+struct PointLightSource : LightSource {
+    glm::fvec3 position;
+    
+    PointLightSource(glm::fvec3 ambientColor, glm::fvec3 diffuseColor, glm::fvec3 specularColor,
+                     float intensity, glm::fvec3 position);
+
+    glm::fvec3 getAttenuation(); // attenuation coefficient
+    void setUniforms(const ShaderProgram &program, int index) const override;
 };

@@ -2,8 +2,17 @@
 #include "utils.hpp"
 #include "graphics.hpp"
 
-ThreeDObj jetObj = ThreeDObj("assets/jet.obj", glm::fvec3(1.0, 1.0, 0.0));
-ThreeDObj energyOrbObj = ThreeDObj("assets/star.obj", glm::fvec3(0.5, 0.2, 0.1));
+ThreeDObj& getJetObj() {
+    static ThreeDObj obj("assets/jet.obj", "assets/diffuse_jet.png", "assets/normal_flat.png",
+                             glm::fvec3(1.0, 1.0, 0.0));
+    return obj;
+}
+
+ThreeDObj& getEnergyOrbObj() {
+    static ThreeDObj obj("assets/star.obj", "assets/diffuse_star.png",
+                                   "assets/normal_quilt.png", glm::fvec3(1.0, 1.0, 1.0));
+    return obj;
+}
 
 // Static mesh for explosion effect
 std::unique_ptr<Mesh> Player::explosionMesh = nullptr;
@@ -59,18 +68,14 @@ bool EnergyOrb::update(int currentTime, GameState &) { return false; }
 void EnergyOrb::draw(const GameState &) {
     const glm::fvec2 VIEW_POS = offset;
 
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE);
-
     modelViewStack.matPush();
     modelViewStack.translate(VIEW_POS.x, VIEW_POS.y, 0.1f);
     modelViewStack.scale(size, size, size);
     modelViewStack.rotate(90.0, 1.0, 0.0, 0.0);
 
-    energyOrbObj.draw("Sphere");
+    getEnergyOrbObj().draw("Sphere");
 
     modelViewStack.matPop();
-    glDisable(GL_BLEND);
 }
 
 PlayerFragment::PlayerFragment(glm::fvec2 pos, glm::fvec2 vel, float rot, float rotSpeed, float sz,
@@ -119,10 +124,12 @@ void PlayerFragment::draw(const GameState &) {
 
     glm::mat4 projection = projectionStack.getTopMatrix();
     glm::mat4 modelView = modelViewStack.getTopMatrix();
+    glm::mat4 normalMat = modelViewStack.getTopNormal();
 
     drawMesh(*mesh, *g_shaderProgram, [&](const ShaderProgram& prog) {
         prog.setUniform("projection", projection);
         prog.setUniform("modelView", modelView);
+        prog.setUniform("normalMatrix", normalMat);
         prog.setUniform("objectColor", color);
         prog.setUniform("useVertexColor", 1.0f);
     });
@@ -330,10 +337,10 @@ void Player::draw(const GameState &gameState) {
     if (isInvincible) {
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        jetObj.draw("base");
+        getJetObj().draw("base");
         glDisable(GL_BLEND);
     } else {
-        jetObj.draw("base");
+        getJetObj().draw("base");
     }
 
     modelViewStack.matPop();

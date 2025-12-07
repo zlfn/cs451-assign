@@ -1,6 +1,7 @@
 #include "base.hpp"
 #include "utils.hpp"
 #include "graphics.hpp"
+#include "stb_image.h"
 
 MatrixStack::MatrixStack() { stack.push_back(glm::identity<glm::mat4x4>()); }
 
@@ -9,6 +10,14 @@ void MatrixStack::loadIdentity() { stack.back() = glm::identity<glm::mat4x4>(); 
 void MatrixStack::matMul(glm::mat4x4 m) { stack.back() *= m; }
 
 glm::mat4x4 MatrixStack::getTopMatrix() { return stack.back(); }
+
+glm::mat4x4 MatrixStack::getTopNormal() {
+    glm::mat4x4 modelView = stack.back();
+    glm::mat3x3 modelView_3x3 = glm::mat3x3(modelView);
+    glm::mat3x3 inverse_3x3 = glm::inverse(modelView_3x3);
+    glm::mat3x3 normalMatrix_3x3 = glm::transpose(inverse_3x3);
+    return glm::mat4x4(normalMatrix_3x3);
+}
 
 void MatrixStack::matPush() { stack.push_back(stack.back()); }
 
@@ -28,26 +37,81 @@ void MatrixStack::scale(float x, float y, float z) {
     stack.back() = glm::scale(stack.back(), glm::vec3(x, y, z));
 }
 
-ThreeDObj::ThreeDObj(const std::string &FILE_PATH, const glm::fvec3 &color)
+ThreeDObj::ThreeDObj(const std::string &FILE_PATH, const std::string &TEXTURE_PATH,
+                     const std::string &NORMAL_PATH, const glm::fvec3 &color)
     : objectColor(color) // 기본은 흰색
 {
     try {
         getObjFile(FILE_PATH);
+        getFragInfo(TEXTURE_PATH, NORMAL_PATH);
     } catch (const std::exception &e) {
         std::cerr << "Error loading object: " << e.what() << '\n';
     }
 }
 
+void ThreeDObj::getFragInfo(const std::string &TEXTURE_PATH, const std::string &NORMAL_PATH) {
+    // Load diffuse/color texture
+    int tWidth, tHeight, tNrChannels;
+    unsigned char *tData = stbi_load(TEXTURE_PATH.c_str(), &tWidth, &tHeight, &tNrChannels, 0);
+
+    if (tData) {
+        glGenTextures(1, &textureID);
+        glBindTexture(GL_TEXTURE_2D, textureID);
+
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+        GLenum format = (tNrChannels == 4) ? GL_RGBA : GL_RGB;
+        glTexImage2D(GL_TEXTURE_2D, 0, format, tWidth, tHeight, 0, format, GL_UNSIGNED_BYTE, tData);
+        glGenerateMipmap(GL_TEXTURE_2D);
+
+        std::cout << "Loaded diffuse texture: " << TEXTURE_PATH << " (" << tWidth << "x" << tHeight << ")\n";
+        stbi_image_free(tData);
+    } else {
+        std::cerr << "FAILED to load diffuse texture: " << TEXTURE_PATH << " - " << stbi_failure_reason() << std::endl;
+    }
+
+    // Load normal map texture
+    int nWidth, nHeight, nNrChannels;
+    unsigned char *nData = stbi_load(NORMAL_PATH.c_str(), &nWidth, &nHeight, &nNrChannels, 0);
+
+    if (nData) {
+        glGenTextures(1, &normalMapID);
+        glBindTexture(GL_TEXTURE_2D, normalMapID);
+
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+        GLenum format = (nNrChannels == 4) ? GL_RGBA : GL_RGB;
+        glTexImage2D(GL_TEXTURE_2D, 0, format, nWidth, nHeight, 0, format, GL_UNSIGNED_BYTE, nData);
+        glGenerateMipmap(GL_TEXTURE_2D);
+
+        std::cout << "Loaded normal map: " << NORMAL_PATH << " (" << nWidth << "x" << nHeight << ")\n";
+        stbi_image_free(nData);
+    } else {
+        std::cerr << "FAILED to load normal map: " << NORMAL_PATH << " - " << stbi_failure_reason() << std::endl;
+    }
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
 void ThreeDObj::getObjFile(const std::string &FILE_PATH) {
     std::ifstream file(FILE_PATH);
     if (!file.is_open()) {
-        throw std::runtime_error("Failed to open file: " + FILE_PATH);
+        throw std::runtime_error("Failed to open obj file: " + FILE_PATH);
     }
 
     std::string currentObjName = "base";
 
     baseVertices.clear();
+    baseNormals.clear();
+    baseTexCoords.clear();
     objIndicesMap.clear();
+
     std::string line;
 
     while (std::getline(file, line)) {
@@ -63,14 +127,43 @@ void ThreeDObj::getObjFile(const std::string &FILE_PATH) {
             glm::vec3 vertex;
             ss >> vertex.x >> vertex.y >> vertex.z;
             baseVertices.push_back(vertex);
-        } else if (prefix == "f" && currentObjName != "") {
-            std::vector<unsigned int> faceIndices;
+        } else if (prefix == "vn") {
+            glm::vec3 vertexNormal;
+            ss >> vertexNormal.x >> vertexNormal.y >> vertexNormal.z;
+            baseNormals.push_back(vertexNormal);
+        } else if (prefix == "vt") {
+            glm::vec2 texCoord;
+            ss >> texCoord.x >> texCoord.y;
+            baseTexCoords.push_back(texCoord);
+        } else if (prefix == "f" && currentObjName != "") { // f 처리
+            std::vector<IndexInfo> faceIndices;
             std::string vertexToken;
+
             while (ss >> vertexToken) {
                 std::stringstream tokenSS(vertexToken);
                 std::string indexStr;
+                IndexInfo indices;
+
+                // v
                 std::getline(tokenSS, indexStr, '/');
-                faceIndices.push_back(std::stoul(indexStr) - 1);
+                indices.v_index = std::stoul(indexStr) - 1;
+
+                // vt
+                std::getline(tokenSS, indexStr, '/');
+                if (!indexStr.empty()) {
+                    indices.vt_index = std::stoul(indexStr) - 1;
+                } else {
+                    indices.vt_index = 0;
+                }
+
+                std::getline(tokenSS, indexStr);
+                if (!indexStr.empty()) {
+                    indices.vn_index = std::stoul(indexStr) - 1;
+                } else {
+                    indices.vn_index = 0;
+                }
+
+                faceIndices.push_back(indices);
             }
 
             for (size_t i = 1; i < faceIndices.size() - 1; ++i) {
@@ -81,19 +174,20 @@ void ThreeDObj::getObjFile(const std::string &FILE_PATH) {
         }
     }
     file.close();
-    
+
     for (const auto &[key, value] : objIndicesMap) {
         Indices currentIndices = value;
-        glm::vec3 centerPos = glm::vec3(0.0,0.0,0.0);
+        glm::vec3 centerPos = glm::vec3(0.0, 0.0, 0.0);
         for (const auto &vIndex : currentIndices) {
-            centerPos += baseVertices[vIndex];
+            centerPos += baseVertices[vIndex.v_index];
         }
         centerPos /= currentIndices.size();
         objCenterMap.insert({key, centerPos});
     }
 
-    std::cout << "Loaded " << baseVertices.size() << " vertices, " << (objIndicesMap.size())
-              << " objects from " << FILE_PATH << std::endl;
+    std::cout << "Loaded " << baseVertices.size() << " vertices, " << baseTexCoords.size()
+              << " texture coordinates, "
+              << (objIndicesMap.size()) << " objects from " << FILE_PATH << std::endl;
 }
 
 void ThreeDObj::setColor(const glm::vec3 &color) {
@@ -109,23 +203,44 @@ void ThreeDObj::createMesh(const std::string &objName) {
         return;
     }
 
-    std::vector<float> vertexData;
-    vertexData.reserve(indices.size() * 6);
+    // Check if this is a sphere-like object (name contains "Sphere")
+    // For spheres, use vertex position as normal for smooth shading
+    bool useSmoothNormals = (objName.find("Sphere") != std::string::npos);
 
-    for (unsigned int index : indices) {
-        const glm::vec3 &vertex = baseVertices[index];
+    std::vector<float> vertexData;
+    vertexData.reserve(indices.size() * 8); // 3 pos + 3 norm + 2 tex
+
+    for (IndexInfo index : indices) {
+        const glm::vec3 &vertex = baseVertices[index.v_index];
+
+        glm::vec3 vertexNormal;
+        if (useSmoothNormals) {
+            // For spheres centered at origin, normal = normalized position
+            vertexNormal = glm::normalize(vertex);
+        } else {
+            vertexNormal = baseNormals[index.vn_index];
+        }
+
+        glm::vec2 texCoord(0.0f, 0.0f);
+        if (!baseTexCoords.empty() && index.vt_index < baseTexCoords.size()) {
+             texCoord = baseTexCoords[index.vt_index];
+        }
+
         vertexData.push_back(vertex.x);
         vertexData.push_back(vertex.y);
         vertexData.push_back(vertex.z);
-        vertexData.push_back(objectColor.x);
-        vertexData.push_back(objectColor.y);
-        vertexData.push_back(objectColor.z);
+        vertexData.push_back(vertexNormal.x);
+        vertexData.push_back(vertexNormal.y);
+        vertexData.push_back(vertexNormal.z);
+        vertexData.push_back(texCoord.x);
+        vertexData.push_back(texCoord.y);
     }
 
     auto mesh = std::make_unique<Mesh>();
     mesh->setData(vertexData.data(), vertexData.size() * sizeof(float), GL_STATIC_DRAW);
-    mesh->setAttribute(0, 3, GL_FLOAT, 6 * sizeof(float), (void*)0);
-    mesh->setAttribute(1, 3, GL_FLOAT, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+    mesh->setAttribute(0, 3, GL_FLOAT, 8 * sizeof(float), (void *)0);
+    mesh->setAttribute(1, 3, GL_FLOAT, 8 * sizeof(float), (void *)(3 * sizeof(float)));
+    mesh->setAttribute(3, 2, GL_FLOAT, 8 * sizeof(float), (void *)(6 * sizeof(float)));
     mesh->setDrawMode(GL_TRIANGLES, (GLsizei)indices.size());
 
     objMeshMap[objName] = std::move(mesh);
@@ -156,12 +271,23 @@ void ThreeDObj::draw(const std::string objName) {
 
     glm::mat4 projection = projectionStack.getTopMatrix();
     glm::mat4 modelView = modelViewStack.getTopMatrix();
+    glm::mat4 normalMat = modelViewStack.getTopNormal();
+    
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, textureID);
+    
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, normalMapID);
 
     drawMesh(*objMeshMap[objName], *g_shaderProgram, [&](const ShaderProgram& prog) {
         prog.setUniform("projection", projection);
         prog.setUniform("modelView", modelView);
+        prog.setUniform("normalMatrix", normalMat);
         prog.setUniform("objectColor", objectColor);
-        prog.setUniform("useVertexColor", 1.0f);
+        prog.setUniform("useVertexColor", 1.0f); // 1.0 to multiply texture by lighting (Gouraud) or pass-through
+        prog.setUniform("colorSampler", 0);
+        prog.setUniform("normalSampler", 1);
+        prog.setUniform("useTexture", 1.0f); 
     });
 
     modelViewStack.matPop();
@@ -192,9 +318,9 @@ glm::vec3 ThreeDObj::calculateCenter(const Indices &indices) {
         return centerPos;
 
     // 인덱스 다 더하기
-    for (const auto &vIndex : indices) {
-        if (vIndex < baseVertices.size()) {
-            centerPos += baseVertices[vIndex];
+    for (const auto &index : indices) {
+        if (index.v_index < baseVertices.size()) {
+            centerPos += baseVertices[index.v_index];
         }
     }
     return centerPos / (float)indices.size();
@@ -220,9 +346,9 @@ void ThreeDObj::findConnectedComponents(Indices &all_indices, const std::string 
 
     // 모서리-삼각형 맵
     for (size_t i = 0; i < num_tris; ++i) {
-        unsigned int v0 = all_indices[i * 3];
-        unsigned int v1 = all_indices[i * 3 + 1];
-        unsigned int v2 = all_indices[i * 3 + 2];
+        unsigned int v0 = all_indices[i * 3].v_index;
+        unsigned int v1 = all_indices[i * 3 + 1].v_index;
+        unsigned int v2 = all_indices[i * 3 + 2].v_index;
         edge_to_tri_map[make_edge(v0, v1)].push_back(i);
         edge_to_tri_map[make_edge(v1, v2)].push_back(i);
         edge_to_tri_map[make_edge(v2, v0)].push_back(i);
@@ -291,23 +417,30 @@ void ThreeDObj::splitObjectByZPlane(const std::string &objName, float z_plane) {
     Indices all_below_indices;
 
     // 정점 인덱스 pair -> 새로운 교차점 인덱스 만들기
-    std::map<std::pair<unsigned int, unsigned int>, unsigned int> intersection_cache;
+    std::map<std::pair<IndexInfo, IndexInfo>, IndexInfo> intersection_cache;
 
     // 교차점 생성/조회
-    auto get_or_create_intersection = [&](unsigned int idx1, unsigned int idx2) -> unsigned int {
-        std::pair<unsigned int, unsigned int> key =
-            (idx1 < idx2) ? std::make_pair(idx1, idx2) : std::make_pair(idx2, idx1);
-
+    auto get_or_create_intersection = [&](IndexInfo idx1, IndexInfo idx2) -> IndexInfo {
+        std::pair<IndexInfo, IndexInfo> key = (idx1.v_index < idx2.v_index) ? std::make_pair(idx1, idx2) : std::make_pair(idx2, idx1);
         if (intersection_cache.find(key) != intersection_cache.end()) {
             return intersection_cache[key];
         }
 
-        glm::vec3 v1 = baseVertices[idx1];
-        glm::vec3 v2 = baseVertices[idx2];
+        glm::vec3 v1 = baseVertices[idx1.v_index];
+        glm::vec3 v2 = baseVertices[idx2.v_index];
+        const glm::vec3 &n1 = baseNormals[idx1.vn_index];
+        const glm::vec3 &n2 = baseNormals[idx2.vn_index];
+
         glm::vec3 intersection_vert = intersectPlane(v1, v2, z_plane);
+        float t = (z_plane - v1.z) / (v2.z - v1.z);
+        glm::vec3 intersection_normal = glm::normalize(glm::mix(n1, n2, t));
 
         baseVertices.push_back(intersection_vert);
-        unsigned int new_index = baseVertices.size() - 1;
+        size_t new_v_index = baseVertices.size() - 1;
+
+        baseNormals.push_back(intersection_normal);
+        size_t new_vn_index = baseNormals.size() - 1;
+        IndexInfo new_index = IndexInfo(new_v_index, new_vn_index);
 
         intersection_cache[key] = new_index;
         return new_index;
@@ -315,9 +448,13 @@ void ThreeDObj::splitObjectByZPlane(const std::string &objName, float z_plane) {
 
     // 클리핑
     for (size_t i = 0; i < original_indices.size(); i += 3) {
-        unsigned int i0 = original_indices[i];
-        unsigned int i1 = original_indices[i + 1];
-        unsigned int i2 = original_indices[i + 2];
+        IndexInfo ii0 = original_indices[i];
+        IndexInfo ii1 = original_indices[i + 1];
+        IndexInfo ii2 = original_indices[i + 2];
+        
+        unsigned int i0 = ii0.v_index;
+        unsigned int i1 = ii1.v_index;
+        unsigned int i2 = ii2.v_index;
 
         glm::vec3 v0 = baseVertices[i0];
         glm::vec3 v1 = baseVertices[i1];
@@ -333,54 +470,54 @@ void ThreeDObj::splitObjectByZPlane(const std::string &objName, float z_plane) {
 
         // 모두 위인 trivial 케이스
         if (below_count == 0) {
-            all_above_indices.push_back(i0);
-            all_above_indices.push_back(i1);
-            all_above_indices.push_back(i2);
+            all_above_indices.push_back(ii0);
+            all_above_indices.push_back(ii1);
+            all_above_indices.push_back(ii2);
         }
         // 모두 아래인 trivial 케이스
         else if (above_count == 0) {
-            all_below_indices.push_back(i0);
-            all_below_indices.push_back(i1);
-            all_below_indices.push_back(i2);
+            all_below_indices.push_back(ii0);
+            all_below_indices.push_back(ii1);
+            all_below_indices.push_back(ii2);
         }
         // 클리핑이 필요한 케이스
         else {
             if (above_count == 1 || below_count == 1) {
                 bool single_is_above = (above_count == 1);
-                unsigned int i_solo, i_p1, i_p2;
+                IndexInfo i_solo, i_p1, i_p2;
 
                 if (single_is_above) {
                     if (z0 > EPSILON) {
-                        i_solo = i0;
-                        i_p1 = i1;
-                        i_p2 = i2;
+                        i_solo = ii0;
+                        i_p1 = ii1;
+                        i_p2 = ii2;
                     } else if (z1 > EPSILON) {
-                        i_solo = i1;
-                        i_p1 = i2;
-                        i_p2 = i0;
+                        i_solo = ii1;
+                        i_p1 = ii2;
+                        i_p2 = ii0;
                     } else {
-                        i_solo = i2;
-                        i_p1 = i0;
-                        i_p2 = i1;
+                        i_solo = ii2;
+                        i_p1 = ii0;
+                        i_p2 = ii1;
                     }
                 } else {
                     if (z0 < -EPSILON) {
-                        i_solo = i0;
-                        i_p1 = i1;
-                        i_p2 = i2;
+                        i_solo = ii0;
+                        i_p1 = ii1;
+                        i_p2 = ii2;
                     } else if (z1 < -EPSILON) {
-                        i_solo = i1;
-                        i_p1 = i2;
-                        i_p2 = i0;
+                        i_solo = ii1;
+                        i_p1 = ii2;
+                        i_p2 = ii0;
                     } else {
-                        i_solo = i2;
-                        i_p1 = i0;
-                        i_p2 = i1;
+                        i_solo = ii2;
+                        i_p1 = ii0;
+                        i_p2 = ii1;
                     }
                 }
 
-                unsigned int i_int1 = get_or_create_intersection(i_solo, i_p1);
-                unsigned int i_int2 = get_or_create_intersection(i_solo, i_p2);
+                IndexInfo i_int1 = get_or_create_intersection(i_solo, i_p1);
+                IndexInfo i_int2 = get_or_create_intersection(i_solo, i_p2);
 
                 if (single_is_above) {
                     // 위쪽이 작은 삼각형
@@ -567,99 +704,7 @@ void drawRectWithGlow(float x, float y, float width, float height, glm::fvec4 co
     drawMesh(mesh, *g_shaderProgram, [&](const ShaderProgram& prog) {
         prog.setUniform("projection", projection);
         prog.setUniform("modelView", modelView);
-        prog.setUniform("objectColor", glm::vec3(color.r, color.g, color.b));
+        prog.setUniform("objectColor", glm::vec3(1.0f, 1.0f, 1.0f)); // Use white so vertex color isn't tinted
         prog.setUniform("useVertexColor", 1.0f);
     });
-
-    /* === 기존 코드 (주석 처리) ===
-    float halfW = width / 2.0f;
-    float halfH = height / 2.0f;
-
-    // Draw outer glow quad (fully transparent at edges)
-    glBegin(GL_QUADS);
-
-    // Top edge glow
-    glColor4f(color.r, color.g, color.b, 0.0f);
-    glVertex3f(x - halfW - glowSize, y + halfH + glowSize, zDepth - 0.01f);
-    glVertex3f(x + halfW + glowSize, y + halfH + glowSize, zDepth - 0.01f);
-    glColor4f(color.r, color.g, color.b, color.a * 0.6f);
-    glVertex3f(x + halfW, y + halfH, zDepth - 0.01f);
-    glVertex3f(x - halfW, y + halfH, zDepth - 0.01f);
-
-    // Bottom edge glow
-    glColor4f(color.r, color.g, color.b, color.a * 0.6f);
-    glVertex3f(x - halfW, y - halfH, zDepth - 0.01f);
-    glVertex3f(x + halfW, y - halfH, zDepth - 0.01f);
-    glColor4f(color.r, color.g, color.b, 0.0f);
-    glVertex3f(x + halfW + glowSize, y - halfH - glowSize, zDepth - 0.01f);
-    glVertex3f(x - halfW - glowSize, y - halfH - glowSize, zDepth - 0.01f);
-
-    // Left edge glow
-    glColor4f(color.r, color.g, color.b, 0.0f);
-    glVertex3f(x - halfW - glowSize, y - halfH - glowSize, zDepth - 0.01f);
-    glVertex3f(x - halfW - glowSize, y + halfH + glowSize, zDepth - 0.01f);
-    glColor4f(color.r, color.g, color.b, color.a * 0.6f);
-    glVertex3f(x - halfW, y + halfH, zDepth - 0.01f);
-    glVertex3f(x - halfW, y - halfH, zDepth - 0.01f);
-
-    // Right edge glow
-    glColor4f(color.r, color.g, color.b, color.a * 0.6f);
-    glVertex3f(x + halfW, y - halfH, zDepth - 0.01f);
-    glVertex3f(x + halfW, y + halfH, zDepth - 0.01f);
-    glColor4f(color.r, color.g, color.b, 0.0f);
-    glVertex3f(x + halfW + glowSize, y + halfH + glowSize, zDepth - 0.01f);
-    glVertex3f(x + halfW + glowSize, y - halfH - glowSize, zDepth - 0.01f);
-
-    glEnd();
-
-    // Draw corner glows using triangle fans (smoother corners)
-    // Top-left corner
-    glBegin(GL_TRIANGLE_FAN);
-    glColor4f(color.r, color.g, color.b, color.a * 0.6f);
-    glVertex3f(x - halfW, y + halfH, zDepth - 0.01f);
-    glColor4f(color.r, color.g, color.b, 0.0f);
-    glVertex3f(x - halfW - glowSize, y + halfH, zDepth - 0.01f);
-    glVertex3f(x - halfW - glowSize * 0.7f, y + halfH + glowSize * 0.7f, zDepth - 0.01f);
-    glVertex3f(x - halfW, y + halfH + glowSize, zDepth - 0.01f);
-    glEnd();
-
-    // Top-right corner
-    glBegin(GL_TRIANGLE_FAN);
-    glColor4f(color.r, color.g, color.b, color.a * 0.6f);
-    glVertex3f(x + halfW, y + halfH, zDepth - 0.01f);
-    glColor4f(color.r, color.g, color.b, 0.0f);
-    glVertex3f(x + halfW, y + halfH + glowSize, zDepth - 0.01f);
-    glVertex3f(x + halfW + glowSize * 0.7f, y + halfH + glowSize * 0.7f, zDepth - 0.01f);
-    glVertex3f(x + halfW + glowSize, y + halfH, zDepth - 0.01f);
-    glEnd();
-
-    // Bottom-left corner
-    glBegin(GL_TRIANGLE_FAN);
-    glColor4f(color.r, color.g, color.b, color.a * 0.6f);
-    glVertex3f(x - halfW, y - halfH, zDepth - 0.01f);
-    glColor4f(color.r, color.g, color.b, 0.0f);
-    glVertex3f(x - halfW, y - halfH - glowSize, zDepth - 0.01f);
-    glVertex3f(x - halfW - glowSize * 0.7f, y - halfH - glowSize * 0.7f, zDepth - 0.01f);
-    glVertex3f(x - halfW - glowSize, y - halfH, zDepth - 0.01f);
-    glEnd();
-
-    // Bottom-right corner
-    glBegin(GL_TRIANGLE_FAN);
-    glColor4f(color.r, color.g, color.b, color.a * 0.6f);
-    glVertex3f(x + halfW, y - halfH, zDepth - 0.01f);
-    glColor4f(color.r, color.g, color.b, 0.0f);
-    glVertex3f(x + halfW + glowSize, y - halfH, zDepth - 0.01f);
-    glVertex3f(x + halfW + glowSize * 0.7f, y - halfH - glowSize * 0.7f, zDepth - 0.01f);
-    glVertex3f(x + halfW, y - halfH - glowSize, zDepth - 0.01f);
-    glEnd();
-
-    // Draw main rectangle
-    glBegin(GL_QUADS);
-    glColor4f(color.r, color.g, color.b, color.a);
-    glVertex3f(x - halfW, y - halfH, zDepth);
-    glVertex3f(x + halfW, y - halfH, zDepth);
-    glVertex3f(x + halfW, y + halfH, zDepth);
-    glVertex3f(x - halfW, y + halfH, zDepth);
-    glEnd();
-    */
 }

@@ -1,4 +1,4 @@
-﻿#include "utils.hpp"
+#include "utils.hpp"
 #include "base.hpp"
 #include "graphics.hpp"
 
@@ -19,17 +19,26 @@ MatrixStack projectionStack;
 enum ProjMethod { DIAG_PERSPECTIVE, TOP_PERSPECTIVE, TOP_PARALLEL };
 ProjMethod currentProjMethod = DIAG_PERSPECTIVE;
 
-enum RenderMode { OPAQUE_POLYGON, WIREFRAME, WIREFRAME_HIDDEN_LINE };
-RenderMode currentRenderMode = OPAQUE_POLYGON;
+enum ShadingStyle { GOURAUD, PHONG, PHONG_WITH_NORMAL };
+ShadingStyle currentShadingStyle = GOURAUD;
 
-int keyPressDelay = 0;          // For projection method changes ('c' key)
-int renderModeKeyDelay = 0;     // For render mode changes ('e' key)
+int keyPressDelay = 0;
+int renderModeKeyDelay = 0;
 
 float playerSpeedBase = 0.00065f;
 bool isCameraShake = false;
 int cameraShakeStartTime = 0;
 bool keyStates[256] = {false};
 void showVictoryScreen(const GameState &gameState);
+
+// Global Shader Programs
+std::unique_ptr<ShaderProgram> programGouraud;
+std::unique_ptr<ShaderProgram> programPhong;
+std::unique_ptr<ShaderProgram> programPhongN;
+std::unique_ptr<ShaderProgram> programSimple;
+
+// Global Shader Program Pointer (used by objects)
+ShaderProgram* g_shaderProgram = nullptr;
 
 void startCameraShake(int currentTime) {
     isCameraShake = true;
@@ -49,7 +58,6 @@ glm::fvec2 cameraShake(int currentTime) {
 
 GameState gameState(5, 200);
 
-// 코나미 커맨드: ↑↑↓↓←→←→BA
 CommandExecutor commandExecutor({'w', 'w', 's', 's', 'a', 'd', 'a', 'd', 'b', 'a'},
                                 [](GameState &gameState) {
                                     if (gameState.playerObject.isDying)
@@ -98,27 +106,31 @@ float smoothProjZDistChange() {
     }
 }
 
+void setupLights(ShaderProgram& program) {
+    program.use();
+    // Assuming numLights is used, but we loop MAX_LIGHTS in shader with 'enabled' check
+    // program.setUniform("numLights", (int)gameState.lights.size()); 
+    
+    for (size_t i = 0; i < gameState.lights.size(); ++i) {
+        gameState.lights[i]->setUniforms(program, (int)i);
+    }
+}
+
 void display() {
-    // 설정 값
     const float SCALE = currentProjMethod == DIAG_PERSPECTIVE
         ? 3.0 : smoothProjScaleChange();
     const float CAMERA_ANGLE_X_DEG = currentProjMethod == DIAG_PERSPECTIVE
-        ? 50.0f : smoothProjRotChange(); // 카메라 회전 각도
+        ? 50.0f : smoothProjRotChange(); 
     const float Z_DIST_VIEW = currentProjMethod == DIAG_PERSPECTIVE
-        ? -0.5f : smoothProjZDistChange(); // 뷰 공간(View Space)에서의 목표 Z 거리
+        ? -0.5f : smoothProjZDistChange(); 
 
-    // 참고: 플레이어와 뷰의 거리가 SCALE/2가 되어야 TOP_PERSPECTIVE -> TOP_PARALLEL 변환 시에 위화감이 없다.
     const float ANGLE_RAD = (float)(CAMERA_ANGLE_X_DEG * (std::numbers::pi / 180.0f));
-    
-    // Y 보정값
     const float Y_COMPENSATION = (std::tan(ANGLE_RAD) * std::abs(Z_DIST_VIEW)) / SCALE;
-
-    // glTranslatef에 쓸 Z 거리. 결과가 Z_DIST_VIEW가 되도록 역산
     const float Z_TRANSLATE = Z_DIST_VIEW / std::cos(ANGLE_RAD) / SCALE;
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    // 3D 투영
+    // 3D Projection
     projectionStack.loadIdentity();
     glm::mat4 projection;
     if (currentProjMethod == TOP_PARALLEL) {
@@ -130,7 +142,7 @@ void display() {
 
     modelViewStack.loadIdentity();
 
-    // Helper lambda to draw skybox
+    // Skybox
     auto drawSkybox = [&]() {
         modelViewStack.matPush();
         modelViewStack.rotate(-CAMERA_ANGLE_X_DEG, 1.0f, 0.0f, 0.0f);
@@ -138,99 +150,63 @@ void display() {
         modelViewStack.matPop();
     };
 
-    // Set polygon mode and draw skybox based on current render mode
-    if (currentRenderMode == WIREFRAME_HIDDEN_LINE) {
-        // First pass for skybox: depth only
-        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-        glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
-        glEnable(GL_POLYGON_OFFSET_FILL);
-        glPolygonOffset(1.0f, 1.0f);
-        drawSkybox();
-        glDisable(GL_POLYGON_OFFSET_FILL);
-        glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    drawSkybox();
 
-        // Second pass for skybox: wireframe
-        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-        glLineWidth(1.5f);
-        drawSkybox();
-    } else {
-        // Normal rendering for skybox
-        if (currentRenderMode == OPAQUE_POLYGON) {
-            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-        } else if (currentRenderMode == WIREFRAME) {
-            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-            glLineWidth(1.5f);
-        }
-        drawSkybox();
-    }
-
-    // Now apply full camera transform for other objects
+    // 3D Objects View Transform
     modelViewStack.matPush();
-
     glm::fvec2 &cbo = gameState.cameraBaseOffset;
-    modelViewStack.rotate(-CAMERA_ANGLE_X_DEG, 1.0f, 0.0f, 0.0f); // perspective view
+    modelViewStack.rotate(-CAMERA_ANGLE_X_DEG, 1.0f, 0.0f, 0.0f); 
     modelViewStack.scale(SCALE, SCALE, SCALE);
     modelViewStack.translate(-cbo.x, -cbo.y + Y_COMPENSATION, Z_TRANSLATE);
     modelViewStack.translate(-gameState.cameraShakeOffset.x, -gameState.cameraShakeOffset.y, 0.0f);
 
-    // Helper lambda to draw polygon-based 3D objects (excluding Background which uses GL_LINES)
-    auto drawPolygonObjects = [&]() {
-        for (auto &particle : gameState.trailParticles) {
-            particle.draw(gameState);
-        }
-        for (auto &object : gameState.enemyBulletObjects) {
-            object.draw(gameState);
-        }
-        for (auto &object : gameState.playerBulletObjects) {
-            object.draw(gameState);
-        }
-        gameState.bossObject1.draw(gameState);
-        gameState.bossObject2.draw(gameState);
-        gameState.playerObject.draw(gameState);
-    };
+    // 1. Draw Unlit Objects (Background, Particles)
+    g_shaderProgram = programSimple.get();
+    gameState.backgroundObject.draw(gameState);
 
-    // Render based on current mode
-    if (currentRenderMode == WIREFRAME_HIDDEN_LINE) {
-        // First pass: Render filled polygons to depth buffer only (no color)
-        // This establishes which surfaces are visible
-        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-        glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE); // Don't write to color buffer
-        glEnable(GL_POLYGON_OFFSET_FILL);
-        glPolygonOffset(1.0f, 1.0f); // Push filled polygons back slightly
-        drawPolygonObjects();
-        glDisable(GL_POLYGON_OFFSET_FILL);
-        glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE); // Re-enable color writing
+    // Trail particles (Uncomment if you want them)
+    // for (auto &particle : gameState.trailParticles) { particle.draw(gameState); }
 
-        // Second pass: Render wireframe with depth test
-        // Only visible edges will be drawn based on depth buffer from first pass
-        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-        glLineWidth(1.5f);
-        drawPolygonObjects();
+    // 2. Draw Lit Objects (Player, Boss, Bullets)
+    glDisable(GL_BLEND);
 
-        // Draw background separately (it uses GL_LINES, not affected by polygon mode)
-        gameState.backgroundObject.draw(gameState);
-    } else {
-        // Normal rendering (OPAQUE_POLYGON or WIREFRAME)
-        if (currentRenderMode == OPAQUE_POLYGON) {
-            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-        } else if (currentRenderMode == WIREFRAME) {
-            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-            glLineWidth(1.5f);
-        }
-        drawPolygonObjects();
-        gameState.backgroundObject.draw(gameState);
+    switch (currentShadingStyle) {
+    case GOURAUD:
+        g_shaderProgram = programGouraud.get();
+        break;
+    case PHONG:
+        g_shaderProgram = programPhong.get();
+        break;
+    case PHONG_WITH_NORMAL:
+        g_shaderProgram = programPhongN.get();
+        break;
     }
+    setupLights(*g_shaderProgram);
 
-    modelViewStack.matPop(); // 3D 뷰 매트릭스 제거
+    for (auto &object : gameState.enemyBulletObjects) {
+        object.draw(gameState);
+    }
+    for (auto &object : gameState.playerBulletObjects) {
+        object.draw(gameState);
+    }
+    gameState.bossObject1.draw(gameState);
+    gameState.bossObject2.draw(gameState);
+    gameState.playerObject.draw(gameState);
 
-    // 2D 투영
+    modelViewStack.matPop(); 
+
+    // 2D Projection (UI)
     projectionStack.loadIdentity();
     projectionStack.matMul(glm::ortho(-1.0, 1.0, -1.0, 1.0, -1.0, 1.0));
 
-    // Always render 2D UI in fill mode
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
     modelViewStack.loadIdentity();
+    
+    // UI uses simple shader
+    g_shaderProgram = programSimple.get();
+    
     gameState.bossHealthBarObject.draw(gameState);
     gameState.heartsObject.draw(gameState);
 
@@ -271,34 +247,34 @@ void keyInputUpdate(int dt) {
         switch (currentProjMethod) {
         case DIAG_PERSPECTIVE:
             currentProjMethod = TOP_PERSPECTIVE;
-            std::cout << "\'top perspective\'" << std::endl;
+            std::cout << "'top perspective'" << std::endl;
             break;
         case TOP_PERSPECTIVE:
             currentProjMethod = TOP_PARALLEL;
-            std::cout << "\'top parallel\'" << std::endl;
+            std::cout << "'top parallel'" << std::endl;
             break;
         case TOP_PARALLEL:
             currentProjMethod = DIAG_PERSPECTIVE;
-            std::cout << "\'diagonal perspective\'" << std::endl;
+            std::cout << "'diagonal perspective'" << std::endl;
             break;
         }
     }
 
     if (keyStates['e'] && renderModeKeyDelay + 500 < now) {
         renderModeKeyDelay = now;
-        std::cout << "Change render mode to ";
-        switch (currentRenderMode) {
-        case OPAQUE_POLYGON:
-            currentRenderMode = WIREFRAME;
-            std::cout << "\'wireframe\'" << std::endl;
+        std::cout << "Change shading style to ";
+        switch (currentShadingStyle) {
+        case GOURAUD:
+            currentShadingStyle = PHONG;
+            std::cout << "'phong without normal map'" << std::endl;
             break;
-        case WIREFRAME:
-            currentRenderMode = WIREFRAME_HIDDEN_LINE;
-            std::cout << "\'wireframe with hidden line removal\'" << std::endl;
+        case PHONG:
+            currentShadingStyle = PHONG_WITH_NORMAL;
+            std::cout << "'phong with normal map'" << std::endl;
             break;
-        case WIREFRAME_HIDDEN_LINE:
-            currentRenderMode = OPAQUE_POLYGON;
-            std::cout << "\'opaque polygon\'" << std::endl;
+        case PHONG_WITH_NORMAL:
+            currentShadingStyle = GOURAUD;
+            std::cout << "'gouraud'" << std::endl;
             break;
         }
     }
@@ -352,39 +328,41 @@ void timer(int) {
 }
 
 void reshape(int width, int height) {
-    if (width != 800 || height != 800) {
-        glutReshapeWindow(800, 800);
-    }
-    glViewport(0, 0, 800, 800);
+    glViewport(0, 0, width, height);
 }
 
-// Core profile용 셰이더 프로그램 (전역)
-ShaderProgram* g_shaderProgram = nullptr;
-
-// 셰이더 초기화 함수
 void initShaders() {
     try {
-        // Vertex shader 생성
-        Shader vertShader = Shader::fromSource(
-            Shader::Type::VERTEX,
-            ShaderSources::vertexShaderSource
-        );
+        std::cout << "Loading Simple Shader...\n";
+        programSimple = std::make_unique<ShaderProgram>();
+        programSimple->attachShader(Shader::fromSource(Shader::Type::VERTEX, shaders::SIMPLE_VERT_SHADER));
+        programSimple->attachShader(Shader::fromSource(Shader::Type::FRAGMENT, shaders::BASE_FRAG_SHADER));
+        programSimple->link();
 
-        // Fragment shader 생성
-        Shader fragShader = Shader::fromSource(
-            Shader::Type::FRAGMENT,
-            ShaderSources::fragmentShaderSource
-        );
+        std::cout << "Loading Gouraud Shader...\n";
+        programGouraud = std::make_unique<ShaderProgram>();
+        programGouraud->attachShader(Shader::fromSource(Shader::Type::VERTEX, shaders::GOURAUD_VERT_SHADER));
+        programGouraud->attachShader(Shader::fromSource(Shader::Type::FRAGMENT, shaders::BASE_FRAG_SHADER));
+        programGouraud->link();
 
-        // 셰이더 프로그램 생성 및 링크
-        g_shaderProgram = new ShaderProgram();
-        g_shaderProgram->attachShader(vertShader);
-        g_shaderProgram->attachShader(fragShader);
-        g_shaderProgram->link();
+        std::cout << "Loading Phong Shader...\n";
+        programPhong = std::make_unique<ShaderProgram>();
+        programPhong->attachShader(Shader::fromSource(Shader::Type::VERTEX, shaders::PHONG_VERT_SHADER));
+        programPhong->attachShader(Shader::fromSource(Shader::Type::FRAGMENT, shaders::PHONG_FRAG_SHADER));
+        programPhong->link();
+
+        std::cout << "Loading PhongN Shader...\n";
+        programPhongN = std::make_unique<ShaderProgram>();
+        programPhongN->attachShader(Shader::fromSource(Shader::Type::VERTEX, shaders::PHONG_VERT_SHADER));
+        programPhongN->attachShader(Shader::fromSource(Shader::Type::FRAGMENT, shaders::PHONGN_FRAG_SHADER));
+        programPhongN->link();
 
         std::cout << "Shaders initialized successfully\n";
     } catch (const std::exception& e) {
         std::cerr << "Shader initialization failed: " << e.what() << '\n';
+        // Pause to let user see the error if running from IDE
+        std::cout << "Press Enter to exit...";
+        std::cin.get();
         std::exit(1);
     }
 }
@@ -404,6 +382,25 @@ int main(int argc, char **argv) {
 
     // 셰이더 초기화
     initShaders();
+
+    // Lights
+    // Directional (Sun-like)
+    gameState.lights.push_back(std::make_shared<DirectionalLightSource>(
+        glm::vec3(0.15f, 0.15f, 0.15f), // Ambient
+        glm::vec3(0.7f, 0.7f, 0.7f),    // Diffuse
+        glm::vec3(0.8f, 0.8f, 0.8f),    // Specular
+        1.0f,                           // Intensity
+        glm::vec3(-0.5f, -1.0f, -0.5f)  // Direction
+    ));
+
+    // Point Light (e.g. glowing projectile or center light)
+    gameState.lights.push_back(std::make_shared<PointLightSource>(
+        glm::vec3(0.0f, 0.0f, 0.0f),    // Ambient
+        glm::vec3(0.8f, 0.8f, 0.8f),    // Diffuse (White)
+        glm::vec3(0.7f, 0.7f, 0.7f),    // Specular
+        1.5f,                           // Intensity
+        glm::vec3(0.0f, 0.0f, 0.5f)     // Position (Above player start)
+    ));
 
     glEnable(GL_DEPTH_TEST);
 

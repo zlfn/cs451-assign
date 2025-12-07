@@ -1,6 +1,10 @@
 #include "base.hpp"
 
-ThreeDObj bossObj = ThreeDObj("assets/drone.obj", glm::fvec3(0.0, 1.0, 0.0));
+ThreeDObj& getBossObj() {
+    static ThreeDObj obj("assets/drone.obj", "assets/diffuse_starship.png",
+                              "assets/normal_industrial.png", glm::fvec3(0.0, 1.0, 0.0));
+    return obj;
+}
 
 Boss::Boss(glm::fvec2 initialPosition, int id)
     : currentPosition(initialPosition), currentMove(idleBossMove(initialPosition, 0)), bossId(id) {}
@@ -63,18 +67,18 @@ void Boss::startDeathAnimation(int currentTime) {
         return;
     isDying = true;
     deathStartTime = currentTime;
-    bossObj.splitObjectByZPlane("Body");
+    getBossObj().splitObjectByZPlane("Body");
 }
 
 void bossDrawPropeller(const std::string objName, const float DT, const float speed) {
     const float SCALE = 1.5;
-    glm::vec3 ct = bossObj.objCenterMap[objName];
+    glm::vec3 ct = getBossObj().objCenterMap[objName];
     modelViewStack.matPush();
     modelViewStack.translate(ct.x, ct.y, ct.z);
     modelViewStack.rotate(DT * 360.0 * speed, 0.0, 1.0, 0.0);
     modelViewStack.scale(SCALE, SCALE, SCALE);
     modelViewStack.translate(-ct.x, -ct.y, -ct.z);
-    bossObj.draw(objName);
+    getBossObj().draw(objName);
     modelViewStack.matPop();
 }
 
@@ -84,21 +88,18 @@ void Boss::draw(const GameState &gameState) {
     const int NOW_MS = glutGet(GLUT_ELAPSED_TIME);
     const float DT = static_cast<float>(NOW_MS - deathStartTime) * 0.001f;
 
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
     modelViewStack.matPush();
     modelViewStack.translate(currentPosition.x, currentPosition.y, 0.f);
     modelViewStack.scale(SIZE, SIZE, SIZE);
     modelViewStack.rotate(90.0, 1.0, 0.0, 0.0);
     if (isDying) {
-        bossObj.separate(0.001);
-        bossObj.drawAll();
-        
+        getBossObj().separate(0.001);
+        getBossObj().drawAll();
+
     }
     else {
-        bossObj.draw("Body");
-        bossObj.draw("Cube.002");
+        getBossObj().draw("Body");
+        getBossObj().draw("Cube.002");
 
         bossDrawPropeller("Rotor_FL", DT, 3.0);
         bossDrawPropeller("Rotor_FR", DT, -3.0);
@@ -107,7 +108,6 @@ void Boss::draw(const GameState &gameState) {
     }
 
     modelViewStack.matPop();
-    glDisable(GL_BLEND);
 }
 
 CollisionShape Boss::getShape() const {
