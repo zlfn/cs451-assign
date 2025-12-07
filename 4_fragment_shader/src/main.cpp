@@ -410,7 +410,9 @@ void display() {
     }
 
     glutSwapBuffers();
-    glutPostRedisplay();
+    if (!motionBlurEnabled) {
+        glutPostRedisplay();
+    }
 }
 
 void keyInputUpdate(int dt) {
@@ -571,7 +573,8 @@ void timer(int) {
 
     commandExecutor.update(now, gameState);
 
-    glutTimerFunc(16, timer, 0);
+    glutPostRedisplay();
+    glutTimerFunc(motionBlurEnabled ? 30 : 16, timer, 0);
 }
 
 void reshape(int width, int height) {
