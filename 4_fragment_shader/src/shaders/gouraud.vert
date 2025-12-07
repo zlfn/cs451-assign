@@ -63,8 +63,14 @@ uniform mat4 normalMatrix;
 uniform float useTexture; // To determine if we use texture or objectColor for base color
 uniform float shiness; // Optional, or hardcode
 
+// Environment reflection
+uniform samplerCube environmentMap;
+uniform float reflectivity;
+uniform mat4 inverseViewMatrix;
+
 out vec3 fragColor;
 out vec2 fragTexCoord;
+out vec3 envReflection;
 
 void main() {
     vec4 pos_VS = modelView * vec4(position, 1.0);
@@ -159,7 +165,12 @@ void main() {
     
     fragTexCoord = texCoord;
     gl_Position = projection * pos_VS;
-    
+
     // Hack for now: Add specular to fragColor. It will be tinted by texture.
     fragColor += totalSpecular;
+
+    // Environment reflection (per-vertex)
+    vec3 reflectDir_VS = reflect(-viewVec_VS, normal_VS);
+    vec3 reflectDir_WS = mat3(inverseViewMatrix) * reflectDir_VS;
+    envReflection = texture(environmentMap, reflectDir_WS).rgb * reflectivity;
 }

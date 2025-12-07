@@ -22,6 +22,11 @@ uniform float useTexture;
 uniform sampler2D colorSampler;
 uniform sampler2D normalSampler;
 
+// Environment reflection
+uniform samplerCube environmentMap;
+uniform float reflectivity; // 0.0 ~ 1.0
+uniform mat4 inverseViewMatrix;
+
 in vec3 vertPosition_VS;
 in vec3 vertNormal_VS;
 in vec2 vertTexCoord;
@@ -116,6 +121,13 @@ void main() {
         totalSpecular += lightSpecular * spec * intensity * attenuation;
     }
 
-    vec3 result = (totalAmbient + totalDiffuse) * texColor.rgb + totalSpecular;
+    // Environment reflection
+    vec3 reflectDir_VS = reflect(-V_VS, normal_VS);
+    vec3 reflectDir_WS = mat3(inverseViewMatrix) * reflectDir_VS;
+    vec3 envColor = texture(environmentMap, reflectDir_WS).rgb;
+
+    // Combine with environment reflection
+    vec3 baseColor = (totalAmbient + totalDiffuse) * texColor.rgb + totalSpecular;
+    vec3 result = mix(baseColor, envColor, reflectivity);
     finalColor = vec4(result, texColor.a);
 }

@@ -15,6 +15,7 @@ class Skybox {
 
     bool load(const std::string &directory);
     void draw(const GameState &gameState);
+    GLuint getTextureID() const { return textureID_; }
 
   private:
     GLuint textureID_;

@@ -1,6 +1,7 @@
 #version 430 core
 in vec3 fragColor;
 in vec2 fragTexCoord;
+in vec3 envReflection;
 out vec4 color;
 
 uniform vec3 objectColor;
@@ -23,7 +24,9 @@ void main() {
         // Result = baseColor * fragColor?
         // Wait, fragColor in Gouraud is light intensity.
         // So:
-        color = vec4(baseColor.rgb * fragColor, baseColor.a);
+        vec3 litColor = baseColor.rgb * fragColor;
+        // Add environment reflection
+        color = vec4(litColor + envReflection, baseColor.a);
     } else {
         // Flat color mode (e.g. lines)
         color = baseColor;

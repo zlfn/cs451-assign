@@ -114,14 +114,24 @@ float smoothProjZDistChange() {
     }
 }
 
-void setupLights(ShaderProgram& program) {
+void setupLights(ShaderProgram& program, const glm::mat4& viewMatrix) {
     program.use();
     // Assuming numLights is used, but we loop MAX_LIGHTS in shader with 'enabled' check
-    // program.setUniform("numLights", (int)gameState.lights.size()); 
-    
+    // program.setUniform("numLights", (int)gameState.lights.size());
+
     for (size_t i = 0; i < gameState.lights.size(); ++i) {
         gameState.lights[i]->setUniforms(program, (int)i);
     }
+
+    // Environment reflection setup
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, gameState.skyboxObject.getTextureID());
+    program.setUniform("environmentMap", 2);
+    program.setUniform("reflectivity", 0.3f);
+
+    // Pass inverse view matrix for world-space reflection
+    glm::mat4 inverseView = glm::inverse(viewMatrix);
+    program.setUniform("inverseViewMatrix", inverseView);
 }
 
 void display() {
@@ -195,7 +205,8 @@ void display() {
         g_shaderProgram = programPhongN.get();
         break;
     }
-    setupLights(*g_shaderProgram);
+    glm::mat4 currentViewMatrix = modelViewStack.getTopMatrix();
+    setupLights(*g_shaderProgram, currentViewMatrix);
 
     for (auto &object : gameState.enemyBulletObjects) {
         object.draw(gameState);
