@@ -288,6 +288,25 @@ void keyInputUpdate(int dt) {
     }
 }
 
+void updateOrbitingLight(int currentTime) {
+    // Point light (index 1) orbits around the player
+    if (gameState.lights.size() > 1) {
+        auto* pointLight = dynamic_cast<PointLightSource*>(gameState.lights[1].get());
+        if (pointLight) {
+            float orbitRadius = 0.5f;
+            float orbitSpeed = 0.002f; // radians per ms
+            float angle = currentTime * orbitSpeed;
+
+            glm::fvec2 playerPos = gameState.playerObject.currentPosition;
+            float x = playerPos.x + orbitRadius * std::cos(angle);
+            float y = playerPos.y + orbitRadius * std::sin(angle);
+            float z = 0.3f; // height above the plane
+
+            pointLight->position = glm::vec3(x, y, z);
+        }
+    }
+}
+
 void timer(int) {
     int now = glutGet(GLUT_ELAPSED_TIME);
     static int lastMs = now;
@@ -303,6 +322,9 @@ void timer(int) {
     if (isCameraShake) {
         gameState.cameraShakeOffset = cameraShake(now);
     }
+
+    // Update orbiting light position
+    updateOrbitingLight(now);
 
     int dt = now - lastMs;
     lastMs = now;
