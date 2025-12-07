@@ -1,8 +1,6 @@
 #include "base.hpp"
 #include "utils.hpp"
 #include "graphics.hpp"
-
-#define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
 MatrixStack::MatrixStack() { stack.push_back(glm::identity<glm::mat4x4>()); }
@@ -52,69 +50,51 @@ ThreeDObj::ThreeDObj(const std::string &FILE_PATH, const std::string &TEXTURE_PA
 }
 
 void ThreeDObj::getFragInfo(const std::string &TEXTURE_PATH, const std::string &NORMAL_PATH) {
-    std::ifstream tfile(TEXTURE_PATH);
-    if (!tfile.is_open()) {
-        throw std::runtime_error("Failed to open texture file: " + TEXTURE_PATH);
-    }
-    
+    // Load diffuse/color texture
     int tWidth, tHeight, tNrChannels;
     unsigned char *tData = stbi_load(TEXTURE_PATH.c_str(), &tWidth, &tHeight, &tNrChannels, 0);
 
     if (tData) {
-        // 텍스처 객체 생성 및 바인딩
         glGenTextures(1, &textureID);
         glBindTexture(GL_TEXTURE_2D, textureID);
 
-        // 텍스처 파라미터 설정 (필터링 및 래핑)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-        // 채널 수에 따른 포맷 결정
         GLenum format = (tNrChannels == 4) ? GL_RGBA : GL_RGB;
-
-        // 텍스처 데이터 GPU로 전송
         glTexImage2D(GL_TEXTURE_2D, 0, format, tWidth, tHeight, 0, format, GL_UNSIGNED_BYTE, tData);
         glGenerateMipmap(GL_TEXTURE_2D);
+
+        std::cout << "Loaded diffuse texture: " << TEXTURE_PATH << " (" << tWidth << "x" << tHeight << ")\n";
+        stbi_image_free(tData);
     } else {
-        std::cerr << "Texture failed to load at path: " << TEXTURE_PATH << std::endl;
-    }
-    stbi_image_free(tData);
-
-    std::cout << "Successfully loaded Color/Diffuse Texture: " << TEXTURE_PATH << std::endl;
-
-    std::ifstream nfile(NORMAL_PATH);
-    if (!nfile.is_open()) {
-        throw std::runtime_error("Failed to open normal file: " + NORMAL_PATH);
+        std::cerr << "FAILED to load diffuse texture: " << TEXTURE_PATH << " - " << stbi_failure_reason() << std::endl;
     }
 
+    // Load normal map texture
     int nWidth, nHeight, nNrChannels;
     unsigned char *nData = stbi_load(NORMAL_PATH.c_str(), &nWidth, &nHeight, &nNrChannels, 0);
 
     if (nData) {
-        // 텍스처 객체 생성 및 바인딩
         glGenTextures(1, &normalMapID);
         glBindTexture(GL_TEXTURE_2D, normalMapID);
 
-        // 텍스처 파라미터 설정 (필터링 및 래핑)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-        // 채널 수에 따른 포맷 결정
         GLenum format = (nNrChannels == 4) ? GL_RGBA : GL_RGB;
-
-        // 텍스처 데이터 GPU로 전송
         glTexImage2D(GL_TEXTURE_2D, 0, format, nWidth, nHeight, 0, format, GL_UNSIGNED_BYTE, nData);
         glGenerateMipmap(GL_TEXTURE_2D);
-    } else {
-        std::cerr << "Normal Map failed to load at path: " << NORMAL_PATH << std::endl;
-    }
-    stbi_image_free(nData);
 
-    std::cout << "Successfully loaded Normal Map Texture: " << NORMAL_PATH << std::endl;
+        std::cout << "Loaded normal map: " << NORMAL_PATH << " (" << nWidth << "x" << nHeight << ")\n";
+        stbi_image_free(nData);
+    } else {
+        std::cerr << "FAILED to load normal map: " << NORMAL_PATH << " - " << stbi_failure_reason() << std::endl;
+    }
 
     glBindTexture(GL_TEXTURE_2D, 0);
 }
@@ -223,13 +203,24 @@ void ThreeDObj::createMesh(const std::string &objName) {
         return;
     }
 
+    // Check if this is a sphere-like object (name contains "Sphere")
+    // For spheres, use vertex position as normal for smooth shading
+    bool useSmoothNormals = (objName.find("Sphere") != std::string::npos);
+
     std::vector<float> vertexData;
     vertexData.reserve(indices.size() * 8); // 3 pos + 3 norm + 2 tex
 
     for (IndexInfo index : indices) {
         const glm::vec3 &vertex = baseVertices[index.v_index];
-        const glm::vec3 &vertexNormal = baseNormals[index.vn_index];
-        
+
+        glm::vec3 vertexNormal;
+        if (useSmoothNormals) {
+            // For spheres centered at origin, normal = normalized position
+            vertexNormal = glm::normalize(vertex);
+        } else {
+            vertexNormal = baseNormals[index.vn_index];
+        }
+
         glm::vec2 texCoord(0.0f, 0.0f);
         if (!baseTexCoords.empty() && index.vt_index < baseTexCoords.size()) {
              texCoord = baseTexCoords[index.vt_index];

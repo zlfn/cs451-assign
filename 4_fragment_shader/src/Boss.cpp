@@ -2,7 +2,7 @@
 
 ThreeDObj& getBossObj() {
     static ThreeDObj obj("assets/drone.obj", "assets/diffuse_starship.png",
-                              "assets/normal_flat.png", glm::fvec3(0.0, 1.0, 0.0));
+                              "assets/normal_industrial.png", glm::fvec3(0.0, 1.0, 0.0));
     return obj;
 }
 
@@ -88,9 +88,6 @@ void Boss::draw(const GameState &gameState) {
     const int NOW_MS = glutGet(GLUT_ELAPSED_TIME);
     const float DT = static_cast<float>(NOW_MS - deathStartTime) * 0.001f;
 
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
     modelViewStack.matPush();
     modelViewStack.translate(currentPosition.x, currentPosition.y, 0.f);
     modelViewStack.scale(SIZE, SIZE, SIZE);
@@ -98,7 +95,7 @@ void Boss::draw(const GameState &gameState) {
     if (isDying) {
         getBossObj().separate(0.001);
         getBossObj().drawAll();
-        
+
     }
     else {
         getBossObj().draw("Body");
@@ -111,7 +108,6 @@ void Boss::draw(const GameState &gameState) {
     }
 
     modelViewStack.matPop();
-    glDisable(GL_BLEND);
 }
 
 CollisionShape Boss::getShape() const {

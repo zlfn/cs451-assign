@@ -1,6 +1,7 @@
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 #include "Skybox.hpp"
 #include "base.hpp"
-#include "stb_image.h"
 #include <iostream>
 #include <glm/gtc/type_ptr.hpp>
 
@@ -63,6 +64,7 @@ bool Skybox::load(const std::string &directory) {
     glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 
     loaded_ = true;
+    std::cout << "Skybox: Loaded successfully, textureID=" << textureID_ << "\n";
     return true;
 }
 
@@ -129,7 +131,7 @@ void Skybox::createCubeMesh() {
 void Skybox::createShader() {
     // Skybox vertex shader
     const char* vertexShaderSource = R"(
-        #version 330 core
+        #version 430 core
         layout(location = 0) in vec3 position;
 
         uniform mat4 projection;
@@ -146,7 +148,7 @@ void Skybox::createShader() {
 
     // Skybox fragment shader
     const char* fragmentShaderSource = R"(
-        #version 330 core
+        #version 430 core
         in vec3 TexCoords;
         out vec4 FragColor;
 
@@ -173,21 +175,25 @@ void Skybox::createShader() {
 }
 
 void Skybox::draw(const GameState & /*gameState*/) {
-    if (!loaded_)
+    if (!loaded_) {
         return;
+    }
 
     // Lazy initialization - create mesh and shader on first draw
     if (!cubeMesh_) {
         createCubeMesh();
+        std::cout << "Skybox: Created cube mesh\n";
     }
     if (!skyboxShader_) {
         createShader();
+        std::cout << "Skybox: Created shader, valid=" << (skyboxShader_ != nullptr) << "\n";
     }
 
     if (!cubeMesh_ || !skyboxShader_)
         return;
 
-    glDepthFunc(GL_LEQUAL);
+    // Disable depth test temporarily - skybox should always be behind everything
+    glDisable(GL_DEPTH_TEST);
     glDepthMask(GL_FALSE);
 
     skyboxShader_->use();
@@ -195,7 +201,7 @@ void Skybox::draw(const GameState & /*gameState*/) {
     // Bind cubemap texture
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_CUBE_MAP, textureID_);
-    glUniform1i(glGetUniformLocation(skyboxShader_->getId(), "skybox"), 0);
+    skyboxShader_->setUniform("skybox", 0);
 
     // Get matrices from stacks
     glm::mat4 projection = projectionStack.getTopMatrix();
@@ -214,5 +220,8 @@ void Skybox::draw(const GameState & /*gameState*/) {
     glDrawArrays(cubeMesh_->getMode(), cubeMesh_->getFirst(), cubeMesh_->getCount());
 
     glDepthMask(GL_TRUE);
-    glDepthFunc(GL_LESS);
+    glEnable(GL_DEPTH_TEST);
+
+    // Unbind cubemap so it doesn't interfere with 2D textures
+    glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
 }

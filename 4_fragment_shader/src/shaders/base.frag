@@ -12,9 +12,6 @@ void main() {
     vec4 baseColor;
     if (useTexture > 0.5) {
         baseColor = texture(colorSampler, fragTexCoord);
-        // Combine with objectColor if needed? Usually replacing it.
-        // Multiply by objectColor for tinting?
-        baseColor.rgb *= objectColor; 
     } else {
         baseColor = vec4(objectColor, 1.0);
     }

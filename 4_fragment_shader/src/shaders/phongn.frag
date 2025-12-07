@@ -42,8 +42,18 @@ mat3 cotangent_frame(vec3 N, vec3 p, vec2 uv) {
     vec3 T = dp2perp * duv1.x + dp1perp * duv2.x;
     vec3 B = dp2perp * duv1.y + dp1perp * duv2.y;
 
-    // construct a scale-invariant frame 
-    float invmax = inversesqrt(max(dot(T,T), dot(B,B)));
+    // construct a scale-invariant frame
+    float maxTB = max(dot(T,T), dot(B,B));
+
+    // If UV derivatives are too small, return identity-like TBN (just use original normal)
+    if (maxTB < 1e-6) {
+        vec3 up = abs(N.y) < 0.999 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+        vec3 tangent = normalize(cross(up, N));
+        vec3 bitangent = cross(N, tangent);
+        return mat3(tangent, bitangent, N);
+    }
+
+    float invmax = inversesqrt(maxTB);
     return mat3(T * invmax, B * invmax, N);
 }
 
@@ -65,7 +75,6 @@ void main() {
     vec4 texColor = vec4(1.0);
     if (useTexture > 0.5) {
         texColor = texture(colorSampler, vertTexCoord);
-        texColor.rgb *= objectColor;
     } else {
         texColor = vec4(objectColor, 1.0);
     }

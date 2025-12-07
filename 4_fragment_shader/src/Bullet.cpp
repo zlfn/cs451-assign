@@ -2,19 +2,19 @@
 
 ThreeDObj& getEnemyBulletObj() {
     static ThreeDObj obj("assets/sphere.obj", "assets/diffuse_white.png",
-                                     "assets/normal_flat.png", glm::fvec3(1.0, 0.0, 0.0));
+                                     "assets/normal_quilt.png", glm::fvec3(1.0, 0.0, 0.0));
     return obj;
 }
 
 ThreeDObj& getEnemyBulletSonicObj() {
     static ThreeDObj obj("assets/sonic.obj", "assets/diffuse_secondary.png",
-                                          "assets/normal_flat.png", glm::fvec3(0.2, 0.5, 0.5));
+                                          "assets/normal_quilt.png", glm::fvec3(0.2, 0.5, 0.5));
     return obj;
 }
 
 ThreeDObj& getPlayerBulletObj() {
     static ThreeDObj obj("assets/rice.obj", "assets/diffuse_rice.png",
-                                      "assets/normal_flat.png", glm::fvec3(0.3, 0.4, 0.3));
+                                      "assets/normal_quilt.png", glm::fvec3(0.3, 0.4, 0.3));
     return obj;
 }
 
@@ -71,9 +71,6 @@ void EnemyBullet::draw(const GameState &gameState) {
     const float ROTATION_DEG =
         std::atan2(deltaPosition.y, deltaPosition.x) * 180.0f / std::numbers::pi_v<float>;
 
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE);
-
     modelViewStack.matPush();
     modelViewStack.translate(currentPosition.x, currentPosition.y, 0.0f);
     modelViewStack.scale(BASE_SCALE, BASE_SCALE, BASE_SCALE);
@@ -87,8 +84,6 @@ void EnemyBullet::draw(const GameState &gameState) {
     getEnemyBulletSonicObj().draw("Sphere");
 
     modelViewStack.matPop();
-
-    glDisable(GL_BLEND);
 }
 
 CollisionShape EnemyBullet::getShape() const { return CollisionCircle(currentPosition, 0.03f); }
@@ -123,9 +118,6 @@ bool PlayerBullet::update(int currentTime, GameState &gameState) {
 void PlayerBullet::draw(const GameState &gameState) {
     const float SCALE = 0.01f;
 
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE);
-
     modelViewStack.matPush();
     modelViewStack.translate(currentPosition.x, currentPosition.y, 0.0f);
     modelViewStack.scale(SCALE, SCALE, SCALE);
@@ -134,8 +126,6 @@ void PlayerBullet::draw(const GameState &gameState) {
     getPlayerBulletObj().draw("Sphere");
 
     modelViewStack.matPop();
-
-    glDisable(GL_BLEND);
 }
 CollisionShape PlayerBullet::getShape() const {
     return CollisionRectangle(currentPosition - glm::fvec2(0.015f, 0.015f),

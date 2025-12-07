@@ -169,6 +169,8 @@ void display() {
     // for (auto &particle : gameState.trailParticles) { particle.draw(gameState); }
 
     // 2. Draw Lit Objects (Player, Boss, Bullets)
+    glDisable(GL_BLEND);
+
     switch (currentShadingStyle) {
     case GOURAUD:
         g_shaderProgram = programGouraud.get();
@@ -326,10 +328,7 @@ void timer(int) {
 }
 
 void reshape(int width, int height) {
-    if (width != 800 || height != 800) {
-        glutReshapeWindow(800, 800);
-    }
-    glViewport(0, 0, 800, 800);
+    glViewport(0, 0, width, height);
 }
 
 void initShaders() {
@@ -387,20 +386,20 @@ int main(int argc, char **argv) {
     // Lights
     // Directional (Sun-like)
     gameState.lights.push_back(std::make_shared<DirectionalLightSource>(
-        glm::vec3(0.1f, 0.1f, 0.1f), // Ambient
-        glm::vec3(0.8f, 0.8f, 0.8f), // Diffuse
-        glm::vec3(1.0f, 1.0f, 1.0f), // Specular
-        1.0f,                        // Intensity
-        glm::vec3(-0.5f, -1.0f, -0.5f) // Direction
+        glm::vec3(0.15f, 0.15f, 0.15f), // Ambient
+        glm::vec3(0.7f, 0.7f, 0.7f),    // Diffuse
+        glm::vec3(0.8f, 0.8f, 0.8f),    // Specular
+        1.0f,                           // Intensity
+        glm::vec3(-0.5f, -1.0f, -0.5f)  // Direction
     ));
 
     // Point Light (e.g. glowing projectile or center light)
     gameState.lights.push_back(std::make_shared<PointLightSource>(
-        glm::vec3(0.0f, 0.0f, 0.0f), // Ambient (Point lights usually add diffuse/spec)
-        glm::vec3(1.0f, 0.0f, 0.0f), // Diffuse (Red glow)
-        glm::vec3(1.0f, 0.5f, 0.5f), // Specular
-        2.0f,                        // Intensity
-        glm::vec3(0.0f, 0.0f, 0.5f)  // Position (Above player start)
+        glm::vec3(0.0f, 0.0f, 0.0f),    // Ambient
+        glm::vec3(0.8f, 0.8f, 0.8f),    // Diffuse (White)
+        glm::vec3(0.7f, 0.7f, 0.7f),    // Specular
+        1.5f,                           // Intensity
+        glm::vec3(0.0f, 0.0f, 0.5f)     // Position (Above player start)
     ));
 
     glEnable(GL_DEPTH_TEST);

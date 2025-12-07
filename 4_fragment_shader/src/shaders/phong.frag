@@ -35,7 +35,6 @@ void main() {
     vec4 texColor = vec4(1.0);
     if (useTexture > 0.5) {
         texColor = texture(colorSampler, vertTexCoord);
-        texColor.rgb *= objectColor;
     } else {
         texColor = vec4(objectColor, 1.0);
     }
