@@ -1,47 +1,112 @@
 #version 430 core
 
-// 상수화된 조명 및 재질 값
-#define LIGHT_POS_VS     vec3(0.0, 5.0, 0.0)
-#define AMBIENT_COLOR    vec3(0.1, 0.1, 0.1)
-#define LIGHT_COLOR      vec3(1.0, 1.0, 1.0)
-#define SHININESS        32.0
+#define MAX_LIGHTS 4
 
-uniform sampler2D colorSampler;  // texture map
-uniform sampler2D normalSampler; // normal map
+struct Light {
+    int type;
+    vec3 position;
+    vec3 direction;
+    vec3 ambient;
+    vec3 diffuse;
+    vec3 specular;
+    float intensity;
+    vec3 attenuation;
+    int enabled;
+};
+
+uniform Light lights[MAX_LIGHTS];
+uniform int numLights;
+
+uniform vec3 objectColor;
+uniform float useTexture;
+uniform sampler2D colorSampler;
+uniform sampler2D normalSampler;
 
 in vec3 vertPosition_VS;
 in vec3 vertNormal_VS;
-in vec3 vertColor;
+in vec2 vertTexCoord;
 
 out vec4 finalColor;
 
+// Calculate TBN matrix using derivatives (no pre-computed tangents needed)
+mat3 cotangent_frame(vec3 N, vec3 p, vec2 uv) {
+    // get edge vectors of the pixel triangle
+    vec3 dp1 = dFdx(p);
+    vec3 dp2 = dFdy(p);
+    vec2 duv1 = dFdx(uv);
+    vec2 duv2 = dFdy(uv);
+
+    // solve the linear system
+    vec3 dp2perp = cross(dp2, N);
+    vec3 dp1perp = cross(N, dp1);
+    vec3 T = dp2perp * duv1.x + dp1perp * duv2.x;
+    vec3 B = dp2perp * duv1.y + dp1perp * duv2.y;
+
+    // construct a scale-invariant frame 
+    float invmax = inversesqrt(max(dot(T,T), dot(B,B)));
+    return mat3(T * invmax, B * invmax, N);
+}
+
 void main() {
-    // Color Map 샘플링 (재질의 기본 색상/알베도)
-    vec4 albedoColor = texture(colorSampler, fragTexCoord);
+    vec3 N_VS = normalize(vertNormal_VS);
+    vec3 V_VS = normalize(-vertPosition_VS);
+
+    // Perturb normal
+    // 1. Get normal from map [0,1] -> [-1,1]
+    vec3 mapNormal = texture(normalSampler, vertTexCoord).rgb;
+    mapNormal = mapNormal * 2.0 - 1.0;
     
-    // Normal Map 샘플링 (새로운 법선 벡터)
-    vec3 normalFromMap = texture(normalSampler, fragTexCoord).rgb;
+    // 2. Calculate TBN
+    mat3 TBN = cotangent_frame(N_VS, vertPosition_VS, vertTexCoord);
     
-    // 노멀 맵 색상을 [-1, 1] 범위의 법선 벡터로 변환
-    vec3 normal_TS = normalize(normalFromMap * 2.0 - 1.0);
+    // 3. Transform map normal to View Space
+    vec3 normal_VS = normalize(TBN * mapNormal);
 
-    // 광원 벡터
-    vec3 lightVec_VS = normalize(LIGHT_POS_VS - vertPosition_VS);
-    vec3 viewVec_VS = normalize(-vertPosition_VS);
+    vec4 texColor = vec4(1.0);
+    if (useTexture > 0.5) {
+        texColor = texture(colorSampler, vertTexCoord);
+        texColor.rgb *= objectColor;
+    } else {
+        texColor = vec4(objectColor, 1.0);
+    }
 
-    // ambient
-    vec3 ambient = AMBIENT_COLOR * vertColor;
+    vec3 totalAmbient = vec3(0.0);
+    vec3 totalDiffuse = vec3(0.0);
+    vec3 totalSpecular = vec3(0.0);
+    float shininess = 32.0;
 
-    // diffuse
-    float diff = max(dot(normal_VS, lightVec_VS), 0.0);
-    vec3 diffuse = LIGHT_COLOR * diff * vertColor; 
+    for (int i = 0; i < MAX_LIGHTS; i++) {
+        if (lights[i].enabled == 0) continue;
 
-    // specular
-    vec3 reflectVec_VS = reflect(-lightVec_VS, normal_VS);
-    float spec = pow(max(dot(viewVec_VS, reflectVec_VS), 0.0), SHININESS);
-    vec3 specular = LIGHT_COLOR * spec;
-    
-    vec3 finalShadedColor = ambient + diffuse + specular;
+        vec3 lightAmbient = lights[i].ambient;
+        vec3 lightDiffuse = lights[i].diffuse;
+        vec3 lightSpecular = lights[i].specular;
+        float intensity = lights[i].intensity;
+        
+        vec3 lightDir_VS;
+        float attenuation = 1.0;
 
-    finalColor = vec4(finalShadedColor, 1.0);
+        if (lights[i].type == 0) { // Directional
+             lightDir_VS = normalize(-lights[i].direction);
+        } else { // Point
+             lightDir_VS = normalize(lights[i].position - vertPosition_VS);
+             float distance = length(lights[i].position - vertPosition_VS);
+             attenuation = 1.0 / (lights[i].attenuation.x + lights[i].attenuation.y * distance + lights[i].attenuation.z * distance * distance);
+        }
+
+        // Ambient
+        totalAmbient += lightAmbient * intensity * attenuation;
+
+        // Diffuse
+        float diff = max(dot(normal_VS, lightDir_VS), 0.0);
+        totalDiffuse += lightDiffuse * diff * intensity * attenuation;
+
+        // Specular
+        vec3 reflectDir = reflect(-lightDir_VS, normal_VS);
+        float spec = pow(max(dot(V_VS, reflectDir), 0.0), shininess);
+        totalSpecular += lightSpecular * spec * intensity * attenuation;
+    }
+
+    vec3 result = (totalAmbient + totalDiffuse) * texColor.rgb + totalSpecular;
+    finalColor = vec4(result, texColor.a);
 }

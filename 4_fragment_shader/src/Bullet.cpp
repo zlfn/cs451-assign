@@ -1,11 +1,22 @@
 #include "base.hpp"
 
-ThreeDObj enemyBulletObj = ThreeDObj("assets/sphere.obj", "assets/diffuse_white.png",
+ThreeDObj& getEnemyBulletObj() {
+    static ThreeDObj obj("assets/sphere.obj", "assets/diffuse_white.png",
                                      "assets/normal_flat.png", glm::fvec3(1.0, 0.0, 0.0));
-ThreeDObj enemyBulletSonicObj = ThreeDObj("assets/sonic.obj", "assets/diffuse_secondary.png",
+    return obj;
+}
+
+ThreeDObj& getEnemyBulletSonicObj() {
+    static ThreeDObj obj("assets/sonic.obj", "assets/diffuse_secondary.png",
                                           "assets/normal_flat.png", glm::fvec3(0.2, 0.5, 0.5));
-ThreeDObj playerBulletObj = ThreeDObj("assets/rice.obj", "assets/diffuse_rice.png",
+    return obj;
+}
+
+ThreeDObj& getPlayerBulletObj() {
+    static ThreeDObj obj("assets/rice.obj", "assets/diffuse_rice.png",
                                       "assets/normal_flat.png", glm::fvec3(0.3, 0.4, 0.3));
+    return obj;
+}
 
 EnemyBullet::EnemyBullet(glm::fvec2 initialDirection, glm::fvec2 initialPosition, float speed,
                          int initialTime, std::function<float(int, float)> posFunc)
@@ -67,13 +78,13 @@ void EnemyBullet::draw(const GameState &gameState) {
     modelViewStack.translate(currentPosition.x, currentPosition.y, 0.0f);
     modelViewStack.scale(BASE_SCALE, BASE_SCALE, BASE_SCALE);
 
-    enemyBulletObj.draw("Sphere");
+    getEnemyBulletObj().draw("Sphere");
 
     modelViewStack.scale(SONIC_RELATIVE_SCALE, SONIC_RELATIVE_SCALE, SONIC_RELATIVE_SCALE);
     modelViewStack.rotate(ROTATION_DEG, 0.0, 0.0, 1.0);
     modelViewStack.translate(5.0f, 0.0f, 0.0f);
     modelViewStack.rotate(90, 0.0, 1.0, 0.0);
-    enemyBulletSonicObj.draw("Sphere");
+    getEnemyBulletSonicObj().draw("Sphere");
 
     modelViewStack.matPop();
 
@@ -120,7 +131,7 @@ void PlayerBullet::draw(const GameState &gameState) {
     modelViewStack.scale(SCALE, SCALE, SCALE);
     modelViewStack.rotate(-90.0f, 0.0f, 1.0f, 0.0f);
 
-    playerBulletObj.draw("Sphere");
+    getPlayerBulletObj().draw("Sphere");
 
     modelViewStack.matPop();
 

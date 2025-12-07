@@ -224,27 +224,32 @@ void ThreeDObj::createMesh(const std::string &objName) {
     }
 
     std::vector<float> vertexData;
-    vertexData.reserve(indices.size() * 9);
+    vertexData.reserve(indices.size() * 8); // 3 pos + 3 norm + 2 tex
 
     for (IndexInfo index : indices) {
         const glm::vec3 &vertex = baseVertices[index.v_index];
         const glm::vec3 &vertexNormal = baseNormals[index.vn_index];
+        
+        glm::vec2 texCoord(0.0f, 0.0f);
+        if (!baseTexCoords.empty() && index.vt_index < baseTexCoords.size()) {
+             texCoord = baseTexCoords[index.vt_index];
+        }
+
         vertexData.push_back(vertex.x);
         vertexData.push_back(vertex.y);
         vertexData.push_back(vertex.z);
         vertexData.push_back(vertexNormal.x);
         vertexData.push_back(vertexNormal.y);
         vertexData.push_back(vertexNormal.z);
-        vertexData.push_back(objectColor.x);
-        vertexData.push_back(objectColor.y);
-        vertexData.push_back(objectColor.z);
+        vertexData.push_back(texCoord.x);
+        vertexData.push_back(texCoord.y);
     }
 
     auto mesh = std::make_unique<Mesh>();
     mesh->setData(vertexData.data(), vertexData.size() * sizeof(float), GL_STATIC_DRAW);
-    mesh->setAttribute(0, 3, GL_FLOAT, 9 * sizeof(float), (void *)0);
-    mesh->setAttribute(1, 3, GL_FLOAT, 9 * sizeof(float), (void *)(3 * sizeof(float)));
-    mesh->setAttribute(2, 3, GL_FLOAT, 9 * sizeof(float), (void *)(6 * sizeof(float)));
+    mesh->setAttribute(0, 3, GL_FLOAT, 8 * sizeof(float), (void *)0);
+    mesh->setAttribute(1, 3, GL_FLOAT, 8 * sizeof(float), (void *)(3 * sizeof(float)));
+    mesh->setAttribute(3, 2, GL_FLOAT, 8 * sizeof(float), (void *)(6 * sizeof(float)));
     mesh->setDrawMode(GL_TRIANGLES, (GLsizei)indices.size());
 
     objMeshMap[objName] = std::move(mesh);
@@ -276,13 +281,22 @@ void ThreeDObj::draw(const std::string objName) {
     glm::mat4 projection = projectionStack.getTopMatrix();
     glm::mat4 modelView = modelViewStack.getTopMatrix();
     glm::mat4 normalMat = modelViewStack.getTopNormal();
+    
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, textureID);
+    
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, normalMapID);
 
     drawMesh(*objMeshMap[objName], *g_shaderProgram, [&](const ShaderProgram& prog) {
         prog.setUniform("projection", projection);
         prog.setUniform("modelView", modelView);
         prog.setUniform("normalMatrix", normalMat);
         prog.setUniform("objectColor", objectColor);
-        prog.setUniform("useVertexColor", 1.0f);
+        prog.setUniform("useVertexColor", 1.0f); // 1.0 to multiply texture by lighting (Gouraud) or pass-through
+        prog.setUniform("colorSampler", 0);
+        prog.setUniform("normalSampler", 1);
+        prog.setUniform("useTexture", 1.0f); 
     });
 
     modelViewStack.matPop();
@@ -699,7 +713,7 @@ void drawRectWithGlow(float x, float y, float width, float height, glm::fvec4 co
     drawMesh(mesh, *g_shaderProgram, [&](const ShaderProgram& prog) {
         prog.setUniform("projection", projection);
         prog.setUniform("modelView", modelView);
-        prog.setUniform("objectColor", glm::vec3(color.r, color.g, color.b));
+        prog.setUniform("objectColor", glm::vec3(1.0f, 1.0f, 1.0f)); // Use white so vertex color isn't tinted
         prog.setUniform("useVertexColor", 1.0f);
     });
 }

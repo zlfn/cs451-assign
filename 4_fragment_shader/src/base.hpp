@@ -23,6 +23,7 @@
 struct GameState;
 struct EnemyBullet;
 struct BossMove;
+struct LightSource;
 
 extern MatrixStack modelViewStack;
 extern MatrixStack projectionStack;
@@ -252,6 +253,7 @@ struct GameState {
     std::vector<PlayerBullet> playerBulletObjects;
     std::vector<EnemyBullet> enemyBulletObjects;
     std::vector<TrailParticle> trailParticles;
+    std::vector<std::shared_ptr<LightSource>> lights;
 };
 
 void showVictoryScreen(const GameState &gameState);
@@ -287,7 +289,9 @@ struct LightSource {
     LightSource(glm::fvec3 ambientColor, glm::fvec3 diffuseColor, glm::fvec3 specularColor,
                 float intensity);
 
-    void setUniforms(Shader &shader);
+    virtual ~LightSource() = default;
+
+    virtual void setUniforms(const ShaderProgram &program, int index) const = 0;
 };
 
 struct DirectionalLightSource : LightSource {
@@ -295,6 +299,8 @@ struct DirectionalLightSource : LightSource {
     
     DirectionalLightSource(glm::fvec3 ambientColor, glm::fvec3 diffuseColor,
                            glm::fvec3 specularColor, float intensity, glm::fvec3 direction);
+
+    void setUniforms(const ShaderProgram &program, int index) const override;
 };
 
 struct PointLightSource : LightSource {
@@ -304,4 +310,5 @@ struct PointLightSource : LightSource {
                      float intensity, glm::fvec3 position);
 
     glm::fvec3 getAttenuation(); // attenuation coefficient
+    void setUniforms(const ShaderProgram &program, int index) const override;
 };

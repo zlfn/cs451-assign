@@ -71,7 +71,17 @@ void Shader::compile(const std::string& source) {
 std::string Shader::readFile(const std::string& filePath) {
     std::ifstream file(filePath);
     if (!file.is_open()) {
-        throw std::runtime_error("Failed to open shader file: " + filePath);
+        // Try going up one directory (e.g. if running from build/)
+        std::string altPath = "../" + filePath;
+        file.open(altPath);
+        if (!file.is_open()) {
+            // Try two directories up (e.g. build/Debug/)
+            altPath = "../../" + filePath;
+            file.open(altPath);
+            if (!file.is_open()) {
+                 throw std::runtime_error("Failed to open shader file: " + filePath);
+            }
+        }
     }
 
     std::stringstream buffer;
@@ -147,9 +157,9 @@ void ShaderProgram::use() const {
 
 GLint ShaderProgram::getUniformLocation(const std::string& name) const {
     GLint location = glGetUniformLocation(programId_, name.c_str());
-    if (location == -1) {
-        std::cerr << "Warning: uniform '" << name << "' not found in shader program" << '\n';
-    }
+    // if (location == -1) {
+    //     std::cerr << "Warning: uniform '" << name << "' not found in shader program" << '\n';
+    // }
     return location;
 }
 

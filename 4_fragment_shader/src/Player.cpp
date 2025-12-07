@@ -2,10 +2,17 @@
 #include "utils.hpp"
 #include "graphics.hpp"
 
-ThreeDObj jetObj = ThreeDObj("assets/jet.obj", "assets/diffuse_jet.png", "assets/normal_flat.png",
+ThreeDObj& getJetObj() {
+    static ThreeDObj obj("assets/jet.obj", "assets/diffuse_jet.png", "assets/normal_flat.png",
                              glm::fvec3(1.0, 1.0, 0.0));
-ThreeDObj energyOrbObj = ThreeDObj("assets/star.obj", "assets/diffuse_star.png",
+    return obj;
+}
+
+ThreeDObj& getEnergyOrbObj() {
+    static ThreeDObj obj("assets/star.obj", "assets/diffuse_star.png",
                                    "assets/normal_flat.png", glm::fvec3(0.5, 0.2, 0.1));
+    return obj;
+}
 
 // Static mesh for explosion effect
 std::unique_ptr<Mesh> Player::explosionMesh = nullptr;
@@ -69,7 +76,7 @@ void EnergyOrb::draw(const GameState &) {
     modelViewStack.scale(size, size, size);
     modelViewStack.rotate(90.0, 1.0, 0.0, 0.0);
 
-    energyOrbObj.draw("Sphere");
+    getEnergyOrbObj().draw("Sphere");
 
     modelViewStack.matPop();
     glDisable(GL_BLEND);
@@ -334,10 +341,10 @@ void Player::draw(const GameState &gameState) {
     if (isInvincible) {
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        jetObj.draw("base");
+        getJetObj().draw("base");
         glDisable(GL_BLEND);
     } else {
-        jetObj.draw("base");
+        getJetObj().draw("base");
     }
 
     modelViewStack.matPop();
