@@ -15,5 +15,7 @@
         constexpr const char *PHONG_VERT_SHADER = "";
         constexpr const char *PHONG_FRAG_SHADER = "";
         constexpr const char *PHONGN_FRAG_SHADER = "";
+        constexpr const char *SHADOW_DEPTH_VERT_SHADER = "";
+        constexpr const char *SHADOW_DEPTH_FRAG_SHADER = "";
     }
 #endif

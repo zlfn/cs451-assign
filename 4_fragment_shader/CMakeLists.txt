@@ -54,6 +54,7 @@ target_sources(4_fragment_shader PRIVATE
     src/Skybox.cpp
     src/LightSource.cpp
     src/PostProcess.cpp
+    src/ShadowMap.cpp
 )
 
 # Make sure shaders and assets are ready before building

@@ -2,6 +2,8 @@
 #include "base.hpp"
 #include "graphics.hpp"
 #include "PostProcess.hpp"
+#include "ShadowMap.hpp"
+#include "stb_image.h"
 
 std::random_device rd;
 std::mt19937 gen(rd());
@@ -44,6 +46,18 @@ MotionBlurProcessor motionBlurProcessor;
 float motionBlurStrength = 0.3f; // Adjustable blur strength (0.0 - 0.5)
 bool motionBlurEnabled = true;
 int motionBlurKeyDelay = 0;
+
+// Shadow mapping
+std::unique_ptr<ShaderProgram> programShadowDepth;
+ShadowMap shadowMap;
+bool shadowEnabled = true;
+int shadowKeyDelay = 0;
+glm::mat4 g_lightSpaceMatrix = glm::mat4(1.0f);
+
+// Ground plane for shadow receiving
+std::unique_ptr<Mesh> groundPlaneMesh;
+GLuint groundDiffuseTexture = 0;
+GLuint groundNormalTexture = 0;
 
 // Global Shader Program Pointer (used by objects)
 ShaderProgram* g_shaderProgram = nullptr;
@@ -114,13 +128,111 @@ float smoothProjZDistChange() {
     }
 }
 
-void setupLights(ShaderProgram& program) {
+GLuint loadTexture(const std::string& path) {
+    int width, height, channels;
+    unsigned char* data = stbi_load(path.c_str(), &width, &height, &channels, 0);
+    if (!data) {
+        std::cerr << "Failed to load texture: " << path << std::endl;
+        return 0;
+    }
+
+    GLuint texture;
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
+
+    GLenum format = (channels == 4) ? GL_RGBA : GL_RGB;
+    glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+    glGenerateMipmap(GL_TEXTURE_2D);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    stbi_image_free(data);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    return texture;
+}
+
+void initGroundPlane() {
+    // Load industrial textures for ground plane
+    groundDiffuseTexture = loadTexture("assets/diffuse_secondary.png");
+    groundNormalTexture = loadTexture("assets/normal_industrial.png");
+
+    // Ground plane vertices: position (3) + normal (3) + texcoord (2)
+    float vertices[] = {
+        // Triangle 1
+        -2.0f, -2.0f, -0.1f,   0.0f, 0.0f, 1.0f,   0.0f, 0.0f,
+         2.0f, -2.0f, -0.1f,   0.0f, 0.0f, 1.0f,   4.0f, 0.0f,
+         2.0f,  2.0f, -0.1f,   0.0f, 0.0f, 1.0f,   4.0f, 4.0f,
+        // Triangle 2
+        -2.0f, -2.0f, -0.1f,   0.0f, 0.0f, 1.0f,   0.0f, 0.0f,
+         2.0f,  2.0f, -0.1f,   0.0f, 0.0f, 1.0f,   4.0f, 4.0f,
+        -2.0f,  2.0f, -0.1f,   0.0f, 0.0f, 1.0f,   0.0f, 4.0f,
+    };
+
+    groundPlaneMesh = std::make_unique<Mesh>();
+    groundPlaneMesh->setData(vertices, sizeof(vertices), GL_STATIC_DRAW);
+    groundPlaneMesh->setAttribute(0, 3, GL_FLOAT, 8 * sizeof(float), (void*)0);
+    groundPlaneMesh->setAttribute(1, 3, GL_FLOAT, 8 * sizeof(float), (void*)(3 * sizeof(float)));
+    groundPlaneMesh->setAttribute(3, 2, GL_FLOAT, 8 * sizeof(float), (void*)(6 * sizeof(float)));
+    groundPlaneMesh->setDrawMode(GL_TRIANGLES, 6);
+}
+
+void drawGroundPlane() {
+    if (!groundPlaneMesh || !g_shaderProgram) return;
+
+    glm::mat4 projection = projectionStack.getTopMatrix();
+    glm::mat4 modelView = modelViewStack.getTopMatrix();
+    glm::mat4 normalMat = modelViewStack.getTopNormal();
+
+    // Bind ground textures explicitly
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, groundDiffuseTexture);
+
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, groundNormalTexture);
+
+    drawMesh(*groundPlaneMesh, *g_shaderProgram, [&](const ShaderProgram& prog) {
+        prog.setUniform("projection", projection);
+        prog.setUniform("modelView", modelView);
+        prog.setUniform("normalMatrix", normalMat);
+        prog.setUniform("objectColor", glm::vec3(0.4f, 0.4f, 0.45f));
+        prog.setUniform("useTexture", 1.0f);
+        prog.setUniform("colorSampler", 0);
+        prog.setUniform("normalSampler", 1);
+    });
+}
+
+void setupLights(ShaderProgram& program, const glm::mat4& viewMatrix) {
     program.use();
     // Assuming numLights is used, but we loop MAX_LIGHTS in shader with 'enabled' check
-    // program.setUniform("numLights", (int)gameState.lights.size()); 
-    
+    // program.setUniform("numLights", (int)gameState.lights.size());
+
     for (size_t i = 0; i < gameState.lights.size(); ++i) {
         gameState.lights[i]->setUniforms(program, (int)i);
+    }
+
+    // Environment reflection setup
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, gameState.skyboxObject.getTextureID());
+    program.setUniform("environmentMap", 2);
+    program.setUniform("reflectivity", 0.3f);
+
+    // Pass inverse view matrix for world-space reflection
+    glm::mat4 inverseView = glm::inverse(viewMatrix);
+    program.setUniform("inverseViewMatrix", inverseView);
+
+    // Shadow mapping setup
+    if (shadowEnabled && shadowMap.isInitialized()) {
+        shadowMap.bindTexture(GL_TEXTURE3);
+        program.setUniform("shadowMap", 3);
+        program.setUniform("shadowEnabled", 1);
+        // Combine lightSpaceMatrix with inverseView to transform from view space to light space
+        glm::mat4 lightSpaceViewMatrix = g_lightSpaceMatrix * inverseView;
+        program.setUniform("lightSpaceViewMatrix", lightSpaceViewMatrix);
+    } else {
+        program.setUniform("shadowEnabled", 0);
     }
 }
 
@@ -136,6 +248,71 @@ void display() {
     const float Y_COMPENSATION = (std::tan(ANGLE_RAD) * std::abs(Z_DIST_VIEW)) / SCALE;
     const float Z_TRANSLATE = Z_DIST_VIEW / std::cos(ANGLE_RAD) / SCALE;
 
+    // ============ Shadow Pass ============
+    if (shadowEnabled && shadowMap.isInitialized() && gameState.lights.size() > 1) {
+        // Use point light (orbiting light) for shadow calculation
+        auto* pointLight = dynamic_cast<PointLightSource*>(gameState.lights[1].get());
+        if (pointLight) {
+            // Calculate light space matrix for point light looking at ground plane
+            glm::vec3 lightPos = pointLight->position;
+
+            // Ground plane is at z = -0.1, spans from -2 to 2
+            // We need to see all corners from the light position
+            float groundZ = -0.1f;
+            float groundSize = 2.0f; // half-size of ground
+
+            // Calculate the most distant corner from light position on ground plane
+            glm::vec2 lightXY(lightPos.x, lightPos.y);
+            float maxCornerDist = 0.0f;
+            for (int i = -1; i <= 1; i += 2) {
+                for (int j = -1; j <= 1; j += 2) {
+                    glm::vec2 corner(groundSize * i, groundSize * j);
+                    float dist = glm::length(corner - lightXY);
+                    maxCornerDist = std::max(maxCornerDist, dist);
+                }
+            }
+
+            // Height from light to ground
+            float heightToGround = lightPos.z - groundZ;
+
+            // FOV needed to see the farthest corner
+            float halfFovRad = std::atan(maxCornerDist / heightToGround);
+            float fov = 2.0f * glm::degrees(halfFovRad) * 1.1f; // 10% margin
+            fov = glm::clamp(fov, 60.0f, 175.0f);
+
+            // Target point is on the ground directly below the light
+            glm::vec3 targetPos(lightPos.x * 0.3f, lightPos.y * 0.3f, groundZ);
+
+            g_lightSpaceMatrix = shadowMap.calculatePointLightSpaceMatrix(
+                lightPos, targetPos, fov, 0.05f, 20.0f);
+
+            shadowMap.beginShadowPass();
+
+            // Use shadow depth shader
+            g_shaderProgram = programShadowDepth.get();
+            programShadowDepth->use();
+
+            // Set up projection as lightSpaceMatrix, objects will use modelView for their transforms
+            projectionStack.loadIdentity();
+            projectionStack.matMul(g_lightSpaceMatrix);
+            modelViewStack.loadIdentity();
+
+            // Draw all shadow-casting objects
+            for (auto &object : gameState.enemyBulletObjects) {
+                object.draw(gameState);
+            }
+            for (auto &object : gameState.playerBulletObjects) {
+                object.draw(gameState);
+            }
+            gameState.bossObject1.draw(gameState);
+            gameState.bossObject2.draw(gameState);
+            gameState.playerObject.draw(gameState);
+
+            shadowMap.endShadowPass();
+        }
+    }
+
+    // ============ Main Render Pass ============
     // Begin rendering to FBO if motion blur is enabled
     if (motionBlurEnabled && motionBlurProcessor.isInitialized()) {
         motionBlurProcessor.beginScene();
@@ -195,7 +372,11 @@ void display() {
         g_shaderProgram = programPhongN.get();
         break;
     }
-    setupLights(*g_shaderProgram);
+    glm::mat4 currentViewMatrix = modelViewStack.getTopMatrix();
+    setupLights(*g_shaderProgram, currentViewMatrix);
+
+    // Draw ground plane first (receives shadows)
+    drawGroundPlane();
 
     for (auto &object : gameState.enemyBulletObjects) {
         object.draw(gameState);
@@ -229,7 +410,9 @@ void display() {
     }
 
     glutSwapBuffers();
-    glutPostRedisplay();
+    if (!motionBlurEnabled) {
+        glutPostRedisplay();
+    }
 }
 
 void keyInputUpdate(int dt) {
@@ -323,6 +506,13 @@ void keyInputUpdate(int dt) {
         motionBlurStrength = std::min(0.7f, motionBlurStrength + 0.05f);
         std::cout << "Motion blur strength: " << motionBlurStrength << std::endl;
     }
+
+    // Toggle shadows with 'n' key
+    if (keyStates['n'] && shadowKeyDelay + 500 < now) {
+        shadowKeyDelay = now;
+        shadowEnabled = !shadowEnabled;
+        std::cout << "Shadows " << (shadowEnabled ? "enabled" : "disabled") << std::endl;
+    }
 }
 
 void updateOrbitingLight(int currentTime) {
@@ -330,14 +520,14 @@ void updateOrbitingLight(int currentTime) {
     if (gameState.lights.size() > 1) {
         auto* pointLight = dynamic_cast<PointLightSource*>(gameState.lights[1].get());
         if (pointLight) {
-            float orbitRadius = 0.5f;
+            float orbitRadius = 1.0f;
             float orbitSpeed = 0.002f; // radians per ms
             float angle = currentTime * orbitSpeed;
 
             glm::fvec2 playerPos = gameState.playerObject.currentPosition;
             float x = playerPos.x + orbitRadius * std::cos(angle);
             float y = playerPos.y + orbitRadius * std::sin(angle);
-            float z = 0.3f; // height above the plane
+            float z = 1.5f; // height above the plane (higher for better shadow coverage)
 
             pointLight->position = glm::vec3(x, y, z);
         }
@@ -383,7 +573,8 @@ void timer(int) {
 
     commandExecutor.update(now, gameState);
 
-    glutTimerFunc(16, timer, 0);
+    glutPostRedisplay();
+    glutTimerFunc(motionBlurEnabled ? 30 : 16, timer, 0);
 }
 
 void reshape(int width, int height) {
@@ -424,6 +615,12 @@ void initShaders() {
         programMotionBlur->attachShader(Shader::fromSource(Shader::Type::VERTEX, shaders::MOTIONBLUR_VERT_SHADER));
         programMotionBlur->attachShader(Shader::fromSource(Shader::Type::FRAGMENT, shaders::MOTIONBLUR_FRAG_SHADER));
         programMotionBlur->link();
+
+        std::cout << "Loading Shadow Depth Shader...\n";
+        programShadowDepth = std::make_unique<ShaderProgram>();
+        programShadowDepth->attachShader(Shader::fromSource(Shader::Type::VERTEX, shaders::SHADOW_DEPTH_VERT_SHADER));
+        programShadowDepth->attachShader(Shader::fromSource(Shader::Type::FRAGMENT, shaders::SHADOW_DEPTH_FRAG_SHADER));
+        programShadowDepth->link();
 
         std::cout << "Shaders initialized successfully\n";
     } catch (const std::exception& e) {
@@ -475,6 +672,13 @@ int main(int argc, char **argv) {
     // Initialize motion blur processor
     motionBlurProcessor.init(1400, 1400);
     motionBlurKeyDelay = glutGet(GLUT_ELAPSED_TIME);
+
+    // Initialize shadow map
+    shadowMap.init(2048);
+    shadowKeyDelay = glutGet(GLUT_ELAPSED_TIME);
+
+    // Initialize ground plane with industrial texture
+    initGroundPlane();
 
     keyPressDelay = glutGet(GLUT_ELAPSED_TIME);
     renderModeKeyDelay = glutGet(GLUT_ELAPSED_TIME);
