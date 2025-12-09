@@ -19,7 +19,7 @@ const unsigned int RENDER_GRID_SIZE = GRID_SIZE * SMOOTH_FACTOR;  // High-res re
 const float HEIGHT_SCALE = 4.0f;
 const float L_world = 64.0f; // 시뮬레이션 월드 물리적 크기. 여기서는 32m x 32m
 const glm::vec2 w = glm::normalize(glm::vec2(0.5, 0.5));    // Wind direction, MUST be normalized
-const float lambda = 15.0f;
+const float lambda = 10.0f;
 
 void initSpectrum();
 
@@ -46,6 +46,15 @@ GLuint compileShader(GLenum type, const std::string &src);
 GLuint linkProgram(const std::vector<GLuint> &shaders);
 void calcPipeline(float time);
 
+// ocean floor
+extern GLuint gOceanFloorVAO;
+extern GLuint gOceanFloorVBO;
+extern GLuint gOceanFloorEBO;
+extern GLuint gOceanFloorTexture;
+
+void initOceanFloor();
+void cleanupOceanFloor();
+
 // Skybox
 extern GLuint gSkyboxVAO;
 extern GLuint gSkyboxVBO;
@@ -53,6 +62,6 @@ extern GLuint gSkyboxTexture;
 extern GLuint gSkyboxProgram;
 
 void initSkybox();
-void drawSkybox(const glm::mat4& view, const glm::mat4& projection);
+void drawSkybox(const glm::mat4 &view, const glm::mat4 &projection);
 void cleanupSkybox();
 GLuint loadCubemap(const std::vector<std::string>& faces);
