@@ -85,6 +85,11 @@ extern GLuint gOceanNormalTexture;
 void initOceanNormalTexture();
 void cleanupOceanNormalTexture();
 
+// island normal map
+extern GLuint gIslandNormalTexture;
+void initIslandNormalTexture();
+void cleanupIslandNormalTexture();
+
 // Skybox
 extern GLuint gSkyboxVAO;
 extern GLuint gSkyboxVBO;

@@ -168,6 +168,12 @@ void drawIsland(int windowWidth, int windowHeight) {
     // PBR uniforms
     glUniform3fv(locCameraPos, 1, &cameraPos[0]);
 
+    // Bind island normal map
+    glActiveTexture(GL_TEXTURE4);
+    glBindTexture(GL_TEXTURE_2D, gIslandNormalTexture);
+    GLint locNormalMap = glGetUniformLocation(gIslandProgram, "uNormalMap");
+    glUniform1i(locNormalMap, 4);
+
     // Draw filled triangles
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     int numIndices = (RENDER_GRID_SIZE - 1) * (RENDER_GRID_SIZE - 1) * 6;
@@ -366,6 +372,7 @@ void cleanup() {
     cleanupOceanFloor();
     cleanupBubbleTexture();
     cleanupOceanNormalTexture();
+    cleanupIslandNormalTexture();
 
     std::cout << "Freed All Resources." << '\n';
 }
@@ -419,6 +426,7 @@ int main(int argc, char **argv) {
     initOceanFloor();    // 파도 바닥 초기화
     initBubbleTexture();
     initOceanNormalTexture();
+    initIslandNormalTexture();
 
 // --- [설정 상수] ---
     // 물리 연산 한 단계의 시간 (0.005초 = 200Hz).

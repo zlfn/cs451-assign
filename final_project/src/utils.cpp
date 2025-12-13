@@ -629,6 +629,20 @@ void cleanupOceanNormalTexture() {
 
 ///////////////////////////////////////
 
+GLuint gIslandNormalTexture = 0;
+
+void initIslandNormalTexture() {
+    std::string normalTexturePath = "assets/stone_normal.jpg";
+    gIslandNormalTexture = loadTexture(normalTexturePath);
+    std::cout << "Island normal texture initialized\n";
+}
+
+void cleanupIslandNormalTexture() {
+    glDeleteTextures(1, &gIslandNormalTexture);
+}
+
+///////////////////////////////////////
+
 // Skybox global variables
 GLuint gSkyboxVAO = 0;
 GLuint gSkyboxVBO = 0;

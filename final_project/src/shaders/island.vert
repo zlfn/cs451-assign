@@ -10,6 +10,8 @@ out vec3 vWorldPos;
 out vec3 vNormal;
 out float vHeight;
 out vec2 vUV;
+out vec3 vTangent;
+out vec3 vBitangent;
 
 layout(std430, binding = 0) readonly buffer HeightData {
     float height[];
@@ -50,6 +52,10 @@ void main() {
     // Normal 벡터 = normalize( ( -dH/dx, 1, -dH/dz ) )
     vec3 normal = normalize(vec3(-dH_dx, 1.0, -dH_dz));
 
+    // Tangent space basis vectors for normal mapping
+    vec3 tangent = normalize(vec3(1.0, dH_dx, 0.0));
+    vec3 bitangent = normalize(vec3(0.0, dH_dz, 1.0));
+
     // 최종 위치 출력
     float baseX = u * 4.0 - 2.0;
     float h = sampleHeight(gx, gy) * uHeightScale;
@@ -59,6 +65,8 @@ void main() {
     gl_Position = uProjection * uView * vec4(vWorldPos, 1.0);
 
     vNormal = normal;
+    vTangent = tangent;
+    vBitangent = bitangent;
     vHeight = h;
     vUV = vec2(u, v);
 }
