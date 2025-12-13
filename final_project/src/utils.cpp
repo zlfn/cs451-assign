@@ -494,6 +494,141 @@ void calcPipeline(float time) {
     prevTime = time;
 }
 
+///////////////////////////////////////
+
+GLuint gOceanFloorVAO = 0;
+GLuint gOceanFloorVBO = 0;
+GLuint gOceanFloorEBO = 0;
+GLuint gOceanFloorTexture = 0;
+
+GLuint loadTexture(const std::string &path) {
+    GLuint textureID;
+    glGenTextures(1, &textureID);
+
+    int width, height, nrChannels;
+
+    stbi_set_flip_vertically_on_load(true);
+
+    unsigned char *data = stbi_load(path.c_str(), &width, &height, &nrChannels, 0);
+
+    if (data) {
+        GLenum format;
+        if (nrChannels == 1)
+            format = GL_RED;
+        else if (nrChannels == 3)
+            format = GL_RGB;
+        else if (nrChannels == 4)
+            format = GL_RGBA;
+
+        glBindTexture(GL_TEXTURE_2D, textureID);
+
+        // 텍스처 데이터 전송
+        glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D); // 밉맵 자동 생성
+
+        // 텍스처 파라미터 설정 (필터링 및 래핑)
+        // 이걸 설정 안 하면 텍스처가 검은색으로 나올 수 있음
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+        stbi_image_free(data);
+        std::cout << "Loaded texture: " << path << std::endl;
+    } else {
+        std::cout << "Failed to load texture: " << path << std::endl;
+        std::cout << "STB Reason: " << stbi_failure_reason() << std::endl;
+        stbi_image_free(data);
+    }
+
+    return textureID;
+}
+
+float oceanFloorVertices[] = {
+    -50.0f, 0.0f, -50.0f, 0.0f, 1.0f, 0.0f, 0.0f, 50.0f,
+    50.0f, 0.0f, -50.0f, 0.0f, 1.0f, 0.0f, 50.0f, 50.0f,
+    50.0f, 0.0f, 50.0f, 0.0f, 1.0f, 0.0f, 50.0f, 0.0f,
+    -50.0f, 0.0f, 50.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f};
+
+unsigned int oceanFloorIndices[] = {
+    0, 1, 2, // Triangle 1
+    2, 3, 0  // Triangle 2
+};
+
+void initOceanFloor() {
+    // 1. VAO, VBO, EBO 생성
+    glGenVertexArrays(1, &gOceanFloorVAO);
+    glGenBuffers(1, &gOceanFloorVBO);
+    glGenBuffers(1, &gOceanFloorEBO); // 지형은 EBO를 사용하는 것이 효율적
+
+    // 2. VAO 바인딩
+    glBindVertexArray(gOceanFloorVAO);
+
+    // 3. VBO 데이터 설정
+    glBindBuffer(GL_ARRAY_BUFFER, gOceanFloorVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(oceanFloorVertices), oceanFloorVertices, GL_STATIC_DRAW);
+
+    // 4. EBO 데이터 설정
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gOceanFloorEBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(oceanFloorIndices), oceanFloorIndices,
+                 GL_STATIC_DRAW);
+
+    // 5. Vertex Attributes 설정 (Stride = 8 floats)
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void *)0);
+
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void *)(3 * sizeof(float)));
+
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void *)(6 * sizeof(float)));
+
+    // texture load
+    std::string floorTexturePath = "assets/floor.jpg";
+    gOceanFloorTexture = loadTexture(floorTexturePath);
+
+    // unbinding
+    glBindVertexArray(0);
+    std::cout << "Ocean Floor initialized\n";
+}
+
+void cleanupOceanFloor() {
+    glDeleteVertexArrays(1, &gOceanFloorVAO);
+    glDeleteBuffers(1, &gOceanFloorVBO);
+    glDeleteBuffers(1, &gOceanFloorEBO);
+    glDeleteTextures(1, &gOceanFloorTexture);
+}
+
+///////////////////////////////////////
+
+GLuint gBubbleTexture = 0;
+
+void initBubbleTexture() {
+    std::string bubbleTexturePath = "assets/bubble.png";
+    gBubbleTexture = loadTexture(bubbleTexturePath);
+    std::cout << "Bubble texture initialized\n";
+}
+
+void cleanupBubbleTexture() {
+    glDeleteTextures(1, &gBubbleTexture);
+}
+
+///////////////////////////////////////
+
+GLuint gOceanNormalTexture = 0;
+
+void initOceanNormalTexture() {
+    std::string normalTexturePath = "assets/ocean_normal.jpg";
+    gOceanNormalTexture = loadTexture(normalTexturePath);
+    std::cout << "Ocean normal texture initialized\n";
+}
+
+void cleanupOceanNormalTexture() {
+    glDeleteTextures(1, &gOceanNormalTexture);
+}
+
+///////////////////////////////////////
+
 // Skybox global variables
 GLuint gSkyboxVAO = 0;
 GLuint gSkyboxVBO = 0;

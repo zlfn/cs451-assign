@@ -95,13 +95,6 @@ GLuint gPointProgram = 0;
 GLuint gIslandProgram = 0;
 
 // Camera state - shoreline view
-/*
-glm::vec3 cameraPos = glm::vec3(0.0f, 0.2f, 1.5f);  // A bit higher and further back
-glm::vec3 cameraTarget = glm::vec3(0.0f, 0.0f, 0.0f);  // Look at center of ocean
-glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
-float cameraSpeed = 1.0f;
-*/
-
 glm::vec3 cameraPos = glm::vec3(2.0f, 2.0f, 2.0f); // 중앙 (X=0.0)의 바닥 레벨 (Y=0.0) 근처
 glm::vec3 cameraTarget = glm::vec3(0.0f, 0.0f, 0.0f);
 glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
@@ -237,9 +230,13 @@ void drawIFFTPoints(float currentTime, int windowWidth, int windowHeight) {
     GLint locLightColor = glGetUniformLocation(gPointProgram, "uLightColor");
     glUniform3fv(locLightColor, 1, &lightColor[0]);
 
-    // Roughness (water is fairly smooth)
+    // Roughness (water is fairly smooth, but not perfect glass)
     GLint locRoughness = glGetUniformLocation(gPointProgram, "uRoughness");
-    glUniform1f(locRoughness, 0.25f);
+    glUniform1f(locRoughness, 0.15f);
+
+    // refraction strength
+    GLint strengthLoc = glGetUniformLocation(gPointProgram, "uRefractionStrength");
+    glUniform1f(strengthLoc, 0.02f);
 
     // Time for animated effects (foam, turbulence)
     GLint locTime = glGetUniformLocation(gPointProgram, "uTime");
@@ -250,6 +247,24 @@ void drawIFFTPoints(float currentTime, int windowWidth, int windowHeight) {
     glBindTexture(GL_TEXTURE_CUBE_MAP, gSkyboxTexture);
     GLint locEnvMap = glGetUniformLocation(gPointProgram, "uEnvironmentMap");
     glUniform1i(locEnvMap, 0);
+
+    // Bind ocean floor map
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, gOceanFloorTexture);
+    GLint locOceMap = glGetUniformLocation(gPointProgram, "uRefractionTexture");
+    glUniform1i(locOceMap, 1);
+
+    // Bind bubble texture
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, gBubbleTexture);
+    GLint locBubbleMap = glGetUniformLocation(gPointProgram, "uBubbleTexture");
+    glUniform1i(locBubbleMap, 2);
+
+    // Bind ocean normal map
+    glActiveTexture(GL_TEXTURE3);
+    glBindTexture(GL_TEXTURE_2D, gOceanNormalTexture);
+    GLint locNormalMap = glGetUniformLocation(gPointProgram, "uNormalMap");
+    glUniform1i(locNormalMap, 3);
 
     // Draw filled triangles
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -348,6 +363,9 @@ void cleanup() {
     glDeleteProgram(gPDESolverCS);
 
     cleanupSkybox();
+    cleanupOceanFloor();
+    cleanupBubbleTexture();
+    cleanupOceanNormalTexture();
 
     std::cout << "Freed All Resources." << '\n';
 }
@@ -398,6 +416,9 @@ int main(int argc, char **argv) {
     initComputeShader(); // compute 셰이더 & gBaseSSBO/gTempSSBO/gCurrSSBO 준비
     initProgram();       // point 렌더링 셰이더 + VAO 준비
     initSkybox();        // 스카이박스 초기화
+    initOceanFloor();    // 파도 바닥 초기화
+    initBubbleTexture();
+    initOceanNormalTexture();
 
 // --- [설정 상수] ---
     // 물리 연산 한 단계의 시간 (0.005초 = 200Hz).
