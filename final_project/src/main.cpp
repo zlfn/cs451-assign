@@ -168,6 +168,18 @@ void drawIFFTPoints(float currentTime, int windowWidth, int windowHeight) {
     GLint locOceMap = glGetUniformLocation(gPointProgram, "uRefractionTexture");
     glUniform1i(locOceMap, 1);
 
+    // Bind bubble texture
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, gBubbleTexture);
+    GLint locBubbleMap = glGetUniformLocation(gPointProgram, "uBubbleTexture");
+    glUniform1i(locBubbleMap, 2);
+
+    // Bind ocean normal map
+    glActiveTexture(GL_TEXTURE3);
+    glBindTexture(GL_TEXTURE_2D, gOceanNormalTexture);
+    GLint locNormalMap = glGetUniformLocation(gPointProgram, "uNormalMap");
+    glUniform1i(locNormalMap, 3);
+
     // Draw filled triangles
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     int numIndices = (RENDER_GRID_SIZE - 1) * (RENDER_GRID_SIZE - 1) * 6;
@@ -249,6 +261,8 @@ void cleanup() {
 
     cleanupSkybox();
     cleanupOceanFloor();
+    cleanupBubbleTexture();
+    cleanupOceanNormalTexture();
 
     std::cout << "Freed All Resources." << '\n';
 }
@@ -300,6 +314,8 @@ int main(int argc, char **argv) {
     initPointDraw();     // point 렌더링 셰이더 + VAO 준비
     initSkybox();        // 스카이박스 초기화
     initOceanFloor();    // 파도 바닥 초기화
+    initBubbleTexture();
+    initOceanNormalTexture();
 
     lastFrameTime = glfwGetTime();
 

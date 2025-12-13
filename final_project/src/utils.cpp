@@ -376,6 +376,34 @@ void cleanupOceanFloor() {
 
 ///////////////////////////////////////
 
+GLuint gBubbleTexture = 0;
+
+void initBubbleTexture() {
+    std::string bubbleTexturePath = "assets/bubble.png";
+    gBubbleTexture = loadTexture(bubbleTexturePath);
+    std::cout << "Bubble texture initialized\n";
+}
+
+void cleanupBubbleTexture() {
+    glDeleteTextures(1, &gBubbleTexture);
+}
+
+///////////////////////////////////////
+
+GLuint gOceanNormalTexture = 0;
+
+void initOceanNormalTexture() {
+    std::string normalTexturePath = "assets/ocean_normal.jpg";
+    gOceanNormalTexture = loadTexture(normalTexturePath);
+    std::cout << "Ocean normal texture initialized\n";
+}
+
+void cleanupOceanNormalTexture() {
+    glDeleteTextures(1, &gOceanNormalTexture);
+}
+
+///////////////////////////////////////
+
 // Skybox global variables
 GLuint gSkyboxVAO = 0;
 GLuint gSkyboxVBO = 0;

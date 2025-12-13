@@ -5,6 +5,7 @@ in vec3 vNormal;
 in float vHeight;
 in vec2 vUV;
 in vec4 vClipSpacePos;
+in float vJacobian;
 
 out vec4 FragColor;
 
@@ -12,14 +13,16 @@ uniform float uTime;
 
 // PBR uniforms
 uniform vec3 uCameraPos;
-uniform vec3 uLightDir;
+uniform vec3 uLightDir;      // Direction TO light (normalized)
 uniform vec3 uLightColor;
 uniform float uRoughness;
-uniform sampler2D uRefractionTexture;
-uniform float uRefractionStrength;    // 굴절 강도
 
-// IBL
+// Refraction & Environment
+uniform sampler2D uRefractionTexture;
+uniform float uRefractionStrength;
 uniform samplerCube uEnvironmentMap;
+uniform sampler2D uBubbleTexture;
+uniform sampler2D uNormalMap;
 
 const float PI = 3.14159265359;
 
@@ -105,97 +108,203 @@ float fbm(vec3 p, int octaves) {
 }
 
 void main() {
-    // 1. [순서 변경] 노이즈 및 Normal 계산을 가장 먼저 수행
-    // 그래야 굴절과 반사 모두 자글자글한 디테일이 적용됨
-    vec3 noisePos = vWorldPos * 40.0 + vec3(uTime * 0.3);
-    float turbulenceX = fbm(noisePos, 3) * 0.5; 
-    float turbulenceZ = fbm(noisePos + vec3(100.0), 3) * 0.5;
-    
-    // vNormal 대신 섭동된 N을 구함
-    vec3 N = normalize(vNormal + 0.5 * vec3(turbulenceX, 0.0, turbulenceZ));
+    ///////////////////////////////////////////////////////////////////////////
+    // 1. Normal Perturbation with Normal Map
+    ///////////////////////////////////////////////////////////////////////////
+    vec2 normalUV1 = vWorldPos.xz * 3.5 + vec2(uTime * 0.02, uTime * 0.015);
+    vec2 normalUV2 = vWorldPos.xz * 6.0 - vec2(uTime * 0.025, uTime * 0.02);
+    vec2 normalUV3 = vWorldPos.xz * 2.0 + vec2(uTime * 0.01, -uTime * 0.012);
 
-    // [Moved Up] 3. 조명 벡터 준비 (Needed for Depth Simulation in Step 2)
+    vec3 normalTex1 = texture(uNormalMap, normalUV1).rgb * 2.0 - 1.0;
+    vec3 normalTex2 = texture(uNormalMap, normalUV2).rgb * 2.0 - 1.0;
+    vec3 normalTex3 = texture(uNormalMap, normalUV3).rgb * 2.0 - 1.0;
+
+    vec3 detailNormal = normalize(normalTex1 * 0.5 + normalTex2 * 0.3 + normalTex3 * 0.2);
+
+    vec3 N = normalize(vNormal + vec3(detailNormal.x, 0.0, detailNormal.y) * 0.55);
+
+    ///////////////////////////////////////////////////////////////////////////
+    // 2. View & Light Vectors
+    ///////////////////////////////////////////////////////////////////////////
     vec3 V = normalize(uCameraPos - vWorldPos);
     vec3 L = normalize(uLightDir);
     vec3 H = normalize(V + L);
+
     float NdotV = max(dot(N, V), 0.0);
     float NdotL = max(dot(N, L), 0.0);
 
-    // 2. 굴절 (Refraction)
-    // [개선] vNormal 대신 위에서 구한 N을 사용하여 디테일 추가
-    vec2 distortion = N.xz * uRefractionStrength * 3.0; // Reduced from 5.0 for more realistic refraction scale
-    
-    // Distortion should not depend on height clamping.
-    // Using world position for floor UVs
-    vec2 floorUV = (vWorldPos.xz * 0.1) + distortion; // 0.1 is tiling factor
+    // Water F0 (refractive index 1.33 -> F0 = ((1.33-1)/(1.33+1))^2 ≈ 0.02)
+    vec3 F0 = vec3(0.02);
 
-    // 색 수차 (Chromatic Aberration) - approximated by offset
+    ///////////////////////////////////////////////////////////////////////////
+    // 3. Refraction with Chromatic Aberration & Depth Simulation
+    ///////////////////////////////////////////////////////////////////////////
+    vec2 distortion = N.xz * uRefractionStrength * 3.0;
+    vec2 floorUV = (vWorldPos.xz * 0.1) + distortion;
+
+    // Chromatic aberration
     float aberration = 0.003;
     float r = texture(uRefractionTexture, floorUV - aberration).r;
     float g = texture(uRefractionTexture, floorUV).g;
     float b = texture(uRefractionTexture, floorUV + aberration).b;
     vec3 floorColor = vec3(r, g, b);
 
-    // [Water Color Physics]
-    // Darker Deep Ocean Look
-    vec3 deepWaterColor = vec3(0.0, 0.005, 0.03); // Very Dark Navy (almost black)
-    vec3 shallowWaterColor = vec3(0.02, 0.2, 0.3); // Darker Teal
+    // Water color blending with depth simulation
+    vec3 deepWaterColor = vec3(0.0, 0.01, 0.04);    // Very dark navy
+    vec3 shallowWaterColor = vec3(0.02, 0.15, 0.25); // Dark teal
 
-    // [Depth Simulation]
-    // Dynamic Opacity based on View Angle (Fresnel-like volume effect)
-    // 0.0 (Looking Down) -> "Thin" water -> More Transparent
-    // 1.0 (Looking Horizon) -> "Thick" water -> More Opaque
-    // mix(Transparency, Opacity, ViewAngleFactor)
-    float depthFactor = 1.0 - NdotV; // 0 looking down, 1 at horizon
-    float opacity = mix(0.4, 0.95, depthFactor); 
+    // Depth factor: looking down = transparent, looking horizon = opaque
+    float depthFactor = 1.0 - NdotV;
+    float opacity = mix(0.3, 0.95, depthFactor);
 
-    // Mix the floor texture with the water color. 
-    vec3 refractionColor = mix(floorColor * shallowWaterColor * 2.0, deepWaterColor, opacity);
+    vec3 refractionColor = mix(floorColor * shallowWaterColor * 2.5, deepWaterColor, opacity);
 
-    // 4. Specular (태양광)
-    vec3 F0 = vec3(0.02); 
+    ///////////////////////////////////////////////////////////////////////////
+    // 4. Cook-Torrance Specular BRDF
+    ///////////////////////////////////////////////////////////////////////////
     float NDF = DistributionGGX(N, H, uRoughness);
     float G = GeometrySmith(N, V, L, uRoughness);
-    
-    // Specular lobe Fresnel (for direct lighting term)
-    vec3 F_sun = fresnelSchlick(max(dot(H, V), 0.0), F0); 
+    vec3 F = fresnelSchlick(max(dot(H, V), 0.0), F0);
 
-    vec3 numerator = NDF * G * F_sun;
+    vec3 numerator = NDF * G * F;
     float denominator = 4.0 * NdotV * NdotL + 0.001;
     vec3 specular = numerator / denominator;
 
-    // 5. Environment Reflection (하늘)
+    ///////////////////////////////////////////////////////////////////////////
+    // 5. Oren-Nayar Diffuse BRDF
+    ///////////////////////////////////////////////////////////////////////////
+    float sigma2 = uRoughness * uRoughness;
+    float A = 1.0 - 0.5 * sigma2 / (sigma2 + 0.33);
+    float B = 0.45 * sigma2 / (sigma2 + 0.09);
+
+    float thetaI = acos(NdotL);
+    float thetaR = acos(NdotV);
+    float alpha = max(thetaI, thetaR);
+    float beta = min(thetaI, thetaR);
+
+    // Azimuth difference approximation
+    vec3 lightProj = normalize(L - N * NdotL);
+    vec3 viewProj = normalize(V - N * NdotV);
+    float cosPhi = max(dot(lightProj, viewProj), 0.0);
+
+    // Water base color (very dark blue for physical accuracy)
+    vec3 waterColor = vec3(0.01, 0.03, 0.08);
+
+    float orenNayar = A + B * cosPhi * sin(alpha) * tan(beta);
+    vec3 diffuse = (1.0 - F) * waterColor / PI * orenNayar;
+
+    ///////////////////////////////////////////////////////////////////////////
+    // 6. Environment Reflection (Cubemap with Fresnel)
+    ///////////////////////////////////////////////////////////////////////////
     vec3 R = reflect(-V, N);
     vec3 envColor = textureLod(uEnvironmentMap, R, uRoughness * 5.0).rgb;
-    // Tone down sky reflection slightly to let water color show through
-    envColor *= 0.8; 
 
-    // Fresnel for Mix (Reflection vs Refraction)
-    // This depends on N and V (viewing angle)
-    vec3 F_view = fresnelSchlick(NdotV, F0);
+    // Fresnel for environment reflection
+    vec3 F_env = fresnelSchlickRoughness(NdotV, F0, uRoughness);
+    vec3 envReflection = F_env * envColor * 1.2; // Boosted for realism
 
-    // 6. SSS (Translucency)
-    float crestFactor = smoothstep(0.0, 0.5, vHeight);
-    float viewScatter = pow(max(dot(V, -L), 0.0), 4.0);
-    float lightScatter = max(dot(-N, L), 0.0) * 0.5 + 0.5;
-    
-    // Optimized SSS for realistic wave glowing
-    vec3 sssColor = vec3(0.1, 0.5, 0.6); // Brighter teal
-    vec3 sss = sssColor * (viewScatter + lightScatter) * crestFactor * uLightColor * 1.5;
+    ///////////////////////////////////////////////////////////////////////////
+    // 7. Subsurface Scattering (Physical)
+    ///////////////////////////////////////////////////////////////////////////
+    vec3 sssColor = vec3(0.08, 0.35, 0.55);  // Realistic oceanic SSS
+    float waveThickness = clamp(1.0 - abs(vHeight) * 2.0, 0.0, 1.0);
 
-    // 7. [중요] 최종 합성
-    // Mix refraction and reflection based on View Fresnel
-    vec3 color = mix(refractionColor, envColor, F_view);
-    
-    // Add Sun Specular (Boosted for sparkle)
-    color += specular * uLightColor * 2.0; 
-    
-    // Add SSS
-    color += sss; 
+    // Light extinction in water
+    vec3 extinction = vec3(0.35, 0.18, 0.12);  // RGB absorption coefficients
+    vec3 transmittance = exp(-extinction * (1.0 - waveThickness) * 2.5);
 
-    // HDR Tone mapping & Gamma
-    color = color / (color + vec3(1.0));
-    color = pow(color, vec3(1.0/2.2));
+    // Forward & back scattering
+    float LdotV = dot(L, -V);
+    float forwardScatter = pow(max(LdotV * 0.5 + 0.5, 0.0), 4.0);
+    float backScatter = pow(max(dot(N, L) * 0.5 + 0.5, 0.0), 2.0);
+
+    // Height-based SSS (more at crests)
+    float heightSSS = smoothstep(-0.1, 0.4, vHeight);
+
+    float sssFactor = (forwardScatter * 0.5 + backScatter * 0.4) * waveThickness;
+    sssFactor *= heightSSS * 0.7;
+    vec3 sss = sssColor * transmittance * sssFactor * uLightColor * NdotL;
+
+    ///////////////////////////////////////////////////////////////////////////
+    // 8. Translucency (Wave Crest Glow)
+    ///////////////////////////////////////////////////////////////////////////
+    float crestHeight = smoothstep(0.0, 0.35, vHeight);
+    float backLight = max(dot(-N, L), 0.0);
+    vec3 translucencyColor = vec3(0.12, 0.38, 0.52);
+    vec3 translucency = translucencyColor * crestHeight * backLight * uLightColor * 2.2;
+
+    ///////////////////////////////////////////////////////////////////////////
+    // 9. Foam from Jacobian
+    ///////////////////////////////////////////////////////////////////////////
+    float jacobianNoise = fbm(vWorldPos * 12.0 + vec3(uTime * 0.15), 3) * 0.3;
+    float adjustedJacobian = vJacobian + jacobianNoise;
+
+    float foamBase = 1.0 - smoothstep(0.2, 0.8, adjustedJacobian);
+
+    float detailNoise1 = fbm(vWorldPos * 8.0 + vec3(uTime * 0.2), 2);
+    float detailNoise2 = fbm(vWorldPos * 20.0 - vec3(uTime * 0.3), 2);
+    float combinedNoise = detailNoise1 * 0.6 + detailNoise2 * 0.4;
+    combinedNoise = combinedNoise * 0.5 + 0.5;
+
+    float foamAmount = foamBase * combinedNoise;
+    foamAmount = pow(foamAmount, 1.5);
+
+    vec2 flowDir1 = vec2(uTime * 0.03, uTime * 0.02);
+    vec2 flowDir2 = vec2(-uTime * 0.025, uTime * 0.035);
+    vec2 flowDir3 = vec2(uTime * 0.015, -uTime * 0.028);
+
+    vec2 uvDistort = vec2(
+        fbm(vWorldPos * 5.0 + vec3(uTime * 0.1), 2),
+        fbm(vWorldPos * 5.0 + vec3(uTime * 0.1, 100.0, 0.0), 2)
+    ) * 0.05;
+
+    vec2 bubbleUV1 = vWorldPos.xz * 0.8 + flowDir1 + uvDistort;
+    vec2 bubbleUV2 = vWorldPos.xz * 1.2 + flowDir2 - uvDistort * 0.5;
+    vec2 bubbleUV3 = vWorldPos.xz * 0.6 + flowDir3 + uvDistort * 0.7;
+
+    float bubble1 = texture(uBubbleTexture, bubbleUV1).r;
+    float bubble2 = texture(uBubbleTexture, bubbleUV2).r;
+    float bubble3 = texture(uBubbleTexture, bubbleUV3).r;
+
+    float timeVar = sin(uTime * 0.5) * 0.5 + 0.5;
+    float bubbleIntensity = mix(
+        bubble1 * 0.5 + bubble2 * 0.3 + bubble3 * 0.2,
+        bubble2 * 0.5 + bubble3 * 0.3 + bubble1 * 0.2,
+        timeVar
+    );
+
+    vec3 foamColor = vec3(1.0);
+    float foamAlpha = bubbleIntensity * foamAmount;
+
+    ///////////////////////////////////////////////////////////////////////////
+    // 10. Final Composition
+    ///////////////////////////////////////////////////////////////////////////
+    vec3 color = vec3(0.0);
+
+    // Mix refraction and environment reflection based on Fresnel
+    vec3 baseColor = mix(refractionColor, envReflection, F_env);
+
+    color += baseColor;                           // Base (refraction + env reflection)
+    color += diffuse * uLightColor * NdotL;       // Oren-Nayar diffuse
+    color += specular * uLightColor * NdotL;      // Cook-Torrance specular
+    color += sss;                                 // Subsurface scattering
+    color += translucency;                        // Wave crest translucency
+
+    // Ambient occlusion from wave troughs
+    float ao = clamp(vHeight + 0.5, 0.2, 1.0);
+    color *= ao;
+
+    // Add foam where waves fold
+    color = mix(color, foamColor, foamAlpha * 0.85);
+
+    ///////////////////////////////////////////////////////////////////////////
+    // 11. Tone Mapping & Gamma Correction
+    ///////////////////////////////////////////////////////////////////////////
+    // ACES filmic tone mapping
+    color = color * (2.51 * color + 0.03) / (color * (2.43 * color + 0.59) + 0.14);
+
+    // Gamma correction
+    color = pow(color, vec3(1.0 / 2.2));
 
     FragColor = vec4(color, 1.0);
 }

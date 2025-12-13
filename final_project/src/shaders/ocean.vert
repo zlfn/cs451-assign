@@ -28,6 +28,7 @@ out vec3 vNormal;
 out float vHeight;
 out vec2 vUV;
 out vec4 vClipSpacePos;
+out float vJacobian;
 
 // IFFT 격자에서 height 샘플 (wrap 포함)
 float sampleHeight(int gx, int gy) {
@@ -135,6 +136,19 @@ void main() {
     // Normal
     vec3 normal = normalize(cross(bitangent, tangent)); // Z cross X = Y (Up)
 
+    // Jacobian calculation for foam
+    float dxDX = sampleDX(gxR, gy) - sampleDX(gxL, gy);
+    float dxDZ = sampleDX(gx, gyU) - sampleDX(gx, gyD);
+    float dzDX = sampleDY(gxR, gy) - sampleDY(gxL, gy);
+    float dzDZ = sampleDY(gx, gyU) - sampleDY(gx, gyD);
+
+    float dxDX_norm = dxDX * uLambda / (2.0 * worldEps);
+    float dxDZ_norm = dxDZ * uLambda / (2.0 * worldEps);
+    float dzDX_norm = dzDX * uLambda / (2.0 * worldEps);
+    float dzDZ_norm = dzDZ * uLambda / (2.0 * worldEps);
+
+    float jacobian = (1.0 + dxDX_norm) * (1.0 + dzDZ_norm) - dxDZ_norm * dzDX_norm;
+
     // 최종 위치. 평면은 XZ, 높이는 Y
     vec3 pos = vec3(baseX + dispX, h, baseZ + dispZ);
 
@@ -146,4 +160,5 @@ void main() {
     vNormal   = normal;
     vHeight   = h;
     vUV       = vec2(u, v);
+    vJacobian = jacobian;
 }
