@@ -8,6 +8,12 @@ win-x64-msvc/include/glm/gtx/* linguist-vendored=true
 win-x64-msvc/include/glm/simd/* linguist-vendored=true
 win-x64-msvc/lib/* linguist-vendored=true
 
+# Exclude intermidiate assignments
+0_setup/** linguist-vendored=true
+1_2d_game/** linguist-vendored=true
+2_2d_animation/** linguist-vendored=true
+3_1_3d_game/** linguist-vendored=true
+3_2_3d_game/** linguist-vendored=true
+
 # Treat .comp files as GLSL
 *.comp linguist-language=GLSL
-
