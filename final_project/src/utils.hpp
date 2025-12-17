@@ -16,7 +16,7 @@
 const unsigned int SMOOTH_FACTOR = 1;
 const unsigned int GRID_SIZE = 128; // IFFT resolution
 const unsigned int RENDER_GRID_SIZE = GRID_SIZE * SMOOTH_FACTOR;  // High-res rendering mesh
-const float HEIGHT_SCALE = 2.0f;
+const float HEIGHT_SCALE = 1.0f;
 const float TERRAIN_HEIGHT_SCALE = 1.0f;
 const float L_world = 64.0f; // 시뮬레이션 월드 물리적 크기. 단위는 meter
 const glm::vec2 w = glm::normalize(glm::vec2(0.5, 0.5));    // Wind direction, MUST be normalized

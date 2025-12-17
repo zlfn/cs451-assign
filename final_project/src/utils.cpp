@@ -49,7 +49,7 @@ void loadSpongeMask();
 
 ///////////////// initiate spectrum /////////////////
 std::complex<float> randGaussianComplex() {
-    static std::mt19937 gen(std::random_device{}());
+    static std::mt19937 gen(42); // std::random_device{}()
     // (0.0, 1.0] 범위. 0을 피하여 log(0) 방지
     static std::uniform_real_distribution<float> dist(std::nextafter(0.0f, 1.0f), 1.0f);
 
@@ -380,7 +380,7 @@ float calculateAlphaMask(int x, int y, float R1, float R2) {
 }
 
 void loadAlphaMask() {
-    const float R1 = 0.8;
+    const float R1 = 0.7;
     const float R2 = 0.9;
 
     std::vector<float> vertices;

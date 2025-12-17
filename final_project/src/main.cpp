@@ -95,8 +95,8 @@ GLuint gPointProgram = 0;
 GLuint gIslandProgram = 0;
 
 // Camera state - shoreline view
-glm::vec3 cameraPos = glm::vec3(2.0f, 2.0f, 2.0f); // 중앙 (X=0.0)의 바닥 레벨 (Y=0.0) 근처
-glm::vec3 cameraTarget = glm::vec3(0.0f, 0.0f, 0.0f);
+glm::vec3 cameraPos = glm::vec3(1.0f, 0.5f, 1.0f);
+glm::vec3 cameraTarget = glm::vec3(-3.0f, 0.0f, -3.0f);
 glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
 
 // Mouse state for light direction control
