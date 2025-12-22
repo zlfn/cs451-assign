@@ -48,6 +48,7 @@ void loadAlphaMask();
 void loadSpongeMask();
 
 ///////////////// initiate spectrum /////////////////
+
 std::complex<float> randGaussianComplex() {
     static std::mt19937 gen(42); // std::random_device{}()
     // (0.0, 1.0] 범위. 0을 피하여 log(0) 방지
@@ -77,7 +78,7 @@ float phillipsSpectrum(float kx, float ky) {
     }
 
     float dot_kw = kx * w.x + ky * w.y;
-    float windFactor = dot_kw * dot_kw / Ksqu; // This is now |k_hat . w_hat|^2
+    float windFactor = dot_kw * dot_kw / Ksqu;
 
     float lowFrequencyDamping = std::exp(-1.0f / (Ksqu * Lsqu));
     float highFrequencyDamping = std::exp(-Ksqu * lsqu);
@@ -556,24 +557,21 @@ unsigned int oceanFloorIndices[] = {
 };
 
 void initOceanFloor() {
-    // 1. VAO, VBO, EBO 생성
+    // VAO, VBO, EBO 생성
     glGenVertexArrays(1, &gOceanFloorVAO);
     glGenBuffers(1, &gOceanFloorVBO);
     glGenBuffers(1, &gOceanFloorEBO); // 지형은 EBO를 사용하는 것이 효율적
 
-    // 2. VAO 바인딩
-    glBindVertexArray(gOceanFloorVAO);
-
-    // 3. VBO 데이터 설정
+    glBindVertexArray(gOceanFloorVAO); // VAO 바인딩
     glBindBuffer(GL_ARRAY_BUFFER, gOceanFloorVBO);
     glBufferData(GL_ARRAY_BUFFER, sizeof(oceanFloorVertices), oceanFloorVertices, GL_STATIC_DRAW);
 
-    // 4. EBO 데이터 설정
+    // EBO
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gOceanFloorEBO);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(oceanFloorIndices), oceanFloorIndices,
                  GL_STATIC_DRAW);
 
-    // 5. Vertex Attributes 설정 (Stride = 8 floats)
+    // Vertex Attributes
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void *)0);
 

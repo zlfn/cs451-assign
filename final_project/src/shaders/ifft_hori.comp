@@ -86,7 +86,7 @@ void main() {
         barrier();
     }
 
-    // 스테이지별 버터플라이 루프
+    // butterfly loop
     for (uint s = 1u; s <= LOG2N; ++s) {
         uint m    = 1u << s;   // 이번 스테이지에서 묶는 블록 크기 (2,4,8,...,N)
         uint mh = m >> 1u;   // 블록 절반 길이
@@ -103,7 +103,6 @@ void main() {
                 Complex u = rowShared[i0];
                 Complex v = rowShared[i1];
 
-                // iFFT에서는 twiddle = exp(+2π i k / m)
                 float k  = float(insideIndex);
                 float mm = float(m);
                 float angle = 2.0 * 3.14159265358979323846 * k / mm;
@@ -123,7 +122,7 @@ void main() {
         barrier();
     }
 
-    // iFFT 스케일링 (1/N 곱하기)
+    // scaling
     Complex val = rowShared[tid];
     float invN = 1.0 / float(N);
     val.re *= invN;

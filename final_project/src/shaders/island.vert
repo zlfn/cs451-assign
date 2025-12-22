@@ -48,11 +48,9 @@ void main() {
     float worldEps = 4.0 / float(uGridSize); 
     float dH_dx = (hR - hL) / (2.0 * worldEps); // R - L
     float dH_dz = (hU - hD) / (2.0 * worldEps); // U - D
-
-    // Normal 벡터 = normalize( ( -dH/dx, 1, -dH/dz ) )
     vec3 normal = normalize(vec3(-dH_dx, 1.0, -dH_dz));
 
-    // Tangent space basis vectors for normal mapping
+    // tangent space basis vectors for normal mapping
     vec3 tangent = normalize(vec3(1.0, dH_dx, 0.0));
     vec3 bitangent = normalize(vec3(0.0, dH_dz, 1.0));
 

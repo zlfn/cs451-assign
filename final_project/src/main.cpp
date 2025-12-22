@@ -428,20 +428,13 @@ int main(int argc, char **argv) {
     initOceanNormalTexture();
     initIslandNormalTexture();
 
-// --- [설정 상수] ---
-    // 물리 연산 한 단계의 시간 (0.005초 = 200Hz).
-    // SWE가 발산하지 않도록 충분히 작아야 합니다.
+    // 물리 연산 한 단계의 시간 (0.005초)
     const float FIXED_DT = 0.005f;
-
-    // "죽음의 나선(Spiral of Death)" 방지용
-    // 렌더링이 너무 느려져도 한 프레임에 물리 연산을 10번 넘게 하지는 않음
-    const int MAX_SUB_STEPS = 10;
-
-    // 누적 시간 저장 변수 (static)
+    const int MAX_SUB_STEPS = 10; // 렌더링이 너무 느려져도 한 프레임에 물리 연산을 10번 넘게 하지 않음
     static double accumulator = 0.0;
     static float simulationTime = 0.0f;
 
-    // 초기화가 끝난 직후의 시간을 기준점으로 잡음
+    // 초기화가 끝난 직후의 시간이 기준점
     glfwSetTime(0.0);
     double startTime = glfwGetTime();
     lastFrameTime = startTime;
@@ -452,39 +445,22 @@ int main(int argc, char **argv) {
         double deltaTime = realTime - lastFrameTime;
         lastFrameTime = realTime;
 
-        // [안전장치 1] 프레임 드랍이 심할 때(예: 창 이동 중) DT가 튀는 것 방지
+        // 창 이동 중과 같이 프레임 드랍이 심할 때 DT가 튀는 것 방지
         if (deltaTime > 0.1)
             deltaTime = 0.1;
 
-        // --- 1. Sub-stepping 물리 시뮬레이션 ---
-
-        // 현재 프레임의 시간을 누적기에 더함 (TimeScale 적용)
         accumulator += deltaTime * timeScale;
 
-        // 누적된 시간이 고정 시간(FIXED_DT)보다 크다면, 그만큼 시뮬레이션을 "따라잡기" 수행
+        // 누적된 시간이 고정 시간(FIXED_DT)보다 크다면, 그만큼 시뮬레이션을 더 진행
         int steps = 0;
         while (accumulator >= FIXED_DT && steps < MAX_SUB_STEPS) {
-            // 시뮬레이션 시간을 고정 간격만큼 전진
             simulationTime += FIXED_DT;
-
-            // [핵심] 여기서 calcPipeline은 내부적으로 (현재시간 - 이전시간)을 계산하므로,
-            // 정확히 FIXED_DT(0.005초) 만큼의 dt가 셰이더로 전달됩니다.
-
-            // (이전 턴에 추가한 마우스 클릭 정보도 함께 전달)
-            // 만약 클릭 로직이 루프 밖에 있다면, 서브스텝 중에는 클릭 상태를 유지해서 전달하면
-            // 됩니다.
-            calcPipeline(simulationTime); //, gridPos, isClicking);
-
+            calcPipeline(simulationTime);
             accumulator -= FIXED_DT;
             steps++;
         }
 
-        // --- 2. 렌더링 ---
-
-        // 렌더링은 물리 시뮬레이션과 별개로 현재 실제 시간(또는 보간된 시간)을 사용해도 되지만,
-        // 싱크를 맞추기 위해 가장 최근 시뮬레이션 시간을 사용하는 것이 좋습니다.
-
-        // Get window size for aspect ratio
+        // 렌더링
         int windowWidth, windowHeight;
         glfwGetFramebufferSize(window, &windowWidth, &windowHeight);
 
@@ -497,17 +473,13 @@ int main(int argc, char **argv) {
 
         drawSkybox(view, projection);
 
-        // [중요] 렌더링 셰이더에도 simulationTime을 넘겨주어 물결 위상이 맞도록 함
+        // 렌더링 셰이더에도 simulationTime을 넘겨주어 물결 위상이 맞게 한다
         drawIFFTPoints(simulationTime, windowWidth, windowHeight);
 
         drawIsland(windowWidth, windowHeight);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
-
-        // --- [마우스 입력 처리 위치] ---
-        // (루프 상단이나 하단 어디든 상관없으나, calcPipeline 호출 전에는 갱신되어야 함)
-        // ... (이전에 작성한 마우스 Raycasting 코드) ...
     }
 
     // 정리

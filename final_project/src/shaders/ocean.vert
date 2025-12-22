@@ -28,7 +28,7 @@ uniform float uLambda;           // horizontal displacement strength
 uniform mat4  uModel;
 uniform mat4  uView;
 uniform mat4  uProjection;
-uniform int   uCenterTile;       // 1: center tile uses SWE near island, blend outward
+uniform int   uCenterTile;       // center tile uses SWE near island, blend outward
 
 out vec3  vWorldPos;
 out vec3  vNormal;
@@ -37,7 +37,7 @@ out vec2  vUV;
 out vec4  vClipSpacePos;
 out float vJacobian;
 
-// ---------- Integer sampling (wrap) ----------
+// integer sampling
 int wrapIndex(int a, int N) { return (a % N + N) % N; }
 
 int idxFromGrid(int gx, int gy) {
@@ -72,7 +72,7 @@ float sampleMaskInt(int gx, int gy) {
     return alphaMask[idx];
 }
 
-// ---------- Bilinear sampling on [0,1] using N-1 mapping ----------
+// Bilinear sampling on [0,1] using N-1 mapping
 void gridCoordsNMinus1(float u, float v, out float gx_f, out float gy_f) {
     int N = uIFFTGridSize;
     float Nm1 = float(max(N - 1, 1));
@@ -210,7 +210,7 @@ void main() {
         a = clamp(bilinearMask(u, v), 0.0, 1.0);
     }
 
-    // --- Height: continuous blend SWE <-> Tessendorf (NO sign-based branching) ---
+    // Height: continuous blend SWE <-> Tessendorf (NO sign-based branching)
     float h_swe  = bilinearSWEHeight(u, v);
     float h_tess = bilinearTessHeight(u, v);
 
@@ -220,24 +220,23 @@ void main() {
     float h_raw = mix(h_swe, h_tess, a);
     float h     = h_raw * uHeightScale;
 
-    // --- Displacement (from Tessendorf) ---
+    // Displacement (from Tessendorf)
     float dispX = bilinearDX(u, v) * uLambda;
     float dispZ = bilinearDY(u, v) * uLambda; // DY used as Z displacement (as before)
 
-    // Prevent "almost fixed to 0" near island:
-    // keep some displacement even when mask is near 0 (tunable)
+    // Prevent almost fixed to 0 near islan. keep some displacement even when mask is near 0 (tunable)
     if (uCenterTile == 1) {
-        const float minKeep = 0.25;          // 0.0 -> original (fully killed), 0.2~0.4 recommended
+        const float minKeep = 0.25;
         float m = mix(minKeep, 1.0, a);
         dispX *= m;
         dispZ *= m;
     }
 
-    // --- Sampling step in world units ---
+    // Sampling step in world units
     int N = uIFFTGridSize;
     float worldEps = 4.0 / float(max(N - 1, 1));  // because base plane spans 4 units
 
-    // --- Normal via central differences (consistent positions in SAME coordinate frame) ---
+    // Normal via central differences (consistent positions in SAME coordinate frame)
     float du = 1.0 / float(max(N - 1, 1));
     float dv = 1.0 / float(max(N - 1, 1));
 
@@ -299,8 +298,7 @@ void main() {
     mat3 Nmat = transpose(inverse(mat3(uModel)));
     vec3 nWorld = normalize(Nmat * nLocal);
 
-    // --- Jacobian for foam (central difference, world-normalized) ---
-    // Use raw dx/dy fields (before lambda) and normalize by worldEps
+    // Jacobian for foam (central difference, world-normalized). Use raw dx/dy fields (before lambda) and normalize by worldEps
     float DxL0 = bilinearDX(uL, v );
     float DxR0 = bilinearDX(uR, v );
     float DxD0 = bilinearDX(u , vD);
@@ -318,7 +316,7 @@ void main() {
 
     float jacobian = (1.0 + dxDX_norm) * (1.0 + dzDZ_norm) - dxDZ_norm * dzDX_norm;
 
-    // --- Final vertex position --
+    // Final vertex position
     vec3 posLocal = vec3(baseX + dispX, h, baseZ + dispZ);
     float shore = (uCenterTile==1) ? (1.0 - a) : 0.0;
     posLocal.y -= 0.002 * shore;

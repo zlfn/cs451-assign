@@ -20,7 +20,7 @@ const float HEIGHT_SCALE = 1.0f;
 const float TERRAIN_HEIGHT_SCALE = 1.0f;
 const float L_world = 64.0f; // 시뮬레이션 월드 물리적 크기. 단위는 meter
 const glm::vec2 w = glm::normalize(glm::vec2(0.5, 0.5));    // Wind direction, MUST be normalized
-const float lambda = 5.0f;
+const float lambda = 10.0f;
 
 void initSpectrum();
 
