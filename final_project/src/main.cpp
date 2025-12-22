@@ -94,14 +94,10 @@ GLuint gPointEBO = 0;
 GLuint gPointProgram = 0;
 GLuint gIslandProgram = 0;
 
-// Camera state - shoreline view
+// camera state (shoreline view)
 glm::vec3 cameraPos = glm::vec3(1.0f, 0.5f, 1.0f);
 glm::vec3 cameraTarget = glm::vec3(-3.0f, 0.0f, -3.0f);
 glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
-
-// Mouse state for light direction control
-double mouseX = 0.5;  // Normalized [0, 1]
-double mouseY = 0.5;  // Normalized [0, 1]
 
 void initProgram() {
     glGenVertexArrays(1, &gPointVAO);
@@ -209,7 +205,7 @@ void drawIFFTPoints(float currentTime, int windowWidth, int windowHeight) {
 
     // Lambda (수평 변위 강도)
     GLint locLambda = glGetUniformLocation(gPointProgram, "uLambda");
-    glUniform1f(locLambda, lambda); // 원하는 값으로 세팅 (0.0 ~ 2.0 정도로 튜닝)
+    glUniform1f(locLambda, lambda);
 
     // View matrix (looking at ocean from angle)
     glm::mat4 view = glm::lookAt(cameraPos, cameraTarget, cameraUp);
@@ -276,9 +272,9 @@ void drawIFFTPoints(float currentTime, int windowWidth, int windowHeight) {
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     int numIndices = (RENDER_GRID_SIZE - 1) * (RENDER_GRID_SIZE - 1) * 6;
 
-    // Draw tiled ocean (5x5 grid centered around camera)
-    const int tileRadius = 1;  // Creates 5x5 grid
-    const float tileSize = 4.0f;  // Ocean mesh size is [-2, 2], so 4.0 total
+    // Draw tiled ocean
+    const int tileRadius = 1;
+    const float tileSize = 4.0f;
 
     // Calculate camera forward vector for back-face culling
     glm::vec3 cameraForward = glm::normalize(cameraTarget - cameraPos);
@@ -329,17 +325,9 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 void cursorPosCallback(GLFWwindow* window, double xpos, double ypos) {
     int width, height;
     glfwGetWindowSize(window, &width, &height);
-
-    // Normalize mouse coordinates to [0, 1]
-    mouseX = xpos / width;
-    mouseY = ypos / height;
-
-    // Clamp to [0, 1]
-    mouseX = glm::clamp(mouseX, 0.0, 1.0);
-    mouseY = glm::clamp(mouseY, 0.0, 1.0);
 }
 
-// 리소스 초기화
+// free resources
 void cleanup() {
     glDeleteVertexArrays(1, &gPointVAO);
     glDeleteBuffers(1, &gPointEBO);
