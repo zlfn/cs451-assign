@@ -68,8 +68,8 @@ void main() {
     colShared[row] = inData[idx1D];
     barrier(); // 워크그룹 내 모든 쓰레드 동기화
 
-    // 1D iFFT (radix-2 DIT
-    const uint LOG2N = 7u; // N=32일 때 log2N=5
+    // 1D iFFT (radix-2 DIT)
+    const uint LOG2N = 7u;
     uint tid = row;
 
     // bit-reversal
@@ -83,7 +83,7 @@ void main() {
         barrier();
     }
 
-    // 2단계: 스테이지별 버터플라이 루프
+    // butterfly loop
     for (uint s = 1u; s <= LOG2N; ++s) {
         uint m    = 1u << s;   // 이번 스테이지에서 묶는 블록 크기 (2,4,8,...,N)
         uint mh = m >> 1u;   // 블록 절반 길이
@@ -99,7 +99,6 @@ void main() {
                 Complex u = colShared[i0];
                 Complex v = colShared[i1];
 
-                // iFFT: twiddle = exp(+2π i k / m)
                 float k  = float(insideIndex);
                 float mm = float(m);
                 float angle = 2.0 * 3.14159265358979323846 * k / mm;
@@ -118,7 +117,7 @@ void main() {
         barrier();
     }
 
-    // iFFT 스케일링 (1/N 곱하기)
+    // scaling
     Complex val = colShared[tid];
     float invN = 1.0 / float(N);
     val.re *= invN;
@@ -127,6 +126,6 @@ void main() {
 
     barrier();
 
-    // 4) 결과를 shared에서 global로 다시 저장
+    // 결과를 shared에서 global로 다시 저장
     outData[idx1D] = colShared[row];
 }

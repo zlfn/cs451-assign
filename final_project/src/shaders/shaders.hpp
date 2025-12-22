@@ -13,8 +13,11 @@
         constexpr const char* OCEAN_FRAG_SHADER = "";
         constexpr const char* SKYBOX_VERT_SHADER = "";
         constexpr const char* SKYBOX_FRAG_SHADER = "";
+        constexpr const char* ISLAND_VERT_SHADER = "";
+        constexpr const char* ISLAND_FRAG_SHADER = "";
         constexpr const char* IFFT_HORI_COMP_SHADER = "";
         constexpr const char* IFFT_VERT_COMP_SHADER = "";
         constexpr const char* WAVE_SPECTRUM_COMP_SHADER = "";
+        constexpr const char* PDE_SOLVER_COMP_SHADER = "";
     }
 #endif

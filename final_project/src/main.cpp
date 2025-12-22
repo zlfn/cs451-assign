@@ -47,24 +47,60 @@ GLuint createPointShaderProgram() {
     return prog;
 }
 
+GLuint createIslandShaderProgram() {
+    GLint success = GL_FALSE;
+    GLuint vs = glCreateShader(GL_VERTEX_SHADER);
+    GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
+    GLuint prog = glCreateProgram();
+
+    glShaderSource(vs, 1, &shaders::ISLAND_VERT_SHADER, nullptr);
+    glCompileShader(vs);
+    glGetShaderiv(vs, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        char log[128];
+        glGetShaderInfoLog(vs, 128, nullptr, log);
+        std::cerr << "Island Vertex Shader Compile Failure:\n" << log << '\n';
+    }
+
+    glShaderSource(fs, 1, &shaders::ISLAND_FRAG_SHADER, nullptr);
+    glCompileShader(fs);
+    glGetShaderiv(fs, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        char log[128];
+        glGetShaderInfoLog(fs, 128, nullptr, log);
+        std::cerr << "Island Fragment Shader Compile Failure:\n" << log << '\n';
+    }
+
+    glAttachShader(prog, vs);
+    glAttachShader(prog, fs);
+    glLinkProgram(prog);
+    glGetProgramiv(prog, GL_LINK_STATUS, &success);
+    if (!success) {
+        char log[128];
+        glGetProgramInfoLog(prog, 128, nullptr, log);
+        std::cerr << "Island Shader Program Link Failure:\n" << log << '\n';
+    }
+
+    glDeleteShader(vs);
+    glDeleteShader(fs);
+    return prog;
+}
+
 float timeScale = 0.5f;
 float lastFrameTime = 0.0f;
+bool gShowIslandSWE = true; // Toggle for Island and SWE visualization
 
 GLuint gPointVAO = 0;
 GLuint gPointEBO = 0;
 GLuint gPointProgram = 0;
+GLuint gIslandProgram = 0;
 
-// Camera state - shoreline view
-glm::vec3 cameraPos = glm::vec3(0.0f, 0.4f, 2.5f);  // A bit higher and further back
-glm::vec3 cameraTarget = glm::vec3(0.0f, 0.0f, 0.0f);  // Look at center of ocean
+// camera state (shoreline view)
+glm::vec3 cameraPos = glm::vec3(1.0f, 0.5f, 1.0f);
+glm::vec3 cameraTarget = glm::vec3(-3.0f, 0.0f, -3.0f);
 glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
-float cameraSpeed = 1.0f;
 
-// Mouse state for light direction control
-double mouseX = 0.5;  // Normalized [0, 1]
-double mouseY = 0.5;  // Normalized [0, 1]
-
-void initPointDraw() {
+void initProgram() {
     glGenVertexArrays(1, &gPointVAO);
     glBindVertexArray(gPointVAO);
 
@@ -94,30 +130,84 @@ void initPointDraw() {
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(GLuint), indices.data(), GL_STATIC_DRAW);
 
     gPointProgram = createPointShaderProgram();
+    gIslandProgram = createIslandShaderProgram();
     glBindVertexArray(0);
 }
 
-void drawIFFTPoints(float currentTime, int windowWidth, int windowHeight) {
+void drawIsland(int windowWidth, int windowHeight) {
+    glUseProgram(gIslandProgram);
+    glBindVertexArray(gPointVAO);
+
+    // SSBO 바인딩
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, gTerrainHeightSSBO);
+
+    // Grid and scale uniforms
+    GLint locGridSize = glGetUniformLocation(gIslandProgram, "uGridSize");
+    GLint locRenderGrid = glGetUniformLocation(gIslandProgram, "uRenderGridSize");
+    GLint locHeightScale = glGetUniformLocation(gIslandProgram, "uHeightScale");
+    GLint locView = glGetUniformLocation(gIslandProgram, "uView");
+    GLint locProjection = glGetUniformLocation(gIslandProgram, "uProjection");
+    GLint locCameraPos = glGetUniformLocation(gIslandProgram, "uCameraPos");
+
+    glUniform1i(locGridSize, GRID_SIZE);
+    glUniform1i(locRenderGrid, RENDER_GRID_SIZE);
+    glUniform1f(locHeightScale, TERRAIN_HEIGHT_SCALE);
+
+    // View matrix (looking at ocean from angle)
+    glm::mat4 view = glm::lookAt(cameraPos, cameraTarget, cameraUp);
+    glUniformMatrix4fv(locView, 1, GL_FALSE, &view[0][0]);
+
+    // Projection matrix
+    float aspect = (float)windowWidth / (float)windowHeight;
+    glm::mat4 projection = glm::perspective(glm::radians(75.0f), aspect, 0.1f, 100.0f);
+    glUniformMatrix4fv(locProjection, 1, GL_FALSE, &projection[0][0]);
+
+    // PBR uniforms
+    glUniform3fv(locCameraPos, 1, &cameraPos[0]);
+
+    // Bind island normal map
+    glActiveTexture(GL_TEXTURE4);
+    glBindTexture(GL_TEXTURE_2D, gIslandNormalTexture);
+    GLint locNormalMap = glGetUniformLocation(gIslandProgram, "uNormalMap");
+    glUniform1i(locNormalMap, 4);
+
+    // Draw filled triangles
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    int numIndices = (RENDER_GRID_SIZE - 1) * (RENDER_GRID_SIZE - 1) * 6;
+
+    // Calculate camera forward vector for back-face culling
+    glm::vec3 cameraForward = glm::normalize(cameraTarget - cameraPos);
+    glDrawElements(GL_TRIANGLES, numIndices, GL_UNSIGNED_INT, 0); // Draw this tile
+
+    glBindVertexArray(0);
+    glUseProgram(0);
+}
+
+// 렌더링 함수
+void drawIFFTPoints(float currentTime, int windowWidth, int windowHeight, bool showIslandSWE) {
     glUseProgram(gPointProgram);
     glBindVertexArray(gPointVAO);
 
-    // SSBO 바인딩 (vertex shader에서 binding = 0,1,2)
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, gCurrHeightSSBO);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, gCurrDXSSBO);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, gCurrDYSSBO);
+    // SSBO 바인딩
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, gFinalZSSBO);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, gCurrTessenHeightSSBO);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, gCurrDXSSBO);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, gCurrDYSSBO);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, gBlendMaskSSBO);
 
     // Grid and scale uniforms
     GLint locIFFTGrid = glGetUniformLocation(gPointProgram, "uIFFTGridSize");
     GLint locRenderGrid = glGetUniformLocation(gPointProgram, "uRenderGridSize");
     GLint locScale = glGetUniformLocation(gPointProgram, "uHeightScale");
     GLint locModel = glGetUniformLocation(gPointProgram, "uModel");
+    GLint locCenterTile = glGetUniformLocation(gPointProgram, "uCenterTile");
     glUniform1i(locIFFTGrid, GRID_SIZE);
     glUniform1i(locRenderGrid, RENDER_GRID_SIZE);
     glUniform1f(locScale, HEIGHT_SCALE);
 
     // Lambda (수평 변위 강도)
     GLint locLambda = glGetUniformLocation(gPointProgram, "uLambda");
-    glUniform1f(locLambda, lambda); // 원하는 값으로 세팅 (0.0 ~ 2.0 정도로 튜닝)
+    glUniform1f(locLambda, lambda);
 
     // View matrix (looking at ocean from angle)
     glm::mat4 view = glm::lookAt(cameraPos, cameraTarget, cameraUp);
@@ -184,9 +274,9 @@ void drawIFFTPoints(float currentTime, int windowWidth, int windowHeight) {
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     int numIndices = (RENDER_GRID_SIZE - 1) * (RENDER_GRID_SIZE - 1) * 6;
 
-    // Draw tiled ocean (5x5 grid centered around camera)
-    const int tileRadius = 2;  // Creates 5x5 grid
-    const float tileSize = 4.0f;  // Ocean mesh size is [-2, 2], so 4.0 total
+    // Draw tiled ocean
+    const int tileRadius = 1;
+    const float tileSize = 4.0f;
 
     // Calculate camera forward vector for back-face culling
     glm::vec3 cameraForward = glm::normalize(cameraTarget - cameraPos);
@@ -195,6 +285,12 @@ void drawIFFTPoints(float currentTime, int windowWidth, int windowHeight) {
         for (int tx = -tileRadius; tx <= tileRadius; tx++) {
             // Tile center in world space
             glm::vec3 tileCenter = glm::vec3(tx * tileSize, 0.0f, tz * tileSize);
+
+            if (tx == 0 && tz == 0 && showIslandSWE) {
+                glUniform1i(locCenterTile, 1);
+            } else {
+                glUniform1i(locCenterTile, 0);
+            }
 
             // Vector from camera to tile center
             glm::vec3 cameraToTile = tileCenter - cameraPos;
@@ -226,22 +322,18 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
         glfwSetWindowShouldClose(window, GLFW_TRUE);
     }
+    if (key == GLFW_KEY_E && action == GLFW_PRESS) {
+        gShowIslandSWE = !gShowIslandSWE;
+        std::cout << "Island/SWE Visibility: " << (gShowIslandSWE ? "ON" : "OFF") << std::endl;
+    }
 }
 
 void cursorPosCallback(GLFWwindow* window, double xpos, double ypos) {
     int width, height;
     glfwGetWindowSize(window, &width, &height);
-
-    // Normalize mouse coordinates to [0, 1]
-    mouseX = xpos / width;
-    mouseY = ypos / height;
-
-    // Clamp to [0, 1]
-    mouseX = glm::clamp(mouseX, 0.0, 1.0);
-    mouseY = glm::clamp(mouseY, 0.0, 1.0);
 }
 
-// 리소스 초기화
+// free resources
 void cleanup() {
     glDeleteVertexArrays(1, &gPointVAO);
     glDeleteBuffers(1, &gPointEBO);
@@ -251,18 +343,30 @@ void cleanup() {
     glDeleteBuffers(1, &gInitSpectrumConjSSBO);
     glDeleteBuffers(1, &gCurrSpectrumSSBO);
     glDeleteBuffers(1, &gIFFTTempSSBO);
-    glDeleteBuffers(1, &gCurrHeightSSBO);
+    glDeleteBuffers(1, &gCurrTessenHeightSSBO);
     glDeleteBuffers(1, &gCurrDXSSBO);
     glDeleteBuffers(1, &gCurrDYSSBO);
+
+    glDeleteBuffers(1, &gTerrainHeightSSBO);
+    glDeleteBuffers(1, &gSpongeMaskSSBO);
+    glDeleteBuffers(1, &gBlendMaskSSBO);
+    glDeleteBuffers(1, &gFinalZSSBO);
+    glDeleteBuffers(1, &gHeightASSBO);
+    glDeleteBuffers(1, &gVelUASSBO);
+    glDeleteBuffers(1, &gHeightBSSBO);
+    glDeleteBuffers(1, &gVelUBSSBO);
+    glDeleteBuffers(1, &gVelVBSSBO);
 
     glDeleteProgram(gWaveSpectrumCS);
     glDeleteProgram(gHorizontalIFFTCS);
     glDeleteProgram(gVerticalIFFTCS);
+    glDeleteProgram(gPDESolverCS);
 
     cleanupSkybox();
     cleanupOceanFloor();
     cleanupBubbleTexture();
     cleanupOceanNormalTexture();
+    cleanupIslandNormalTexture();
 
     std::cout << "Freed All Resources." << '\n';
 }
@@ -311,45 +415,66 @@ int main(int argc, char **argv) {
 
     initSpectrum();      // 스펙트럼 초기화
     initComputeShader(); // compute 셰이더 & gBaseSSBO/gTempSSBO/gCurrSSBO 준비
-    initPointDraw();     // point 렌더링 셰이더 + VAO 준비
+    initProgram();       // point 렌더링 셰이더 + VAO 준비
     initSkybox();        // 스카이박스 초기화
     initOceanFloor();    // 파도 바닥 초기화
     initBubbleTexture();
     initOceanNormalTexture();
+    initIslandNormalTexture();
 
-    lastFrameTime = glfwGetTime();
+    // 물리 연산 한 단계의 시간 (0.005초)
+    const float FIXED_DT = 0.005f;
+    const int MAX_SUB_STEPS = 10; // 렌더링이 너무 느려져도 한 프레임에 물리 연산을 10번 넘게 하지 않음
+    static double accumulator = 0.0;
+    static float simulationTime = 0.0f;
+
+    // 초기화가 끝난 직후의 시간이 기준점
+    glfwSetTime(0.0);
+    double startTime = glfwGetTime();
+    lastFrameTime = startTime;
 
     // 메인 루프
     while (!glfwWindowShouldClose(window)) {
-        double currentFrameTime = glfwGetTime();
-        double deltaTime = currentFrameTime - lastFrameTime;
-        lastFrameTime = currentFrameTime;
+        double realTime = glfwGetTime();
+        double deltaTime = realTime - lastFrameTime;
+        lastFrameTime = realTime;
 
-        float currentTime = (float) currentFrameTime * timeScale;
+        // 창 이동 중과 같이 프레임 드랍이 심할 때 DT가 튀는 것 방지
+        if (deltaTime > 0.1)
+            deltaTime = 0.1;
 
-        // GPU 파이프라인을 실행해서 gCurrHeightSSBO 채우기
-        calcPipeline(currentTime);
+        accumulator += deltaTime * timeScale;
 
-        // Get window size for aspect ratio
+        // 누적된 시간이 고정 시간(FIXED_DT)보다 크다면, 그만큼 시뮬레이션을 더 진행
+        int steps = 0;
+        while (accumulator >= FIXED_DT && steps < MAX_SUB_STEPS) {
+            simulationTime += FIXED_DT;
+            calcPipeline(simulationTime);
+            accumulator -= FIXED_DT;
+            steps++;
+        }
+
+        // 렌더링
         int windowWidth, windowHeight;
         glfwGetFramebufferSize(window, &windowWidth, &windowHeight);
 
         // 화면 클리어 + 렌더 + 버퍼 스왑
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        // Calculate view and projection matrices (same as in drawIFFTPoints)
         glm::mat4 view = glm::lookAt(cameraPos, cameraTarget, cameraUp);
         float aspect = (float)windowWidth / (float)windowHeight;
         glm::mat4 projection = glm::perspective(glm::radians(75.0f), aspect, 0.1f, 100.0f);
 
-        // Draw skybox first (with depth test modifications inside)
         drawSkybox(view, projection);
 
-        // Draw ocean
-        drawIFFTPoints(currentTime, windowWidth, windowHeight);
+        // 렌더링 셰이더에도 simulationTime을 넘겨주어 물결 위상이 맞게 한다
+        drawIFFTPoints(simulationTime, windowWidth, windowHeight, gShowIslandSWE);
+
+        if (gShowIslandSWE) {
+            drawIsland(windowWidth, windowHeight);
+        }
 
         glfwSwapBuffers(window);
-
         glfwPollEvents();
     }
 

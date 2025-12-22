@@ -1,6 +1,7 @@
 #include "base.hpp"
 #include "utils.hpp"
 #include <cmath>
+#include <algorithm>
 #include "shaders/shaders.hpp"
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -10,21 +11,46 @@
 std::complex<float> initHeight[GRID_SIZE][GRID_SIZE] = {};
 std::complex<float> initHeightConju[GRID_SIZE][GRID_SIZE] = {};
 
-GLuint gWaveSpectrumCS = 0;    // current wave spectrum calculation
-GLuint gHorizontalIFFTCS = 0;  // horizontal iFFT
-GLuint gVerticalIFFTCS = 0;   // vertical iFFT
+// tessendorf waves
+GLuint gWaveSpectrumCS;       // current wave spectrum calculation
+GLuint gHorizontalIFFTCS;     // horizontal iFFT
+GLuint gVerticalIFFTCS;       // vertical iFFT
 
-GLuint gInitSpectrumSSBO = 0;     // initial height
-GLuint gInitSpectrumConjSSBO = 0; // initial height conjugation
-GLuint gCurrSpectrumSSBO = 0;     // current height
-GLuint gIFFTTempSSBO = 0;       // iFFT temp
-GLuint gCurrHeightSSBO = 0;           // 최종 height
-GLuint gCurrDXSSBO = 0;         // D_x
-GLuint gCurrDYSSBO = 0;         // D_y
+GLuint gInitSpectrumSSBO;     // initial height
+GLuint gInitSpectrumConjSSBO; // initial height conjugation
+GLuint gCurrSpectrumSSBO;     // current height
+GLuint gIFFTTempSSBO;         // iFFT temp
+GLuint gCurrTessenHeightSSBO; // final tessendorf height
+GLuint gCurrDXSSBO;           // x-displacement
+GLuint gCurrDYSSBO;           // y-displacement
+
+// SWE
+GLuint gPDESolverCS;          // SWE solver
+
+GLuint gTerrainHeightSSBO; // terrain height
+GLuint gSpongeMaskSSBO;    // boundary attenuation mask. 1 for boundary
+GLuint gBlendMaskSSBO;     // blend mask. 1 for tessendorf
+GLuint gFinalZSSBO;        // final rendering map
+
+// buffer A
+GLuint gHeightASSBO;
+GLuint gVelUASSBO;
+GLuint gVelVASSBO;
+
+// buffer B
+GLuint gHeightBSSBO;
+GLuint gVelUBSSBO;
+GLuint gVelVBSSBO;
+
+// 전방선언
+void loadTerrainHeight();
+void loadAlphaMask();
+void loadSpongeMask();
 
 ///////////////// initiate spectrum /////////////////
+
 std::complex<float> randGaussianComplex() {
-    static std::mt19937 gen(std::random_device{}());
+    static std::mt19937 gen(42); // std::random_device{}()
     // (0.0, 1.0] 범위. 0을 피하여 log(0) 방지
     static std::uniform_real_distribution<float> dist(std::nextafter(0.0f, 1.0f), 1.0f);
 
@@ -40,7 +66,7 @@ std::complex<float> randGaussianComplex() {
 }
 
 float phillipsSpectrum(float kx, float ky) {
-    const float A = 1.0; // amplitude
+    const float A = 2.0; // amplitude
     const float Lsqu = 1600.0; // L = V^2/g = 40.0
     const float lsqu = 0.01; // l = 0.1
 
@@ -52,7 +78,7 @@ float phillipsSpectrum(float kx, float ky) {
     }
 
     float dot_kw = kx * w.x + ky * w.y;
-    float windFactor = dot_kw * dot_kw / Ksqu; // This is now |k_hat . w_hat|^2
+    float windFactor = dot_kw * dot_kw / Ksqu;
 
     float lowFrequencyDamping = std::exp(-1.0f / (Ksqu * Lsqu));
     float highFrequencyDamping = std::exp(-Ksqu * lsqu);
@@ -142,6 +168,7 @@ void initComputeShader() {
     GLuint ifftHorCS = compileShader(GL_COMPUTE_SHADER, shaders::IFFT_HORI_COMP_SHADER);
     GLuint ifftVerCS = compileShader(GL_COMPUTE_SHADER, shaders::IFFT_VERT_COMP_SHADER);
     GLuint waveSpeCS = compileShader(GL_COMPUTE_SHADER, shaders::WAVE_SPECTRUM_COMP_SHADER);
+    GLuint pdeSolvCS = compileShader(GL_COMPUTE_SHADER, shaders::PDE_SOLVER_COMP_SHADER);
 
     {
         std::vector<GLuint> shaderList;
@@ -158,8 +185,13 @@ void initComputeShader() {
         shaderList.push_back(waveSpeCS);
         gWaveSpectrumCS = linkProgram(shaderList);
     }
+    {
+        std::vector<GLuint> shaderList;
+        shaderList.push_back(pdeSolvCS);
+        gPDESolverCS = linkProgram(shaderList);
+    }
 
-    // CPU 쪽 2D 그리드 -> 1D 배열로 변환
+    // CPU 쪽 2D 그리드 1D로 변환
     std::vector<Complex> dataGrid2D(GRID_SIZE * GRID_SIZE);
 
     // gInitHeightSSBO
@@ -186,7 +218,7 @@ void initComputeShader() {
     glBufferData(GL_SHADER_STORAGE_BUFFER, dataGrid2D.size() * sizeof(Complex), dataGrid2D.data(),
                  GL_STATIC_DRAW);
 
-    // gIFFTTempSSBO, 
+    // tessendorf
     glGenBuffers(1, &gCurrSpectrumSSBO);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, gCurrSpectrumSSBO);
     glBufferData(GL_SHADER_STORAGE_BUFFER, dataGrid2D.size() * sizeof(Complex), nullptr,
@@ -195,8 +227,8 @@ void initComputeShader() {
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, gIFFTTempSSBO);
     glBufferData(GL_SHADER_STORAGE_BUFFER, dataGrid2D.size() * sizeof(Complex), nullptr,
                  GL_DYNAMIC_COPY);
-    glGenBuffers(1, &gCurrHeightSSBO);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, gCurrHeightSSBO);
+    glGenBuffers(1, &gCurrTessenHeightSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, gCurrTessenHeightSSBO);
     glBufferData(GL_SHADER_STORAGE_BUFFER, dataGrid2D.size() * sizeof(Complex), nullptr,
                  GL_DYNAMIC_COPY);
     glGenBuffers(1, &gCurrDXSSBO);
@@ -206,6 +238,45 @@ void initComputeShader() {
     glGenBuffers(1, &gCurrDYSSBO);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, gCurrDYSSBO);
     glBufferData(GL_SHADER_STORAGE_BUFFER, dataGrid2D.size() * sizeof(Complex), nullptr,
+                 GL_DYNAMIC_COPY);
+
+    // swe
+    loadTerrainHeight();
+    loadAlphaMask();
+    loadSpongeMask();
+
+    std::vector<float> zeroData(GRID_SIZE * GRID_SIZE, 0.0f);
+
+    glGenBuffers(1, &gHeightASSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, gHeightASSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, dataGrid2D.size() * sizeof(float), zeroData.data(),
+                 GL_DYNAMIC_COPY);
+    glGenBuffers(1, &gVelUASSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, gVelUASSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, dataGrid2D.size() * sizeof(float), zeroData.data(),
+                 GL_DYNAMIC_COPY);
+    glGenBuffers(1, &gVelVASSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, gVelVASSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, dataGrid2D.size() * sizeof(float), zeroData.data(),
+                 GL_DYNAMIC_COPY);
+
+    glGenBuffers(1, &gHeightBSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, gHeightBSSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, dataGrid2D.size() * sizeof(float), zeroData.data(),
+                 GL_DYNAMIC_COPY);
+    glGenBuffers(1, &gVelUBSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, gVelUBSSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, dataGrid2D.size() * sizeof(float), zeroData.data(),
+                 GL_DYNAMIC_COPY);
+    glGenBuffers(1, &gVelVBSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, gVelVBSSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, dataGrid2D.size() * sizeof(float), zeroData.data(),
+                 GL_DYNAMIC_COPY);
+
+    // final calculation
+    glGenBuffers(1, &gFinalZSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, gFinalZSSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, dataGrid2D.size() * sizeof(float), nullptr,
                  GL_DYNAMIC_COPY);
 
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
@@ -262,11 +333,166 @@ void calcIFFT(GLuint baseSSBO, GLuint resultSSBO) {
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 }
 
+///////////////////////////////////////
+
+void loadTerrainHeight() {
+    stbi_set_flip_vertically_on_load(true);
+    int width, height, nrChannels;
+    unsigned char *data = stbi_load("assets/terrain.png", &width, &height, &nrChannels, 1);
+
+    if (!data) {
+        std::cout << "assets/terrain.png 로드 실패" << std::endl;
+        return;
+    }
+
+    std::vector<float> vertices;
+    for (int y = 0; y < std::min((unsigned)height, 4 * GRID_SIZE); y += 4) {
+        for (int x = 0; x < std::min((unsigned)width, 8 * GRID_SIZE); x += 8) {
+            float heightValue = (float)data[y * width + x] / 255.0f - 0.20; // 높이 값 추출
+            vertices.push_back(heightValue * TERRAIN_HEIGHT_SCALE);
+        }
+    }
+
+    glGenBuffers(1, &gTerrainHeightSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, gTerrainHeightSSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, vertices.size() * sizeof(float), vertices.data(),
+                 GL_DYNAMIC_COPY);
+
+    stbi_image_free(data);
+    stbi_set_flip_vertically_on_load(false);
+}
+
+float calculateAlphaMask(int x, int y, float R1, float R2) {
+    float radius = (float)GRID_SIZE / 2.0f;
+    float delta_x = std::abs((float)x - radius);
+    float delta_y = std::abs((float)y - radius);
+
+    // 정규화된 최대 거리 (0.0 - 1.0)
+    float d_max = std::sqrt(delta_x * delta_x + delta_y * delta_y) / radius;
+
+    // R1과 R2 사이 선형 보간
+    if (d_max <= R1) {
+        return 0.0f;
+    } else if (d_max >= R2) {
+        return 1.0f;
+    } else {
+        return (d_max - R1) / (R2 - R1);
+    }
+}
+
+void loadAlphaMask() {
+    const float R1 = 0.7;
+    const float R2 = 0.9;
+
+    std::vector<float> vertices;
+    for (int y = 0; y < GRID_SIZE; y++) {
+        for (int x = 0; x < GRID_SIZE; x++) {
+            vertices.push_back(calculateAlphaMask(x, y, R1, R2));
+        }
+    }
+
+    glGenBuffers(1, &gBlendMaskSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, gBlendMaskSSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, vertices.size() * sizeof(float), vertices.data(),
+                 GL_DYNAMIC_COPY);
+}
+
+float calculateSpongeMask(int x, int y, float R_sponge) {
+    float radius = (float)GRID_SIZE / 2.0f;
+    float delta_x = std::abs((float)x - radius);
+    float delta_y = std::abs((float)y - radius);
+
+    // 정규화된 최대 거리 (0.0 - 1.0)
+    float d_max = std::sqrt(delta_x * delta_x + delta_y * delta_y) / radius;
+
+    // R_sponge 경계 내에서는 0
+    if (d_max <= R_sponge) {
+        return 0.0f;
+    } else {
+        return (d_max - R_sponge) / (1.0f - R_sponge); // R_sponge와 1.0 사이 선형 증가
+    }
+}
+
+void loadSpongeMask() {
+    const float R = 0.8;
+
+    std::vector<float> vertices;
+    for (int y = 0; y < GRID_SIZE; y++) {
+        for (int x = 0; x < GRID_SIZE; x++) {
+            vertices.push_back(calculateSpongeMask(x, y, R));
+        }
+    }
+
+    glGenBuffers(1, &gSpongeMaskSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, gSpongeMaskSSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, vertices.size() * sizeof(float), vertices.data(),
+                 GL_DYNAMIC_COPY);
+}
+
+void calcPDE(float dt) {
+    static bool pingpong = false;
+    glUseProgram(gPDESolverCS);
+
+    // uniforms
+    GLint locDT = glGetUniformLocation(gPDESolverCS, "u_dt");
+    glUniform1f(locDT, dt);
+
+    // SSBO 바인딩
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, gTerrainHeightSSBO);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, gCurrTessenHeightSSBO);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, gBlendMaskSSBO);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, gSpongeMaskSSBO);
+
+    if (pingpong) {
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, gHeightASSBO);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, gVelUASSBO);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 6, gVelVASSBO);
+
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, gHeightBSSBO);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 8, gVelUBSSBO);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 9, gVelVBSSBO);
+    } else {
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, gHeightBSSBO);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, gVelUBSSBO);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 6, gVelVBSSBO);
+
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, gHeightASSBO);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 8, gVelUASSBO);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 9, gVelVASSBO);
+    }
+    pingpong = !pingpong;
+
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 10, gFinalZSSBO);
+
+    // dispatch
+    GLuint numGroupsX = (GRID_SIZE + 15) / 16;
+    GLuint numGroupsY = (GRID_SIZE + 15) / 16;
+    glDispatchCompute(numGroupsX, numGroupsY, 1);
+
+    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+}
+
+///////////////////////////////////////
+
 void calcPipeline(float time) {
+    static float prevTime = time;
+
+    float dt = time - prevTime;
+
+    if (dt > 0.05f) {
+        dt = 0.05f;
+    } else if (dt <= 0.0001f) {
+        prevTime = time;
+        return;
+    }
+
     calcCurrentSpectum(time);
-    calcIFFT(gCurrSpectrumSSBO, gCurrHeightSSBO);
+    calcIFFT(gCurrSpectrumSSBO, gCurrTessenHeightSSBO);
     calcIFFT(gCurrDXSSBO, gCurrDXSSBO);
     calcIFFT(gCurrDYSSBO, gCurrDYSSBO);
+    calcPDE(dt);
+
+    prevTime = time;
 }
 
 ///////////////////////////////////////
@@ -331,24 +557,21 @@ unsigned int oceanFloorIndices[] = {
 };
 
 void initOceanFloor() {
-    // 1. VAO, VBO, EBO 생성
+    // VAO, VBO, EBO 생성
     glGenVertexArrays(1, &gOceanFloorVAO);
     glGenBuffers(1, &gOceanFloorVBO);
     glGenBuffers(1, &gOceanFloorEBO); // 지형은 EBO를 사용하는 것이 효율적
 
-    // 2. VAO 바인딩
-    glBindVertexArray(gOceanFloorVAO);
-
-    // 3. VBO 데이터 설정
+    glBindVertexArray(gOceanFloorVAO); // VAO 바인딩
     glBindBuffer(GL_ARRAY_BUFFER, gOceanFloorVBO);
     glBufferData(GL_ARRAY_BUFFER, sizeof(oceanFloorVertices), oceanFloorVertices, GL_STATIC_DRAW);
 
-    // 4. EBO 데이터 설정
+    // EBO
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gOceanFloorEBO);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(oceanFloorIndices), oceanFloorIndices,
                  GL_STATIC_DRAW);
 
-    // 5. Vertex Attributes 설정 (Stride = 8 floats)
+    // Vertex Attributes
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void *)0);
 
@@ -400,6 +623,20 @@ void initOceanNormalTexture() {
 
 void cleanupOceanNormalTexture() {
     glDeleteTextures(1, &gOceanNormalTexture);
+}
+
+///////////////////////////////////////
+
+GLuint gIslandNormalTexture = 0;
+
+void initIslandNormalTexture() {
+    std::string normalTexturePath = "assets/stone_normal.jpg";
+    gIslandNormalTexture = loadTexture(normalTexturePath);
+    std::cout << "Island normal texture initialized\n";
+}
+
+void cleanupIslandNormalTexture() {
+    glDeleteTextures(1, &gIslandNormalTexture);
 }
 
 ///////////////////////////////////////

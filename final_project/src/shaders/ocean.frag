@@ -13,11 +13,11 @@ uniform float uTime;
 
 // PBR uniforms
 uniform vec3 uCameraPos;
-uniform vec3 uLightDir;      // Direction TO light (normalized)
+uniform vec3 uLightDir; // 빛 방향
 uniform vec3 uLightColor;
 uniform float uRoughness;
 
-// Refraction & Environment
+// refraction & environment
 uniform sampler2D uRefractionTexture;
 uniform float uRefractionStrength;
 uniform samplerCube uEnvironmentMap;
@@ -40,7 +40,7 @@ float DistributionGGX(vec3 N, vec3 H, float roughness) {
     return num / max(denom, 0.0001);
 }
 
-// Smith's Schlick-GGX geometry function
+// Smith Schlick-GGX geometry function
 float GeometrySchlickGGX(float NdotV, float roughness) {
     float r = (roughness + 1.0);
     float k = (r * r) / 8.0;
@@ -94,7 +94,7 @@ float noise3D(vec3 p) {
                        dot(hash3(i + vec3(1.0, 1.0, 1.0)), f - vec3(1.0, 1.0, 1.0)), u.x), u.y), u.z);
 }
 
-// FBM (Fractal Brownian Motion) for turbulence
+// FBM for turbulence
 float fbm(vec3 p, int octaves) {
     float value = 0.0;
     float amplitude = 0.5;
@@ -108,9 +108,7 @@ float fbm(vec3 p, int octaves) {
 }
 
 void main() {
-    ///////////////////////////////////////////////////////////////////////////
-    // 1. Normal Perturbation with Normal Map
-    ///////////////////////////////////////////////////////////////////////////
+    // Normal Perturbation with Normal Map
     vec2 normalUV1 = vWorldPos.xz * 3.5 + vec2(uTime * 0.02, uTime * 0.015);
     vec2 normalUV2 = vWorldPos.xz * 6.0 - vec2(uTime * 0.025, uTime * 0.02);
     vec2 normalUV3 = vWorldPos.xz * 2.0 + vec2(uTime * 0.01, -uTime * 0.012);
@@ -123,9 +121,7 @@ void main() {
 
     vec3 N = normalize(vNormal + vec3(detailNormal.x, 0.0, detailNormal.y) * 0.55);
 
-    ///////////////////////////////////////////////////////////////////////////
     // 2. View & Light Vectors
-    ///////////////////////////////////////////////////////////////////////////
     vec3 V = normalize(uCameraPos - vWorldPos);
     vec3 L = normalize(uLightDir);
     vec3 H = normalize(V + L);
@@ -133,12 +129,10 @@ void main() {
     float NdotV = max(dot(N, V), 0.0);
     float NdotL = max(dot(N, L), 0.0);
 
-    // Water F0 (refractive index 1.33 -> F0 = ((1.33-1)/(1.33+1))^2 ≈ 0.02)
+    // Water F0 (refractive index 1.33 -> F0 = ((1.33-1)/(1.33+1))^2 = 0.02)
     vec3 F0 = vec3(0.02);
 
-    ///////////////////////////////////////////////////////////////////////////
-    // 3. Refraction with Chromatic Aberration & Depth Simulation
-    ///////////////////////////////////////////////////////////////////////////
+    // Refraction with Chromatic Aberration & Depth Simulation
     vec2 distortion = N.xz * uRefractionStrength * 3.0;
     vec2 floorUV = (vWorldPos.xz * 0.1) + distortion;
 
@@ -150,7 +144,7 @@ void main() {
     vec3 floorColor = vec3(r, g, b);
 
     // Water color blending with depth simulation
-    vec3 deepWaterColor = vec3(0.0, 0.01, 0.04);    // Very dark navy
+    vec3 deepWaterColor = vec3(0.0, 0.01, 0.04); // Very dark navy
     vec3 shallowWaterColor = vec3(0.02, 0.15, 0.25); // Dark teal
 
     // Depth factor: looking down = transparent, looking horizon = opaque
@@ -159,9 +153,7 @@ void main() {
 
     vec3 refractionColor = mix(floorColor * shallowWaterColor * 2.5, deepWaterColor, opacity);
 
-    ///////////////////////////////////////////////////////////////////////////
-    // 4. Cook-Torrance Specular BRDF
-    ///////////////////////////////////////////////////////////////////////////
+    // Cook-Torrance Specular BRDF
     float NDF = DistributionGGX(N, H, uRoughness);
     float G = GeometrySmith(N, V, L, uRoughness);
     vec3 F = fresnelSchlick(max(dot(H, V), 0.0), F0);
@@ -170,9 +162,7 @@ void main() {
     float denominator = 4.0 * NdotV * NdotL + 0.001;
     vec3 specular = numerator / denominator;
 
-    ///////////////////////////////////////////////////////////////////////////
-    // 5. Oren-Nayar Diffuse BRDF
-    ///////////////////////////////////////////////////////////////////////////
+    // Oren-Nayar Diffuse BRDF
     float sigma2 = uRoughness * uRoughness;
     float A = 1.0 - 0.5 * sigma2 / (sigma2 + 0.33);
     float B = 0.45 * sigma2 / (sigma2 + 0.09);
@@ -193,9 +183,7 @@ void main() {
     float orenNayar = A + B * cosPhi * sin(alpha) * tan(beta);
     vec3 diffuse = (1.0 - F) * waterColor / PI * orenNayar;
 
-    ///////////////////////////////////////////////////////////////////////////
-    // 6. Environment Reflection (Cubemap with Fresnel)
-    ///////////////////////////////////////////////////////////////////////////
+    // Environment Reflection (Cubemap with Fresnel)
     vec3 R = reflect(-V, N);
     vec3 envColor = textureLod(uEnvironmentMap, R, uRoughness * 5.0).rgb;
 
@@ -203,9 +191,7 @@ void main() {
     vec3 F_env = fresnelSchlickRoughness(NdotV, F0, uRoughness);
     vec3 envReflection = F_env * envColor * 1.2; // Boosted for realism
 
-    ///////////////////////////////////////////////////////////////////////////
-    // 7. Subsurface Scattering (Physical)
-    ///////////////////////////////////////////////////////////////////////////
+    // Subsurface Scattering (Physical)
     vec3 sssColor = vec3(0.08, 0.35, 0.55);  // Realistic oceanic SSS
     float waveThickness = clamp(1.0 - abs(vHeight) * 2.0, 0.0, 1.0);
 
@@ -225,29 +211,30 @@ void main() {
     sssFactor *= heightSSS * 0.7;
     vec3 sss = sssColor * transmittance * sssFactor * uLightColor * NdotL;
 
-    ///////////////////////////////////////////////////////////////////////////
-    // 8. Translucency (Wave Crest Glow)
-    ///////////////////////////////////////////////////////////////////////////
+    // Translucency (Wave Crest Glow)
     float crestHeight = smoothstep(0.0, 0.35, vHeight);
     float backLight = max(dot(-N, L), 0.0);
     vec3 translucencyColor = vec3(0.12, 0.38, 0.52);
     vec3 translucency = translucencyColor * crestHeight * backLight * uLightColor * 2.2;
 
-    ///////////////////////////////////////////////////////////////////////////
-    // 9. Foam from Jacobian
-    ///////////////////////////////////////////////////////////////////////////
-    float jacobianNoise = fbm(vWorldPos * 12.0 + vec3(uTime * 0.15), 3) * 0.3;
+    // Foam from Jacobian
+    // Reduce noise influence for less broken foam
+    float jacobianNoise = fbm(vWorldPos * 8.0 + vec3(uTime * 0.1), 3) * 0.15;
     float adjustedJacobian = vJacobian + jacobianNoise;
 
-    float foamBase = 1.0 - smoothstep(0.2, 0.8, adjustedJacobian);
+    // Widen smoothstep range for softer edges
+    float foamBase = 1.0 - smoothstep(0.2, 0.95, adjustedJacobian);
 
-    float detailNoise1 = fbm(vWorldPos * 8.0 + vec3(uTime * 0.2), 2);
-    float detailNoise2 = fbm(vWorldPos * 20.0 - vec3(uTime * 0.3), 2);
+    float detailNoise1 = fbm(vWorldPos * 6.0 + vec3(uTime * 0.15), 2);
+    float detailNoise2 = fbm(vWorldPos * 15.0 - vec3(uTime * 0.2), 2);
     float combinedNoise = detailNoise1 * 0.6 + detailNoise2 * 0.4;
-    combinedNoise = combinedNoise * 0.5 + 0.5;
+    
+    // Make mask less harsh (raise minimum value)
+    combinedNoise = combinedNoise * 0.4 + 0.6;
 
     float foamAmount = foamBase * combinedNoise;
-    foamAmount = pow(foamAmount, 1.5);
+    // Softer falloff
+    foamAmount = pow(foamAmount, 1.1);
 
     vec2 flowDir1 = vec2(uTime * 0.03, uTime * 0.02);
     vec2 flowDir2 = vec2(-uTime * 0.025, uTime * 0.035);
@@ -276,9 +263,7 @@ void main() {
     vec3 foamColor = vec3(1.0);
     float foamAlpha = bubbleIntensity * foamAmount;
 
-    ///////////////////////////////////////////////////////////////////////////
-    // 10. Final Composition
-    ///////////////////////////////////////////////////////////////////////////
+    // Final Composition
     vec3 color = vec3(0.0);
 
     // Mix refraction and environment reflection based on Fresnel
@@ -297,10 +282,7 @@ void main() {
     // Add foam where waves fold
     color = mix(color, foamColor, foamAlpha * 0.85);
 
-    ///////////////////////////////////////////////////////////////////////////
-    // 11. Tone Mapping & Gamma Correction
-    ///////////////////////////////////////////////////////////////////////////
-    // ACES filmic tone mapping
+    // Tone Mapping & Gamma Correction. ACES filmic tone mapping
     color = color * (2.51 * color + 0.03) / (color * (2.43 * color + 0.59) + 0.14);
 
     // Gamma correction

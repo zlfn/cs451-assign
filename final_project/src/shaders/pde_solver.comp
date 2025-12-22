@@ -1,0 +1,160 @@
+#version 430 core
+
+layout (local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+// 상수
+const int N_SIZE = 128;
+const float L_SIZE = 64.0;
+const float DX = L_SIZE / float(N_SIZE);
+const float G = 9.81;
+const float VISCOSITY = 0.015; // Balanced viscosity
+
+uniform float u_dt;
+
+// 버퍼 정의
+layout(std430, binding = 0) readonly buffer TerrainBuffer { 
+    float TerrainHeight[];
+};
+layout(std430, binding = 1) readonly buffer TessendorfWaveBuffer { 
+    vec2 TessendorfEta[]; 
+};
+layout(std430, binding = 2) readonly buffer BlendingMaskBuffer { 
+    float AlphaMask[]; 
+};
+layout(std430, binding = 3) readonly buffer SpongeMaskBuffer { 
+    float Sponge[]; 
+};
+
+// 이전 프레임 상태
+layout(std430, binding = 4) readonly buffer StateHeightIn { 
+    float h_in[]; 
+};
+layout(std430, binding = 5) readonly buffer StateVelocityUIn { 
+    float u_in[]; 
+};
+layout(std430, binding = 6) readonly buffer StateVelocityVIn { 
+    float v_in[]; 
+};
+
+// 현재 프레임 상태
+layout(std430, binding = 7) writeonly buffer StateHeightOut { 
+    float h_out[]; 
+};
+layout(std430, binding = 8) writeonly buffer StateVelocityUOut { 
+    float u_out[]; 
+};
+layout(std430, binding = 9) writeonly buffer StateVelocityVOut { 
+    float v_out[]; 
+};
+
+// 렌더링용 최종 높이
+layout(std430, binding = 10) writeonly buffer FinalZBuffer { 
+    float FinalZ[]; 
+};
+
+// helper functions
+int getIndex(int x, int y) {
+    int wx = (x % N_SIZE + N_SIZE) % N_SIZE;
+    int wy = (y % N_SIZE + N_SIZE) % N_SIZE;
+    return wy * N_SIZE + wx;
+}
+
+float getRestDepth(int idx) {
+    return max(0.1, -TerrainHeight[idx]);
+}
+
+void main() {
+    int x = int(gl_GlobalInvocationID.x);
+    int y = int(gl_GlobalInvocationID.y);
+
+    if (x >= N_SIZE || y >= N_SIZE) return;
+
+    int currentIdx = getIndex(x, y);
+
+    bool isLand = TerrainHeight[currentIdx] > 0.0; // 육지 판별
+    if (isLand) {
+        h_out[currentIdx] = 0.0;
+        u_out[currentIdx] = 0.0;
+        v_out[currentIdx] = 0.0;
+        FinalZ[currentIdx] = 0.0;
+        return;
+    }
+
+    float h_c = h_in[currentIdx];
+    float u_c = u_in[currentIdx];
+    float v_c = v_in[currentIdx];
+    int idx_E = getIndex(x + 1, y);
+    int idx_W = getIndex(x - 1, y);
+    int idx_N = getIndex(x, y + 1);
+    int idx_S = getIndex(x, y - 1);
+
+    // 속도(u, v) 업데이트를 위한 높이 기울기. u가 (i+0.5) 위치에 있다고 가정하고 h(i+1)과 h(i) 사용
+    float dh_dx_for_u = (h_in[idx_E] - h_in[currentIdx]) / DX;
+    float dh_dy_for_v = (h_in[idx_N] - h_in[currentIdx]) / DX;
+
+    // 높이(h) 업데이트 위한 flux 기울기. h는 (i) 위치에 있기에, u(i)와 u(i-1)을 사용
+    // 주의: 유량 = 깊이 * 속도. 깊이(H)도 해당 위치에 맞게 가져와야 함.
+    
+    float H_here = max(0.0, getRestDepth(currentIdx) + h_in[currentIdx]);
+    float H_West = max(0.0, getRestDepth(idx_W) + h_in[idx_W]);
+    float H_South = max(0.0, getRestDepth(idx_S) + h_in[idx_S]);
+    
+    float flux_u_here = H_here * u_in[currentIdx]; 
+    float flux_u_west = H_West * u_in[idx_W];
+    
+    float flux_v_here = H_here * v_in[currentIdx];
+    float flux_v_south = H_South * v_in[idx_S];
+
+    float dHu_dx = (flux_u_here - flux_u_west) / DX; // Self - Left
+    float dHv_dy = (flux_v_here - flux_v_south) / DX; // Self - Down
+
+    // 시간 적분
+    float dh_dt = -(dHu_dx + dHv_dy);
+    float du_dt = -G * dh_dx_for_u; // 중력항
+    float dv_dt = -G * dh_dy_for_v;
+
+    // h, u, v 갱신
+    float h_new = h_c + dh_dt * u_dt;
+    float u_new = u_c + du_dt * u_dt; // 이송항 생략 (선형화)
+    float v_new = v_c + dv_dt * u_dt;
+
+    // 감쇄 (Reduced damping for less energy loss)
+    u_new *= 0.9998; 
+    v_new *= 0.9998;
+
+    // laplacian viscosity
+    float lap_h = (h_in[idx_E] + h_in[idx_W] + h_in[idx_N] + h_in[idx_S] - 4.0 * h_c);
+    float lap_u = (u_in[idx_E] + u_in[idx_W] + u_in[idx_N] + u_in[idx_S] - 4.0 * u_c);
+    float lap_v = (v_in[idx_E] + v_in[idx_W] + v_in[idx_N] + v_in[idx_S] - 4.0 * v_c);
+
+    h_new += VISCOSITY * lap_h * u_dt;
+    u_new += VISCOSITY * lap_u * u_dt;
+    v_new += VISCOSITY * lap_v * u_dt;
+
+    // Moderate smoothing to suppress grid artifacts while keeping waves
+    float h_avg = (h_in[idx_E] + h_in[idx_W] + h_in[idx_N] + h_in[idx_S]) * 0.25;
+    h_new = mix(h_new, h_avg, 0.012); 
+
+    // boundary condition (coupling with Tessendorf)
+    float eta_Tess = TessendorfEta[currentIdx].x;
+
+    // sponge layer로 경계에서 반사되는 파도를 약하게 감쇠
+    float spongeVal = Sponge[currentIdx];
+    float damping = 1.0 - (spongeVal * 0.1); 
+    
+    h_new *= damping;
+    u_new *= damping;
+    v_new *= damping;
+
+    // relaxation: Tessendorf 파도 값을 경계 근처에서 강제로 주입
+    float blendFactor = AlphaMask[currentIdx] * 0.2;
+    h_new = mix(h_new, eta_Tess, blendFactor);
+
+    // 결과 저장
+    h_out[currentIdx] = h_new;
+    u_out[currentIdx] = u_new;
+    v_out[currentIdx] = v_new;
+    float renderBlend = AlphaMask[currentIdx];
+    float final_h = mix(h_new, eta_Tess, renderBlend);    
+    FinalZ[currentIdx] = max(TerrainHeight[currentIdx], final_h);
+}
