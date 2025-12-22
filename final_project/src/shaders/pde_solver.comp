@@ -7,7 +7,7 @@ const int N_SIZE = 128;
 const float L_SIZE = 64.0;
 const float DX = L_SIZE / float(N_SIZE);
 const float G = 9.81;
-const float VISCOSITY = 0.02; // 인공 점성
+const float VISCOSITY = 0.015; // Balanced viscosity
 
 uniform float u_dt;
 
@@ -118,9 +118,9 @@ void main() {
     float u_new = u_c + du_dt * u_dt; // 이송항 생략 (선형화)
     float v_new = v_c + dv_dt * u_dt;
 
-    // 감쇄
-    u_new *= 0.999; 
-    v_new *= 0.999;
+    // 감쇄 (Reduced damping for less energy loss)
+    u_new *= 0.9998; 
+    v_new *= 0.9998;
 
     // laplacian viscosity
     float lap_h = (h_in[idx_E] + h_in[idx_W] + h_in[idx_N] + h_in[idx_S] - 4.0 * h_c);
@@ -130,6 +130,10 @@ void main() {
     h_new += VISCOSITY * lap_h * u_dt;
     u_new += VISCOSITY * lap_u * u_dt;
     v_new += VISCOSITY * lap_v * u_dt;
+
+    // Moderate smoothing to suppress grid artifacts while keeping waves
+    float h_avg = (h_in[idx_E] + h_in[idx_W] + h_in[idx_N] + h_in[idx_S]) * 0.25;
+    h_new = mix(h_new, h_avg, 0.012); 
 
     // boundary condition (coupling with Tessendorf)
     float eta_Tess = TessendorfEta[currentIdx].x;

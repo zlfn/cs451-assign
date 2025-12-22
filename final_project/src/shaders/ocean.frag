@@ -218,18 +218,23 @@ void main() {
     vec3 translucency = translucencyColor * crestHeight * backLight * uLightColor * 2.2;
 
     // Foam from Jacobian
-    float jacobianNoise = fbm(vWorldPos * 12.0 + vec3(uTime * 0.15), 3) * 0.3;
+    // Reduce noise influence for less broken foam
+    float jacobianNoise = fbm(vWorldPos * 8.0 + vec3(uTime * 0.1), 3) * 0.15;
     float adjustedJacobian = vJacobian + jacobianNoise;
 
-    float foamBase = 1.0 - smoothstep(0.2, 0.8, adjustedJacobian);
+    // Widen smoothstep range for softer edges
+    float foamBase = 1.0 - smoothstep(0.2, 0.95, adjustedJacobian);
 
-    float detailNoise1 = fbm(vWorldPos * 8.0 + vec3(uTime * 0.2), 2);
-    float detailNoise2 = fbm(vWorldPos * 20.0 - vec3(uTime * 0.3), 2);
+    float detailNoise1 = fbm(vWorldPos * 6.0 + vec3(uTime * 0.15), 2);
+    float detailNoise2 = fbm(vWorldPos * 15.0 - vec3(uTime * 0.2), 2);
     float combinedNoise = detailNoise1 * 0.6 + detailNoise2 * 0.4;
-    combinedNoise = combinedNoise * 0.5 + 0.5;
+    
+    // Make mask less harsh (raise minimum value)
+    combinedNoise = combinedNoise * 0.4 + 0.6;
 
     float foamAmount = foamBase * combinedNoise;
-    foamAmount = pow(foamAmount, 1.5);
+    // Softer falloff
+    foamAmount = pow(foamAmount, 1.1);
 
     vec2 flowDir1 = vec2(uTime * 0.03, uTime * 0.02);
     vec2 flowDir2 = vec2(-uTime * 0.025, uTime * 0.035);

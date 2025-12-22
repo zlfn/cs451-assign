@@ -224,9 +224,9 @@ void main() {
     float dispX = bilinearDX(u, v) * uLambda;
     float dispZ = bilinearDY(u, v) * uLambda; // DY used as Z displacement (as before)
 
-    // Prevent almost fixed to 0 near islan. keep some displacement even when mask is near 0 (tunable)
+    // Prevent almost fixed to 0 near island. keep some displacement even when mask is near 0 (tunable)
     if (uCenterTile == 1) {
-        const float minKeep = 0.25;
+        const float minKeep = 0.1;
         float m = mix(minKeep, 1.0, a);
         dispX *= m;
         dispZ *= m;
@@ -272,7 +272,7 @@ void main() {
     float dzU = bilinearDY(u , vU) * uLambda;
 
     if (uCenterTile == 1) {
-        const float minKeep = 0.25;
+        const float minKeep = 0.1;
         float mL = mix(minKeep, 1.0, aL);
         float mR = mix(minKeep, 1.0, aR);
         float mD = mix(minKeep, 1.0, aD);
@@ -316,6 +316,21 @@ void main() {
 
     float jacobian = (1.0 + dxDX_norm) * (1.0 + dzDZ_norm) - dxDZ_norm * dzDX_norm;
 
+    // Calculate SWE foam proxy based on curvature
+    // curvature is negative at peaks (convex shape)
+    float curvature = hL + hR + hD + hU - 4.0 * h;
+    
+    // Invert to get "peakiness" (positive at crests)
+    // Waves are round/smooth, so curvature values are small.
+    float peakness = max(-curvature, 0.0);
+    
+    // Direct mapping without height masking to ensure visibility.
+    // High sensitivity (150.0) to extract foam from smooth waves.
+    float foamFactor = peakness * 150.0;
+    
+    // Map to Jacobian range [0, 1] where lower values = more foam.
+    float sweJacobian = clamp(1.0 - foamFactor, 0.0, 1.0);
+
     // Final vertex position
     vec3 posLocal = vec3(baseX + dispX, h, baseZ + dispZ);
     float shore = (uCenterTile==1) ? (1.0 - a) : 0.0;
@@ -331,5 +346,9 @@ void main() {
     vNormal   = nWorld;
     vHeight   = h;
     vUV       = vec2(u, v);
-    vJacobian = jacobian;
+
+    float finalJacobian = 1.0;
+    if (uCenterTile == 1) finalJacobian = mix(sweJacobian, jacobian, a);
+    else finalJacobian = jacobian;
+    vJacobian = finalJacobian;
 }

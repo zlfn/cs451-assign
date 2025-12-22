@@ -88,6 +88,7 @@ GLuint createIslandShaderProgram() {
 
 float timeScale = 0.5f;
 float lastFrameTime = 0.0f;
+bool gShowIslandSWE = true; // Toggle for Island and SWE visualization
 
 GLuint gPointVAO = 0;
 GLuint gPointEBO = 0;
@@ -182,7 +183,8 @@ void drawIsland(int windowWidth, int windowHeight) {
     glUseProgram(0);
 }
 
-void drawIFFTPoints(float currentTime, int windowWidth, int windowHeight) {
+// 렌더링 함수
+void drawIFFTPoints(float currentTime, int windowWidth, int windowHeight, bool showIslandSWE) {
     glUseProgram(gPointProgram);
     glBindVertexArray(gPointVAO);
 
@@ -284,7 +286,7 @@ void drawIFFTPoints(float currentTime, int windowWidth, int windowHeight) {
             // Tile center in world space
             glm::vec3 tileCenter = glm::vec3(tx * tileSize, 0.0f, tz * tileSize);
 
-            if (tx == 0 && tz == 0) {
+            if (tx == 0 && tz == 0 && showIslandSWE) {
                 glUniform1i(locCenterTile, 1);
             } else {
                 glUniform1i(locCenterTile, 0);
@@ -319,6 +321,10 @@ void framebufferSizeCallback(GLFWwindow* window, int width, int height) {
 void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
         glfwSetWindowShouldClose(window, GLFW_TRUE);
+    }
+    if (key == GLFW_KEY_E && action == GLFW_PRESS) {
+        gShowIslandSWE = !gShowIslandSWE;
+        std::cout << "Island/SWE Visibility: " << (gShowIslandSWE ? "ON" : "OFF") << std::endl;
     }
 }
 
@@ -462,9 +468,11 @@ int main(int argc, char **argv) {
         drawSkybox(view, projection);
 
         // 렌더링 셰이더에도 simulationTime을 넘겨주어 물결 위상이 맞게 한다
-        drawIFFTPoints(simulationTime, windowWidth, windowHeight);
+        drawIFFTPoints(simulationTime, windowWidth, windowHeight, gShowIslandSWE);
 
-        drawIsland(windowWidth, windowHeight);
+        if (gShowIslandSWE) {
+            drawIsland(windowWidth, windowHeight);
+        }
 
         glfwSwapBuffers(window);
         glfwPollEvents();
