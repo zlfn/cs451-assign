@@ -1,4 +1,10 @@
 # CSED451: Computer Graphics
+<img width="1226" height="825" alt="image" src="https://github.com/user-attachments/assets/82df29e0-9d50-4aba-8462-22f8e97971f5" />
+
+Our Term Project Result (Realistic Ocean Rendering)
+
+[project presentation](https://postechackr-my.sharepoint.com/:p:/g/personal/hyunseong_postech_ac_kr/IQAPa9F0AbntSKJ9V9-peJ1hAaONp5qY7rz6VVSiRFpNv4M?e=Axj0OJ)
+
 ## Development Environment
 ```
 Windows
